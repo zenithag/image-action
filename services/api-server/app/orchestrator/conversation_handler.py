@@ -7,6 +7,7 @@ from app.orchestrator.intent import classify_intent
 from app.orchestrator.state_machine import determine_event, get_transition
 from app.channel import sender
 from app.billing import tracker
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +42,38 @@ async def handle_inbound(inbound: NormalizedInbound) -> dict:
         content, content_type, inbound.external_message_id,
     )
 
-    # 5. Persist assets if media present
+    # 5. Persist assets if media present — download from WhatsApp, upload to MinIO
     has_image = False
+    base_asset_id = None
     for media_item in inbound.media:
         storage_key = f"tenants/{tenant_id}/conversations/{conversation_id}/{inbound.external_message_id}"
         mime_type = media_item.get("mime_type", "image/jpeg")
         role = media_item.get("kind", "attachment")
-        await repo.create_asset(
+
+        # Download image from WhatsApp URL and upload to MinIO
+        image_url = media_item.get("url", "")
+        image_data = None
+        if image_url:
+            try:
+                async with httpx.AsyncClient(timeout=30) as http:
+                    img_resp = await http.get(image_url)
+                    img_resp.raise_for_status()
+                    image_data = img_resp.content
+            except Exception as e:
+                logger.warning("Failed to download media from %s: %s", image_url, e)
+
+        if image_data:
+            from app.storage.client import upload_bytes
+            upload_bytes(storage_key, image_data, mime_type)
+
+        asset = await repo.create_asset(
             tenant_id, role, mime_type, storage_key,
             conversation_id=conversation_id,
-            metadata_json={"url": media_item.get("url", "")},
+            metadata_json={"url": image_url, "size": len(image_data) if image_data else 0},
         )
         if media_item.get("kind") == "image":
             has_image = True
+            base_asset_id = str(asset["id"])
 
     # 6. Check handled_by
     if conversation["handled_by"] == "operator":
@@ -96,7 +116,14 @@ async def handle_inbound(inbound: NormalizedInbound) -> dict:
         )
     elif transition and transition.action == "create_composition_job":
         reply_text = intent_result.get("reply_text", "Estou gerando a composicao, aguarde um momento...")
-        logger.info("Would create composition job for conversation %s", conversation_id)
+        if base_asset_id:
+            await repo.create_composition_job(
+                tenant_id, conversation_id, intent_result.get("mode", "interior"),
+                base_asset_id, catalog_item_id=None,
+            )
+            logger.info("Created composition job for conversation %s", conversation_id)
+        else:
+            logger.warning("No base_asset_id available for composition job in conversation %s", conversation_id)
     else:
         reply_text = intent_result.get("reply_text", "")
 
