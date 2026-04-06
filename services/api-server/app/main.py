@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(
+    fastapi_app = FastAPI(
         title="Studio Composicao Visual API",
         version="0.1.0",
         lifespan=lifespan,
@@ -31,12 +31,16 @@ def create_app() -> FastAPI:
     from app.gateway.router import router as gateway_router
     from app.orchestrator.router import router as orchestrator_router
 
-    app.include_router(core_router, prefix="/v1")
-    app.include_router(catalog_router, prefix="/v1/catalog")
-    app.include_router(gateway_router, prefix="/v1")
-    app.include_router(orchestrator_router, prefix="/v1")
+    fastapi_app.include_router(core_router, prefix="/v1")
+    fastapi_app.include_router(catalog_router, prefix="/v1/catalog")
+    fastapi_app.include_router(gateway_router, prefix="/v1")
+    fastapi_app.include_router(orchestrator_router, prefix="/v1")
 
-    return app
+    # Mount Socket.IO
+    from app.realtime.manager import sio_app
+    fastapi_app.mount("/socket.io", sio_app)
+
+    return fastapi_app
 
 
 app = create_app()
