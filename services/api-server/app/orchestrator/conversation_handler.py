@@ -138,6 +138,34 @@ async def handle_inbound(inbound: NormalizedInbound) -> dict:
         )
         await tracker.track_message_sent(tenant_id, conversation_id, provider)
 
+    # 13. Emit realtime events
+    try:
+        from app.realtime.manager import emit_to_tenant
+        from app.realtime.events import NewMessageEvent, ConversationUpdatedEvent
+
+        # Emit inbound message
+        await emit_to_tenant(tenant_id, "new_message", NewMessageEvent(
+            conversation_id=conversation_id,
+            message={"direction": "inbound", "content": content, "content_type": content_type},
+        ).to_dict())
+
+        # Emit outbound reply if sent
+        if reply_text:
+            await emit_to_tenant(tenant_id, "new_message", NewMessageEvent(
+                conversation_id=conversation_id,
+                message={"direction": "outbound", "content": reply_text, "content_type": "text"},
+            ).to_dict())
+
+        # Emit conversation state change
+        if transition:
+            await emit_to_tenant(tenant_id, "conversation_updated", ConversationUpdatedEvent(
+                conversation_id=conversation_id,
+                state=transition.next_state,
+                handled_by=conversation["handled_by"],
+            ).to_dict())
+    except Exception as e:
+        logger.warning("Failed to emit realtime events: %s", e)
+
     return {
         "status": "processed",
         "conversation_id": conversation_id,
