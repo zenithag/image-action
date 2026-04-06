@@ -22,9 +22,11 @@ def create_app() -> FastAPI:
 
     from app.core.router import router as core_router
     from app.catalog.router import router as catalog_router
+    from app.gateway.router import router as gateway_router
 
     app.include_router(core_router, prefix="/v1")
     app.include_router(catalog_router, prefix="/v1/catalog")
+    app.include_router(gateway_router, prefix="/v1")
 
     return app
 
