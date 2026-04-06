@@ -68,6 +68,20 @@ async def job_completed(job_id: str):
         # 7. Track billing
         await tracker.track_message_sent(tenant_id, conversation_id, provider)
 
+        # 8. Emit realtime events
+        try:
+            from app.realtime.manager import emit_to_tenant
+            from app.realtime.events import JobUpdatedEvent, ConversationUpdatedEvent
+
+            await emit_to_tenant(tenant_id, "job_updated", JobUpdatedEvent(
+                job_id=job_id, status="done", conversation_id=conversation_id,
+            ).to_dict())
+            await emit_to_tenant(tenant_id, "conversation_updated", ConversationUpdatedEvent(
+                conversation_id=conversation_id, state="completed", handled_by="ai",
+            ).to_dict())
+        except Exception as e:
+            logger.warning("Failed to emit realtime events: %s", e)
+
         return {"status": "sent", "job_id": job_id}
 
     elif job_status == "failed":
@@ -85,6 +99,19 @@ async def job_completed(job_id: str):
         )
 
         await repo.update_conversation_state(conversation_id, "completed")
+
+        try:
+            from app.realtime.manager import emit_to_tenant
+            from app.realtime.events import JobUpdatedEvent, ConversationUpdatedEvent
+
+            await emit_to_tenant(tenant_id, "job_updated", JobUpdatedEvent(
+                job_id=job_id, status="failed", conversation_id=conversation_id,
+            ).to_dict())
+            await emit_to_tenant(tenant_id, "conversation_updated", ConversationUpdatedEvent(
+                conversation_id=conversation_id, state="completed", handled_by="ai",
+            ).to_dict())
+        except Exception as e:
+            logger.warning("Failed to emit realtime events: %s", e)
 
         return {"status": "failure_notified", "job_id": job_id}
 
