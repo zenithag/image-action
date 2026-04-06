@@ -13,7 +13,13 @@ export default function HomePage() {
             <Link href="/superadmin">Abrir superadmin</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/tenant/decor-labs">Abrir tenant console</Link>
+            <Link href="/tenant/decor-labs">Dashboard tenant</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/tenant/decor-labs/inbox">Abrir inbox</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/tenant/decor-labs/catalog">Abrir catalogo</Link>
           </Button>
         </div>
       </div>
