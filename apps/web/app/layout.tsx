@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { Fraunces, Inter } from "next/font/google";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { SessionProvider } from "@/components/session-provider";
 
 const fraunces = Fraunces({
   variable: "--font-display",
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${fraunces.variable} ${inter.variable} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          {children}
+          <SessionProvider>{children}</SessionProvider>
         </ThemeProvider>
       </body>
     </html>
