@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: studio-composition-worker
+Version: 0.1.0
+Requires-Python: >=3.12
+Requires-Dist: psycopg[binary]>=3.2.0
+Requires-Dist: minio>=7.2.0
+Requires-Dist: httpx>=0.28.0
+Requires-Dist: pydantic-settings>=2.7.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.0; extra == "dev"

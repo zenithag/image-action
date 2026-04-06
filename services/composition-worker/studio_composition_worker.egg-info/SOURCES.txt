@@ -1,0 +1,9 @@
+pyproject.toml
+studio_composition_worker.egg-info/PKG-INFO
+studio_composition_worker.egg-info/SOURCES.txt
+studio_composition_worker.egg-info/dependency_links.txt
+studio_composition_worker.egg-info/requires.txt
+studio_composition_worker.egg-info/top_level.txt
+worker/__init__.py
+worker/config.py
+worker/main.py
