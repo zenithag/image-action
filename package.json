@@ -1,0 +1,14 @@
+{
+  "name": "studio-composicao-visual",
+  "private": true,
+  "packageManager": "pnpm@10.30.0",
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "build:web": "pnpm --dir apps/web build",
+    "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit -p tsconfig.typecheck.json",
+    "dev:api": "cd services/api-server && uvicorn app.main:app --reload --port 8000",
+    "dev:worker": "cd services/composition-worker && python -m worker.main",
+    "test:api": "cd services/api-server && pytest -v",
+    "dev": "echo 'Run: docker compose up -d && pnpm dev:api & pnpm dev:worker & pnpm dev:web'"
+  }
+}
