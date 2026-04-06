@@ -28,6 +28,11 @@ services:
       - "9001:9001"
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   zitadel:
     image: ghcr.io/zitadel/zitadel:v2.71.6
@@ -53,6 +58,62 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  api-server:
+    build:
+      context: ./services/api-server
+    ports:
+      - "8000:8000"
+    environment:
+      database_url: postgresql://studio:studio_dev@postgres:5432/studio_app
+      minio_endpoint: minio:9000
+      minio_access_key: minioadmin
+      minio_secret_key: minioadmin
+      minio_secure: "false"
+      minio_bucket: tenant-assets
+      auth_enabled: "false"
+      openrouter_api_key: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  composition-worker:
+    build:
+      context: ./services/composition-worker
+    environment:
+      database_url: postgresql://studio:studio_dev@postgres:5432/studio_app
+      minio_endpoint: minio:9000
+      minio_access_key: minioadmin
+      minio_secret_key: minioadmin
+      minio_secure: "false"
+      minio_bucket_renders: tenant-renders
+      api_server_url: http://api-server:8000
+      openrouter_api_key: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      api-server:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_WS_URL: http://localhost:8000
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: dev-secret-change-me
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      api-server:
+        condition: service_started
 
 volumes:
   pgdata:
