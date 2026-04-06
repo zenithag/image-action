@@ -12,6 +12,7 @@ dependencies = [
     "python-multipart>=0.0.18",
     "python-socketio[asyncio]>=5.12.0",
     "PyJWT[crypto]>=2.10.0",
+    "httpx>=0.28.0",
 ]
 
 [project.optional-dependencies]

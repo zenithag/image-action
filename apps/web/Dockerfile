@@ -11,14 +11,10 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-COPY --from=deps /app/packages/contracts/node_modules ./packages/contracts/node_modules
-COPY --from=deps /app/packages/tenant-context/node_modules ./packages/tenant-context/node_modules
+COPY --from=deps /app/ ./
 COPY apps/web/ apps/web/
 COPY packages/contracts/ packages/contracts/
 COPY packages/tenant-context/ packages/tenant-context/
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 WORKDIR /app/apps/web
 RUN pnpm build
 

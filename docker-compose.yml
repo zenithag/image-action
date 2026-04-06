@@ -10,7 +10,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db:/docker-entrypoint-initdb.d
-      - ./db/init-zitadel.sh:/docker-entrypoint-initdb.d/02-init-zitadel.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U studio"]
       interval: 5s
@@ -38,7 +37,7 @@ services:
     image: ghcr.io/zitadel/zitadel:v2.71.6
     command: start-from-init --masterkeyFromEnv --tlsMode disabled
     environment:
-      ZITADEL_MASTERKEY: "MustBeAtLeast32CharactersLongKey!"
+      ZITADEL_MASTERKEY: "MustBeAtLeast32CharactersLongKey"
       ZITADEL_EXTERNALSECURE: "false"
       ZITADEL_EXTERNALPORT: 8080
       ZITADEL_EXTERNALDOMAIN: "localhost"
