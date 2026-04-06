@@ -250,3 +250,58 @@ async def create_composition_job(
             (tenant_id, conversation_id, mode, base_asset_id, catalog_item_id, overlay_asset_id, payload),
         )
         return await cur.fetchone()
+
+
+async def get_composition_job(job_id: str) -> dict | None:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT * FROM composition_jobs WHERE id = %s",
+            (job_id,),
+        )
+        return await cur.fetchone()
+
+
+async def update_job_status(job_id: str, status: str, error_message: str | None = None) -> dict:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "UPDATE composition_jobs SET status = %s, error_message = %s WHERE id = %s RETURNING *",
+            (status, error_message, job_id),
+        )
+        return await cur.fetchone()
+
+
+async def create_render(tenant_id: str, job_id: str, asset_id: str, version: int = 1) -> dict:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            """INSERT INTO renders (tenant_id, job_id, asset_id, version)
+               VALUES (%s, %s, %s, %s) RETURNING *""",
+            (tenant_id, job_id, asset_id, version),
+        )
+        return await cur.fetchone()
+
+
+async def get_render_by_job(job_id: str) -> dict | None:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT * FROM renders WHERE job_id = %s ORDER BY version DESC LIMIT 1",
+            (job_id,),
+        )
+        return await cur.fetchone()
+
+
+async def get_channel_by_id(channel_id: str) -> dict | None:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT * FROM tenant_channels WHERE id = %s",
+            (channel_id,),
+        )
+        return await cur.fetchone()
+
+
+async def get_contact_by_id(contact_id: str) -> dict | None:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT * FROM contacts WHERE id = %s",
+            (contact_id,),
+        )
+        return await cur.fetchone()
