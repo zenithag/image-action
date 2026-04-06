@@ -26,6 +26,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    from app.auth.middleware import AuthMiddleware
+    fastapi_app.add_middleware(AuthMiddleware)
+
     from app.core.router import router as core_router
     from app.catalog.router import router as catalog_router
     from app.gateway.router import router as gateway_router

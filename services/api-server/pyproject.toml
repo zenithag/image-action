@@ -10,6 +10,8 @@ dependencies = [
     "psycopg[binary,pool]>=3.2.0",
     "minio>=7.2.0",
     "python-multipart>=0.0.18",
+    "python-socketio[asyncio]>=5.12.0",
+    "PyJWT[crypto]>=2.10.0",
 ]
 
 [project.optional-dependencies]
