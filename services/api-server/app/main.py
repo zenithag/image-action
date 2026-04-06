@@ -33,11 +33,13 @@ def create_app() -> FastAPI:
     from app.catalog.router import router as catalog_router
     from app.gateway.router import router as gateway_router
     from app.orchestrator.router import router as orchestrator_router
+    from app.realtime.router import router as realtime_router
 
     fastapi_app.include_router(core_router, prefix="/v1")
     fastapi_app.include_router(catalog_router, prefix="/v1/catalog")
     fastapi_app.include_router(gateway_router, prefix="/v1")
     fastapi_app.include_router(orchestrator_router, prefix="/v1")
+    fastapi_app.include_router(realtime_router, prefix="/v1")
 
     # Mount Socket.IO
     from app.realtime.manager import sio_app
