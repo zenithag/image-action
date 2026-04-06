@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     openrouter_image_model: str = "google/gemini-3-pro-image-preview"
     uazapi_base_url: str = "http://localhost:8080"
     uazapi_api_key: str = ""
+    zitadel_issuer_url: str = "http://localhost:8080"
+    zitadel_project_id: str = ""
+    auth_enabled: bool = False
 
     model_config = {"env_prefix": "", "env_file": ".env"}
 
