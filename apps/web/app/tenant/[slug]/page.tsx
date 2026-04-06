@@ -1,52 +1,81 @@
-import type { ClassificationResponse, Conversation, Message, Tenant } from "@studio/contracts"
+"use client"
 
-import { TenantDashboard } from "@/components/organisms/tenant-dashboard"
+import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
+import { apiFetch } from "@/lib/api"
+import type { Conversation } from "@studio/contracts"
+import { MetricCard } from "@/components/molecules/metric-card"
+import { SectionHeading } from "@/components/atoms/section-heading"
+import { ActivityRow } from "@/components/molecules/activity-row"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-const tenant: Tenant = {
-  id: "tenant-1",
-  name: "Decor Labs",
-  slug: "decor-labs",
-  status: "active",
-  plan_code: "growth",
-}
+export default function TenantDashboardPage() {
+  const { data: session } = useSession()
+  const [conversations, setConversations] = useState<Conversation[]>([])
 
-const conversation: Conversation = {
-  id: "conv-12345678",
-  tenant_id: "tenant-1",
-  channel_id: "channel-1",
-  contact_id: "contact-1",
-  status: "open",
-}
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await apiFetch<Conversation[]>("/v1/conversations", {
+          accessToken: session?.accessToken,
+        })
+        setConversations(data)
+      } catch {
+        // empty
+      }
+    }
+    load()
+  }, [session?.accessToken])
 
-const latestMessage: Message = {
-  id: "msg-1",
-  tenant_id: "tenant-1",
-  conversation_id: "conv-12345678",
-  direction: "inbound",
-  role: "customer",
-  content: "Quero ver essa tinta terracota aplicada na parede da minha sala.",
-  provider_message_id: "provider-1",
-}
-
-const classification: ClassificationResponse = {
-  intent: "visual_edit",
-  mode: "interior",
-  next_action: "ask_for_reference_image",
-  confidence: 0.82,
-  needs_human_review: false,
-  missing_inputs: ["reference_image"],
-  rationale: "A mensagem indica pedido visual de interiores, mas ainda falta a referencia de cor ou textura.",
-  source: "heuristic",
-}
-
-export default async function TenantPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+  const active = conversations.filter((c) => c.state !== "completed" && c.state !== "idle")
+  const composing = conversations.filter((c) => c.state === "composing")
+  const operatorHandled = conversations.filter((c) => c.handled_by === "operator")
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8 md:py-10">
-        <TenantDashboard tenant={{ ...tenant, slug }} conversation={conversation} latestMessage={latestMessage} classification={classification} />
+    <div className="space-y-8 p-6">
+      <SectionHeading
+        eyebrow="Dashboard"
+        title="Visao geral do tenant"
+        description="Metricas em tempo real das conversas e jobs."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          label="Conversas ativas"
+          value={String(active.length)}
+          hint={`${operatorHandled.length} com operador`}
+        />
+        <MetricCard
+          label="Jobs compondo"
+          value={String(composing.length)}
+          hint="Composicoes em andamento"
+        />
+        <MetricCard
+          label="Total conversas"
+          value={String(conversations.length)}
+          hint="Todas as conversas do tenant"
+        />
       </div>
-    </main>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-display text-xl">Conversas recentes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {conversations.slice(0, 10).map((conv) => (
+            <ActivityRow
+              key={conv.id}
+              title={`Conversa ${conv.id.slice(0, 8)}`}
+              detail={`Estado: ${conv.state} · Atendimento: ${conv.handled_by}`}
+              status={conv.state}
+              tone={conv.handled_by === "operator" ? "default" : "secondary"}
+            />
+          ))}
+          {conversations.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma conversa ainda.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
