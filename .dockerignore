@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+*.pyc
+__pycache__
+*.egg-info
+.env
+.env.local
+.pytest_cache
