@@ -1,19 +1,79 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
+import { apiFetch } from "@/lib/api"
 import type { Tenant } from "@studio/contracts"
-
-import { SuperadminDashboard } from "@/components/organisms/superadmin-dashboard"
-
-const tenants: Tenant[] = [
-  { id: "tenant-1", name: "Decor Labs", slug: "decor-labs", status: "active", plan_code: "growth" },
-  { id: "tenant-2", name: "Moda Urbana", slug: "moda-urbana", status: "active", plan_code: "scale" },
-  { id: "tenant-3", name: "Casa Atelier", slug: "casa-atelier", status: "draft", plan_code: "pilot" },
-]
+import { MetricCard } from "@/components/molecules/metric-card"
+import { SectionHeading } from "@/components/atoms/section-heading"
+import { ActivityRow } from "@/components/molecules/activity-row"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function SuperadminPage() {
+  const { data: session } = useSession()
+  const [tenants, setTenants] = useState<Tenant[]>([])
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await apiFetch<Tenant[]>("/v1/tenants", {
+          accessToken: session?.accessToken,
+        })
+        setTenants(data)
+      } catch {
+        // empty
+      }
+    }
+    load()
+  }, [session?.accessToken])
+
+  const activeTenants = tenants.filter((t) => t.status === "active")
+
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8 md:py-10">
-        <SuperadminDashboard tenants={tenants} />
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 md:px-8 md:py-10">
+      <SectionHeading
+        eyebrow="Superadmin"
+        title="Visao global da plataforma"
+        description="Tenants, metricas e saude operacional."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          label="Tenants ativos"
+          value={String(activeTenants.length)}
+          hint={`${tenants.length} total`}
+        />
+        <MetricCard
+          label="Total tenants"
+          value={String(tenants.length)}
+          hint="Todos os planos"
+        />
+        <MetricCard
+          label="Plataforma"
+          value="Online"
+          hint="Todos os servicos operacionais"
+        />
       </div>
-    </main>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-display text-xl">Tenants</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {tenants.map((tenant) => (
+            <ActivityRow
+              key={tenant.id}
+              title={tenant.name}
+              detail={`slug: ${tenant.slug} · plano: ${tenant.plan_code}`}
+              status={tenant.status}
+              tone={tenant.status === "active" ? "default" : "secondary"}
+            />
+          ))}
+          {tenants.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum tenant cadastrado.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
