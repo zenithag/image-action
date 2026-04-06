@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_secure: bool = False
+    minio_bucket: str = "tenant-assets"
     openrouter_api_key: str = ""
     openrouter_model: str = "openai/gpt-4.1-mini"
     openrouter_image_model: str = "google/gemini-3-pro-image-preview"

@@ -9,6 +9,12 @@ from app.db import close_pool, open_pool
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await open_pool()
+    from app.storage.client import ensure_bucket
+    try:
+        ensure_bucket()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("MinIO bucket check failed (MinIO may not be running): %s", e)
     yield
     await close_pool()
 
