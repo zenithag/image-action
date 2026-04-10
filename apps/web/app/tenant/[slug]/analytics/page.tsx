@@ -58,7 +58,7 @@ const hourlyData = [
 
 // Cores neutras para os gráficos
 const CHART_COLORS = {
-  green: "#00AF67",      // Nova cor primária padronizada
+  teal: "#2dd4bf",      // Verde-água vibrante
   slate: "#64748b",     // Cinza-azulado
   amber: "#f59e0b",     // Âmbar/dourado
   stone: "#78716c",     // Cinza-quente
@@ -78,7 +78,7 @@ const compositionModeData = [
 
 // Dados para gráfico radial (taxa de satisfação)
 const satisfactionData = [
-  { name: "Excelente", value: 45, fill: CHART_COLORS.green },
+  { name: "Excelente", value: 45, fill: CHART_COLORS.teal },
   { name: "Bom", value: 30, fill: CHART_COLORS.sky },
   { name: "Regular", value: 18, fill: CHART_COLORS.amber },
   { name: "Ruim", value: 7, fill: CHART_COLORS.rose },
@@ -95,14 +95,14 @@ const costData = [
   { day: "30", tokens: 70, composicoes: 56, mensagens: 15 },
 ]
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { color: string; name: string; value: number }[]; label?: string }) => {
   if (active && payload && payload.length) {
     return (
       <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
         <p className="mb-2 text-sm font-medium text-popover-foreground">{label}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index) => (
           <p key={index} className="text-xs text-muted-foreground">
-            <span className="inline-block h-2 w-2 rounded-full mr-2" style={{ backgroundColor: entry.color || entry.fill }} />
+            <span className="inline-block h-2 w-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
             {entry.name}: <span className="font-medium text-popover-foreground">{entry.value}</span>
           </p>
         ))}
@@ -112,7 +112,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null
 }
 
-export default function TenantDashboardPage() {
+export default function AnalyticsPage() {
   const stats = [
     {
       label: "Conversas",
@@ -126,36 +126,36 @@ export default function TenantDashboardPage() {
       value: "89",
       change: 23,
       icon: ImageIcon,
-      color: "bg-blue-500/10 text-blue-500",
+      color: "bg-chart-2/20 text-chart-2",
     },
     {
       label: "Novos Contatos",
       value: "34",
       change: 8,
       icon: Users,
-      color: "bg-emerald-500/10 text-emerald-500",
+      color: "bg-chart-3/20 text-chart-3",
     },
     {
       label: "Taxa de Conversão",
       value: "57%",
       change: -3,
       icon: TrendingUp,
-      color: "bg-amber-500/10 text-amber-500",
+      color: "bg-chart-4/20 text-chart-4",
     },
   ]
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-6 py-4">
         <div>
-          <h1 className="text-lg font-semibold text-foreground font-display">Analytics</h1>
+          <h1 className="text-lg font-semibold text-foreground">Analytics</h1>
           <p className="text-sm text-muted-foreground">
             Métricas e indicadores do seu atendimento
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+          <select className="rounded-lg border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
             <option>Últimos 7 dias</option>
             <option>Últimos 30 dias</option>
             <option>Este mês</option>
@@ -167,7 +167,7 @@ export default function TenantDashboardPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
         {/* Main Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {stats.map((stat) => (
             <div
               key={stat.label}
@@ -193,11 +193,11 @@ export default function TenantDashboardPage() {
         </div>
 
         {/* Charts Row 1 */}
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Area Chart - Conversas e Composições */}
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-card-foreground font-display">
+              <h3 className="text-sm font-semibold text-card-foreground">
                 Atividade Semanal
               </h3>
               <p className="text-xs text-muted-foreground">
@@ -209,8 +209,8 @@ export default function TenantDashboardPage() {
                 <AreaChart data={conversationData}>
                   <defs>
                     <linearGradient id="colorConversas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={CHART_COLORS.green} stopOpacity={0.35} />
-                      <stop offset="95%" stopColor={CHART_COLORS.green} stopOpacity={0} />
+                      <stop offset="5%" stopColor={CHART_COLORS.teal} stopOpacity={0.35} />
+                      <stop offset="95%" stopColor={CHART_COLORS.teal} stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorComposicoes" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={CHART_COLORS.slate} stopOpacity={0.35} />
@@ -222,19 +222,19 @@ export default function TenantDashboardPage() {
                     dataKey="day"
                     axisLine={false}
                     tickLine={false}
-                    className="fill-muted-foreground text-[10px]"
+                    className="fill-muted-foreground text-xs"
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    className="fill-muted-foreground text-[10px]"
+                    className="fill-muted-foreground text-xs"
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Area
                     type="monotone"
                     dataKey="conversas"
                     name="Conversas"
-                    stroke={CHART_COLORS.green}
+                    stroke={CHART_COLORS.teal}
                     strokeWidth={2}
                     fillOpacity={1}
                     fill="url(#colorConversas)"
@@ -256,12 +256,22 @@ export default function TenantDashboardPage() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            <div className="mt-4 flex items-center justify-center gap-6">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS.teal }} />
+                <span className="text-xs text-muted-foreground">Conversas</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS.slate }} />
+                <span className="text-xs text-muted-foreground">Composições</span>
+              </div>
+            </div>
           </div>
 
           {/* Bar Chart - Atendimento por Hora */}
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-card-foreground font-display">
+              <h3 className="text-sm font-semibold text-card-foreground">
                 Atendimentos por Hora
               </h3>
               <p className="text-xs text-muted-foreground">
@@ -276,18 +286,18 @@ export default function TenantDashboardPage() {
                     dataKey="hour"
                     axisLine={false}
                     tickLine={false}
-                    className="fill-muted-foreground text-[10px]"
+                    className="fill-muted-foreground text-xs"
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    className="fill-muted-foreground text-[10px]"
+                    className="fill-muted-foreground text-xs"
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar
                     dataKey="ia"
                     name="IA"
-                    fill={CHART_COLORS.green}
+                    fill={CHART_COLORS.teal}
                     radius={[4, 4, 0, 0]}
                     animationDuration={1200}
                     animationEasing="ease-out"
@@ -304,17 +314,30 @@ export default function TenantDashboardPage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <div className="mt-4 flex items-center justify-center gap-6">
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4" style={{ color: CHART_COLORS.teal }} />
+                <span className="text-xs text-muted-foreground">Assistente IA</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4" style={{ color: CHART_COLORS.amber }} />
+                <span className="text-xs text-muted-foreground">Operador</span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Charts Row 2 */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Pie Chart - Composições por Modo */}
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-card-foreground font-display">
+              <h3 className="text-sm font-semibold text-card-foreground">
                 Composições por Modo
               </h3>
+              <p className="text-xs text-muted-foreground">
+                Distribuição por tipo
+              </p>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -355,8 +378,8 @@ export default function TenantDashboardPage() {
               {compositionModeData.map((item) => (
                 <div key={item.name} className="flex items-center gap-2">
                   <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-[10px] text-muted-foreground">{item.name}</span>
-                  <span className="ml-auto text-[10px] font-medium text-card-foreground">{item.value}</span>
+                  <span className="text-xs text-muted-foreground">{item.name}</span>
+                  <span className="ml-auto text-xs font-medium text-card-foreground">{item.value}</span>
                 </div>
               ))}
             </div>
@@ -365,9 +388,12 @@ export default function TenantDashboardPage() {
           {/* Radial Chart - Satisfação */}
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-card-foreground font-display">
-                Satisfação
+              <h3 className="text-sm font-semibold text-card-foreground">
+                Satisfação dos Clientes
               </h3>
+              <p className="text-xs text-muted-foreground">
+                Avaliações do atendimento
+              </p>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -393,7 +419,20 @@ export default function TenantDashboardPage() {
                     verticalAlign="bottom"
                     wrapperStyle={{ fontSize: "11px" }}
                   />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload
+                        return (
+                          <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
+                            <p className="text-sm font-medium text-popover-foreground">{data.name}</p>
+                            <p className="text-xs text-muted-foreground">{data.value}%</p>
+                          </div>
+                        )
+                      }
+                      return null
+                    }}
+                  />
                 </RadialBarChart>
               </ResponsiveContainer>
             </div>
@@ -402,29 +441,50 @@ export default function TenantDashboardPage() {
           {/* Response Time Stats */}
           <div className="rounded-xl border border-border bg-card p-6">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-card-foreground font-display">
+              <h3 className="text-sm font-semibold text-card-foreground">
                 Tempos de Resposta
               </h3>
+              <p className="text-xs text-muted-foreground">
+                Média até primeira resposta
+              </p>
             </div>
-            <div className="space-y-4">
-              <div className="rounded-xl p-4 border border-border/50 bg-primary/5">
+            <div className="space-y-6">
+              <div className="rounded-xl p-5" style={{ background: `linear-gradient(to bottom right, ${CHART_COLORS.teal}20, ${CHART_COLORS.teal}08)` }}>
                 <div className="flex items-center gap-3">
-                  <Bot className="h-5 w-5 text-primary" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: `${CHART_COLORS.teal}30` }}>
+                    <Bot className="h-5 w-5" style={{ color: CHART_COLORS.teal }} />
+                  </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground">Assistente IA</p>
-                    <p className="text-xl font-bold text-card-foreground">2.3s</p>
+                    <p className="text-xs text-muted-foreground">Assistente IA</p>
+                    <p className="text-2xl font-bold text-card-foreground">2.3s</p>
                   </div>
                 </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000"
+                    style={{ width: "95%", backgroundColor: CHART_COLORS.teal }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">95% das respostas em menos de 5s</p>
               </div>
 
-              <div className="rounded-xl p-4 border border-border/50 bg-amber-500/5">
+              <div className="rounded-xl p-5" style={{ background: `linear-gradient(to bottom right, ${CHART_COLORS.amber}20, ${CHART_COLORS.amber}08)` }}>
                 <div className="flex items-center gap-3">
-                  <User className="h-5 w-5 text-amber-500" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: `${CHART_COLORS.amber}30` }}>
+                    <User className="h-5 w-5" style={{ color: CHART_COLORS.amber }} />
+                  </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground">Operador</p>
-                    <p className="text-xl font-bold text-card-foreground">4.2min</p>
+                    <p className="text-xs text-muted-foreground">Operador</p>
+                    <p className="text-2xl font-bold text-card-foreground">4.2min</p>
                   </div>
                 </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000"
+                    style={{ width: "78%", backgroundColor: CHART_COLORS.amber }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">78% das respostas em menos de 10min</p>
               </div>
             </div>
           </div>
@@ -434,13 +494,18 @@ export default function TenantDashboardPage() {
         <div className="mt-6 rounded-xl border border-border bg-card p-6">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-card-foreground font-display">
-                Custos
+              <h3 className="text-sm font-semibold text-card-foreground">
+                Evolução de Custos
               </h3>
+              <p className="text-xs text-muted-foreground">
+                Consumo de recursos ao longo do mês (R$)
+              </p>
             </div>
-            <div className="rounded-lg bg-secondary px-4 py-2">
-              <p className="text-[10px] text-muted-foreground">Total do mês</p>
-              <p className="text-lg font-bold text-primary leading-none">R$ 273,00</p>
+            <div className="flex items-center gap-4 rounded-lg bg-secondary px-4 py-2">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Total do mês</p>
+                <p className="text-lg font-bold text-primary">R$ 273,00</p>
+              </div>
             </div>
           </div>
           <div className="h-72">
@@ -451,21 +516,23 @@ export default function TenantDashboardPage() {
                   dataKey="day"
                   axisLine={false}
                   tickLine={false}
-                  className="fill-muted-foreground text-[10px]"
+                  className="fill-muted-foreground text-xs"
+                  tickFormatter={(value) => `Dia ${value}`}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  className="fill-muted-foreground text-[10px]"
+                  className="fill-muted-foreground text-xs"
+                  tickFormatter={(value) => `R$${value}`}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Line
                   type="monotone"
                   dataKey="tokens"
                   name="Tokens LLM"
-                  stroke={CHART_COLORS.green}
+                  stroke={CHART_COLORS.teal}
                   strokeWidth={2.5}
-                  dot={{ fill: CHART_COLORS.green, strokeWidth: 0, r: 4 }}
+                  dot={{ fill: CHART_COLORS.teal, strokeWidth: 0, r: 4 }}
                   activeDot={{ r: 6, strokeWidth: 0 }}
                   animationDuration={1500}
                   animationEasing="ease-out"
@@ -480,9 +547,36 @@ export default function TenantDashboardPage() {
                   activeDot={{ r: 6, strokeWidth: 0 }}
                   animationDuration={1500}
                   animationEasing="ease-out"
+                  animationBegin={300}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="mensagens"
+                  name="Mensagens"
+                  stroke={CHART_COLORS.amber}
+                  strokeWidth={2.5}
+                  dot={{ fill: CHART_COLORS.amber, strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  animationDuration={1500}
+                  animationEasing="ease-out"
+                  animationBegin={600}
                 />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-4 flex items-center justify-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS.teal }} />
+              <span className="text-xs text-muted-foreground">Tokens LLM</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS.slate }} />
+              <span className="text-xs text-muted-foreground">Composições</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS.amber }} />
+              <span className="text-xs text-muted-foreground">Mensagens</span>
+            </div>
           </div>
         </div>
       </div>

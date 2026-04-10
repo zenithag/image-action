@@ -1,5 +1,11 @@
-import { CatalogBrowser } from "@/components/organisms/catalog-browser"
+"use client"
+
+import { CatalogBrowser } from "@/components/catalog-browser"
 
 export default function CatalogPage() {
-  return <CatalogBrowser />
+  return (
+    <div className="h-full overflow-hidden">
+      <CatalogBrowser />
+    </div>
+  )
 }

@@ -1,21 +1,29 @@
-import type { ReactNode } from "react"
-import { SocketProvider } from "@/lib/realtime/socket-provider"
-import { TenantSidebar } from "@/components/organisms/tenant-sidebar"
+"use client"
 
-export default async function TenantLayout({
+import { useState, ReactNode, use } from "react"
+import { SocketProvider } from "@/lib/realtime/socket-provider"
+import { AppSidebar } from "@/components/app-sidebar"
+
+export default function TenantLayout({
   children,
   params,
 }: {
   children: ReactNode
   params: Promise<{ slug: string }>
 }) {
-  const { slug } = await params
+  const { slug } = use(params)
+  const [collapsed, setCollapsed] = useState(false)
 
   return (
     <SocketProvider>
       <div className="flex h-screen bg-background">
-        <TenantSidebar slug={slug} />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <AppSidebar 
+          variant="tenant" 
+          tenantSlug={slug} 
+          collapsed={collapsed} 
+          onToggle={() => setCollapsed(!collapsed)} 
+        />
+        <main className="flex-1 overflow-hidden">{children}</main>
       </div>
     </SocketProvider>
   )
