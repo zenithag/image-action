@@ -50,7 +50,7 @@ export const authConfig: NextAuthConfig = {
     },
   },
   pages: {
-    signIn: "/auth/signin",
+    signIn: "/login",
   },
 }
 
