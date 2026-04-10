@@ -26,6 +26,16 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   --radius-sm: calc(var(--radius) - 8px);
   --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
@@ -53,6 +63,15 @@
   --ring: #00AF67;
   --radius: 10px;
 
+  --sidebar: #f3f4f6;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #00AF67;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #e5e7eb;
+  --sidebar-accent-foreground: #111827;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #00AF67;
+
   /* WhatsApp Colors - Light */
   --chat-bg: #efeae2;
   --chat-bubble-in: #ffffff;
@@ -78,6 +97,15 @@
   --border: #2a2a37;
   --input: #2a2a37;
   --ring: oklch(0.69 0.17 150);
+
+  --sidebar: #1c1c27;
+  --sidebar-foreground: oklch(0.962 0.008 82.1);
+  --sidebar-primary: oklch(0.69 0.17 150);
+  --sidebar-primary-foreground: oklch(0.19 0.012 150);
+  --sidebar-accent: #252531;
+  --sidebar-accent-foreground: oklch(0.962 0.008 82.1);
+  --sidebar-border: #2a2a37;
+  --sidebar-ring: oklch(0.69 0.17 150);
 
   /* WhatsApp Colors - Dark */
   --chat-bg: #0b141a;
