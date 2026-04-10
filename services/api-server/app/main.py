@@ -2,8 +2,10 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import close_pool, open_pool
+from app.config import settings
 
 
 @asynccontextmanager
@@ -24,6 +26,19 @@ def create_app() -> FastAPI:
         title="Studio Composicao Visual API",
         version="0.1.0",
         lifespan=lifespan,
+    )
+
+    allowed_origins = [
+        origin.strip()
+        for origin in settings.cors_allowed_origins.split(",")
+        if origin.strip()
+    ]
+    fastapi_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     from app.auth.middleware import AuthMiddleware

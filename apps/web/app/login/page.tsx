@@ -1,11 +1,17 @@
-import { LoginForm } from "@/components/login-form"
-import { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-export const metadata: Metadata = {
-  title: "Login | VisualFlow",
-  description: "Entre na sua conta para gerenciar seu atendimento visual.",
+type LoginPageProps = {
+  searchParams: Promise<{
+    callbackUrl?: string
+  }>
 }
 
-export default function LoginPage() {
-  return <LoginForm />
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { callbackUrl } = await searchParams
+
+  if (callbackUrl?.startsWith("/")) {
+    redirect(`/?callbackUrl=${encodeURIComponent(callbackUrl)}`)
+  }
+
+  redirect("/")
 }
