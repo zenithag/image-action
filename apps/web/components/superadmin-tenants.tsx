@@ -43,6 +43,7 @@ const planLabels: Record<string, { label: string; color: string }> = {
 
 export function SuperadminTenants() {
   const [search, setSearch] = useState("")
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false)
   const filtered = mockTenants.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
     t.slug.toLowerCase().includes(search.toLowerCase())
@@ -56,10 +57,62 @@ export function SuperadminTenants() {
           <h1 className="text-xl font-bold text-foreground font-display">Gerenciamento de Tenants</h1>
           <p className="text-sm text-muted-foreground font-sans">Gerencie as empresas cadastradas na plataforma</p>
         </div>
-        <Button className="font-sans rounded-[5px]">
+        <Button className="font-sans rounded-[5px]" onClick={() => setIsNewModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> Novo Tenant
         </Button>
       </div>
+
+      {/* ... (stats and search continue) */}
+
+      {/* New Tenant Modal */}
+      {isNewModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setIsNewModalOpen(false)}>
+          <div className="relative w-full max-w-lg rounded-[10px] bg-card p-8 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold font-display">Novo Tenant</h2>
+              <p className="text-sm text-muted-foreground">Cadastre uma nova empresa na plataforma VisualFlow</p>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Nome da Empresa</label>
+                <input type="text" placeholder="Ex: Móveis Planejados" className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Slug (URL)</label>
+                <div className="flex">
+                  <span className="flex items-center rounded-l-[5px] border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground italic">visualflow.app/</span>
+                  <input type="text" placeholder="moveis-sp" className="w-full rounded-r-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Plano</label>
+                  <select className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                    <option>Starter</option>
+                    <option>Pro</option>
+                    <option>Enterprise</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Status Inicial</label>
+                  <select className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                    <option>Ativo</option>
+                    <option>Rascunho</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <Button className="flex-1 rounded-[5px] py-6 font-sans" onClick={() => setIsNewModalOpen(false)}>Criar Empresa</Button>
+                <Button variant="outline" className="flex-1 rounded-[5px] py-6 font-sans" onClick={() => setIsNewModalOpen(false)}>Cancelar</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 border-b border-border px-6 py-5 bg-card/20">
@@ -121,10 +174,10 @@ export function SuperadminTenants() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-primary/10 text-primary border border-primary/20">
                           <Building2 className="h-5 w-5" />
                         </div>
-                        <div>
-                          <p className="font-bold text-foreground font-display group-hover:text-primary transition-colors">{tenant.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{tenant.slug}</p>
-                        </div>
+                        <Link href={`/superadmin/tenants/${tenant.id}`} className="min-w-0">
+                          <p className="font-bold text-foreground font-display group-hover:text-primary transition-colors truncate">{tenant.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono truncate">{tenant.slug}</p>
+                        </Link>
                       </div>
                     </td>
                     <td className="px-5 py-4">
