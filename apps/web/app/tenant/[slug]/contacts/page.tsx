@@ -215,29 +215,159 @@ function ContactTableRow({ contact }: { contact: Contact }) {
   )
 }
 
+const mockContactDetails: Record<string, {
+  email?: string
+  tags: string[]
+  compositions: { id: string; product: string; mode: string; status: string; date: string; image: string }[]
+  productsOfInterest: { name: string; category: string; interactions: number; image: string }[]
+}> = {
+  "1": {
+    email: "maria.silva@email.com",
+    tags: ["VIP", "Recorrente"],
+    compositions: [
+      { id: "c1", product: "Tinta Azul Petróleo", mode: "Interiores", status: "done", date: "Hoje, 14:36", image: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=80&h=80&fit=crop" },
+      { id: "c2", product: "Porcelanato Carrara", mode: "Interiores", status: "done", date: "Ontem, 10:21", image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=80&h=80&fit=crop" },
+      { id: "c3", product: "Sofá Modular Cinza", mode: "Interiores", status: "failed", date: "3 dias atrás", image: "" },
+    ],
+    productsOfInterest: [
+      { name: "Tinta Azul Petróleo", category: "Tintas", interactions: 3, image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=60&h=60&fit=crop" },
+      { name: "Porcelanato Carrara", category: "Pisos", interactions: 2, image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=60&h=60&fit=crop" },
+      { name: "Sofá Modular Cinza", category: "Móveis", interactions: 1, image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop" },
+    ],
+  },
+  "2": {
+    tags: ["Lead Frio"],
+    compositions: [
+      { id: "c4", product: "Revestimento 3D Wave", mode: "Interiores", status: "done", date: "Hoje, 14:20", image: "https://images.unsplash.com/photo-1615529182904-14819c35db37?w=80&h=80&fit=crop" },
+    ],
+    productsOfInterest: [
+      { name: "Revestimento 3D Wave", category: "Revestimentos", interactions: 2, image: "https://images.unsplash.com/photo-1615529182904-14819c35db37?w=60&h=60&fit=crop" },
+    ],
+  },
+}
+
+const genericDetails = {
+  tags: [],
+  compositions: [],
+  productsOfInterest: [],
+}
+
 function ContactDetailsModal({ contact, onClose }: { contact: Contact; onClose: () => void }) {
+  const details = mockContactDetails[contact.id] ?? genericDetails
+  const initials = contact.name.split(" ").map(n => n[0]).join("").slice(0, 2)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative w-full max-w-lg rounded-[10px] bg-card p-8 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute right-4 top-4 p-2 rounded-full hover:bg-muted"><X className="h-5 w-5"/></button>
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-20 w-20 rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl font-bold mb-4 border border-primary/20">
-            {contact.name.split(" ").map(n => n[0]).join("")}
+      <div
+        className="relative w-full max-w-2xl max-h-[90vh] rounded-[10px] bg-card shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-5 p-6 border-b border-border bg-muted/20">
+          <div className="h-16 w-16 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-bold border border-primary/20">
+            {initials}
           </div>
-          <h2 className="text-xl font-bold font-display">{contact.name}</h2>
-          <p className="text-sm text-muted-foreground">{contact.phone}</p>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold font-display">{contact.name}</h2>
+            <p className="text-sm text-muted-foreground">{contact.phone}</p>
+            {details.email && <p className="text-xs text-muted-foreground">{details.email}</p>}
+            <div className="flex gap-2 mt-2">
+              {details.tags.map(tag => (
+                <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">{tag}</span>
+              ))}
+            </div>
+          </div>
+          <button onClick={onClose} className="shrink-0 p-2 rounded-full hover:bg-muted transition-colors">
+            <X className="h-5 w-5 text-muted-foreground" />
+          </button>
         </div>
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className="bg-muted/30 p-4 rounded-[8px] border border-border">
-            <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Conversas</p>
-            <p className="text-xl font-bold text-primary">{contact.conversationsCount}</p>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-3 divide-x divide-border border-b border-border bg-muted/10">
+          <div className="p-5 text-center">
+            <p className="text-2xl font-bold text-primary">{contact.conversationsCount}</p>
+            <p className="text-[10px] font-bold uppercase text-muted-foreground mt-1">Conversas</p>
           </div>
-          <div className="bg-muted/30 p-4 rounded-[8px] border border-border">
-            <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Último Contato</p>
-            <p className="text-sm font-bold">{contact.lastContact}</p>
+          <div className="p-5 text-center">
+            <p className="text-2xl font-bold text-primary">{details.compositions.length}</p>
+            <p className="text-[10px] font-bold uppercase text-muted-foreground mt-1">Gerações</p>
+          </div>
+          <div className="p-5 text-center">
+            <p className="text-2xl font-bold text-primary">{details.productsOfInterest.length}</p>
+            <p className="text-[10px] font-bold uppercase text-muted-foreground mt-1">Produtos Vistos</p>
           </div>
         </div>
-        <Button className="w-full font-sans py-6">Ir para Conversa</Button>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
+          {/* Composition History */}
+          <div className="p-6 border-b border-border">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-4">Histórico de Gerações</h3>
+            {details.compositions.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">Nenhuma geração ainda.</p>
+            ) : (
+              <div className="space-y-3">
+                {details.compositions.map(comp => (
+                  <div key={comp.id} className="flex items-center gap-4 p-3 rounded-[6px] border border-border bg-muted/10 hover:border-primary/30 transition-colors">
+                    {comp.image ? (
+                      <img src={comp.image} alt={comp.product} className="h-12 w-12 rounded-[4px] object-cover border border-border shrink-0" />
+                    ) : (
+                      <div className="h-12 w-12 rounded-[4px] bg-muted border border-dashed border-border flex items-center justify-center shrink-0">
+                        <span className="text-[10px] text-muted-foreground">N/A</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate">{comp.product}</p>
+                      <p className="text-xs text-muted-foreground">{comp.mode} · {comp.date}</p>
+                    </div>
+                    <span className={cn(
+                      "shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase",
+                      comp.status === "done" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
+                    )}>
+                      {comp.status === "done" ? "Concluído" : "Falhou"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Products of Interest */}
+          <div className="p-6">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-4">Produtos de Interesse</h3>
+            {details.productsOfInterest.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">Nenhum produto identificado ainda.</p>
+            ) : (
+              <div className="space-y-3">
+                {details.productsOfInterest.map(prod => (
+                  <div key={prod.name} className="flex items-center gap-4">
+                    <img src={prod.image} alt={prod.name} className="h-10 w-10 rounded-[4px] object-cover border border-border shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold">{prod.name}</p>
+                      <p className="text-xs text-muted-foreground">{prod.category}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-bold text-primary">{prod.interactions}</p>
+                      <p className="text-[10px] text-muted-foreground">interações</p>
+                    </div>
+                    <div className="shrink-0 w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div 
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${(prod.interactions / 5) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex gap-3 p-5 border-t border-border bg-muted/10">
+          <Button className="flex-1 font-sans py-5">Ir para Conversa</Button>
+          <Button variant="outline" onClick={onClose} className="flex-1 font-sans py-5">Fechar</Button>
+        </div>
       </div>
     </div>
   )
