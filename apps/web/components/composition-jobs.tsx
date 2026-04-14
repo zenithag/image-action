@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useRef } from "react"
 import {
   Clock,
   CheckCircle2,
@@ -109,6 +110,8 @@ const modeLabels = {
 }
 
 export function CompositionJobs() {
+  const [viewingJob, setViewingJob] = useState<CompositionJob | null>(null)
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
@@ -202,13 +205,16 @@ export function CompositionJobs() {
 
                 {/* Result Image */}
                 {job.resultImage ? (
-                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[5px] bg-muted border border-border group/result">
+                  <div 
+                    onClick={() => setViewingJob(job)}
+                    className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[5px] bg-muted border border-border group/result cursor-pointer"
+                  >
                     <img
                       src={job.resultImage}
                       alt="Resultado"
                       className="h-full w-full object-cover"
                     />
-                    <div className="absolute inset-0 flex items-center justify-center bg-primary/20 opacity-0 transition-opacity group-hover/result:opacity-100 cursor-pointer backdrop-blur-[2px]">
+                    <div className="absolute inset-0 flex items-center justify-center bg-primary/20 opacity-0 transition-opacity group-hover/result:opacity-100 backdrop-blur-[2px]">
                       <Eye className="h-6 w-6 text-white drop-shadow-md" />
                     </div>
                     <div className="absolute top-1 left-1 bg-primary/80 text-[8px] text-white px-1 rounded uppercase">Novo</div>
@@ -222,7 +228,12 @@ export function CompositionJobs() {
                 {/* Actions */}
                 <div className="flex shrink-0 items-center gap-2 ml-4">
                   {job.status === "done" && (
-                    <Button variant="outline" size="sm" className="font-sans rounded-[5px] border-primary/20 text-primary hover:bg-primary/10">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setViewingJob(job)}
+                      className="font-sans rounded-[5px] border-primary/20 text-primary hover:bg-primary/10"
+                    >
                       <Eye className="mr-1.5 h-4 w-4" />
                       Visualizar
                     </Button>
@@ -237,6 +248,114 @@ export function CompositionJobs() {
               </div>
             )
           })}
+        </div>
+      </div>
+
+      {viewingJob && (
+        <CompositionViewerModal 
+          job={viewingJob} 
+          onClose={() => setViewingJob(null)} 
+        />
+      )}
+    </div>
+  )
+}
+
+function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose: () => void }) {
+  const [sliderPos, setSliderPos] = useState(50)
+  const isResizing = useRef(false)
+
+  const handleMouseDown = () => { isResizing.current = true }
+  const handleMouseUp = () => { isResizing.current = false }
+  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isResizing.current) return
+    const container = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+    const position = ((x - container.left) / container.width) * 100
+    setSliderPos(Math.max(0, Math.min(100, position)))
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}>
+      <div className="relative w-full max-w-5xl rounded-[10px] bg-card overflow-hidden shadow-2xl border border-border" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border bg-muted/30 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold font-display flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-primary" /> Compartilhado por {job.contact}
+            </h2>
+            <p className="text-xs text-muted-foreground">{job.catalogItem} • {modeLabels[job.mode]}</p>
+          </div>
+          <button onClick={onClose} className="rounded-full hover:bg-muted p-2 transition-colors">
+            <XCircle className="h-6 w-6 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-0">
+          <div className="lg:col-span-3 bg-black relative select-none"
+               onMouseMove={handleMouseMove}
+               onMouseUp={handleMouseUp}
+               onMouseLeave={handleMouseUp}
+               onTouchMove={handleMouseMove}
+               onTouchEnd={handleMouseUp}
+          >
+            <div className="relative aspect-video w-full overflow-hidden">
+              {/* After Image */}
+              <img src={job.resultImage} className="absolute inset-0 h-full w-full object-contain" alt="Resultado" />
+              
+              {/* Before Image (clipped) */}
+              <div 
+                className="absolute inset-0 h-full w-full overflow-hidden border-r-2 border-primary"
+                style={{ width: `${sliderPos}%` }}
+              >
+                <img src={job.baseImage} className="absolute inset-0 h-screen lg:h-full w-[max(80vw,500px)] lg:w-[1000px] object-contain max-w-none" alt="Base" />
+                <div className="absolute top-4 left-4 bg-black/60 text-[10px] text-white px-2 py-1 rounded-sm uppercase font-bold tracking-widest">Base</div>
+              </div>
+              
+              <div className="absolute top-4 right-4 bg-primary/80 text-[10px] text-white px-2 py-1 rounded-sm uppercase font-bold tracking-widest">Resultado</div>
+
+              {/* Slider Handle */}
+              <div 
+                className="absolute inset-y-0 z-10 cursor-ew-resize group"
+                style={{ left: `${sliderPos}%` }}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleMouseDown}
+              >
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-primary border-4 border-white shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="flex gap-0.5">
+                    <div className="h-2 w-0.5 bg-white" />
+                    <div className="h-2 w-0.5 bg-white" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-l border-border p-6 bg-card flex flex-col justify-between">
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Informações</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">ID do Job</span><span className="font-mono">{job.id}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Status</span><span className="text-primary font-bold">Concluído</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Concluído em</span><span>{job.completedAt}</span></div>
+                </div>
+              </div>
+              <div className="p-4 rounded-[5px] bg-primary/5 border border-primary/10">
+                <p className="text-xs text-muted-foreground leading-relaxed italic">
+                  "A composição visual foi gerada utilizando IA generativa para integrar {job.catalogItem} em um ambiente de {modeLabels[job.mode]}."
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mt-8">
+              <Button className="w-full font-sans py-6 rounded-[5px]">
+                Download Resultado
+              </Button>
+              <Button variant="outline" className="w-full font-sans py-6 rounded-[5px]">
+                Compartilhar via WhatsApp
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
