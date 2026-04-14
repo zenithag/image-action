@@ -93,6 +93,7 @@ export function CatalogBrowser() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
     status: [] as string[],
     tags: {} as Record<string, string[]>,
@@ -147,7 +148,7 @@ export function CatalogBrowser() {
           <h1 className="text-xl font-bold text-foreground font-display">Catálogo de Produtos</h1>
           <p className="text-sm text-muted-foreground font-sans">Gerencie os itens para composição visual</p>
         </div>
-        <Button className="font-sans">
+        <Button onClick={() => setCreateOpen(true)} className="font-sans">
           <Plus className="mr-2 h-4 w-4" /> Novo Item
         </Button>
       </div>
@@ -234,6 +235,8 @@ export function CatalogBrowser() {
           </div>
         </div>
       </div>
+
+      {createOpen && <ProductCreateModal onClose={() => setCreateOpen(false)} />}
     </div>
   )
 }
@@ -343,6 +346,136 @@ function ConfirmDeleteModal({ itemName, onClose, onConfirm }: { itemName: string
         <h2 className="text-lg font-bold mb-2 font-display">Excluir Produto</h2>
         <p className="text-sm text-muted-foreground mb-8 font-sans">Deseja excluir permanentemente <strong>{itemName}</strong>?</p>
         <div className="flex flex-col gap-2"><Button variant="destructive" onClick={onConfirm}>Sim, excluir</Button><Button variant="outline" onClick={onClose}>Cancelar</Button></div>
+      </div>
+    </div>
+  )
+}
+
+function ProductCreateModal({ onClose }: { onClose: () => void }) {
+  const [f, setF] = useState({ name: "", desc: "", cat: "Tintas", sku: "" })
+  const [catSearch, setCatSearch] = useState("Tintas")
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false)
+  const catRef = useRef<HTMLDivElement>(null)
+
+  const categories = mockCategories.filter(c => c.id !== "all").map(c => c.name)
+  const filteredCats = categories.filter(c => c.toLowerCase().includes(catSearch.toLowerCase()))
+  const canCreateCat = catSearch.length > 0 && !categories.some(c => c.toLowerCase() === catSearch.toLowerCase())
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => { if (catRef.current && !catRef.current.contains(e.target as Node)) setCatDropdownOpen(false) }
+    document.addEventListener("mousedown", handleOutside)
+    return () => document.removeEventListener("mousedown", handleOutside)
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative w-full max-w-lg rounded-[8px] bg-card p-6 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+        <div className="mb-6">
+          <h2 className="text-xl font-bold font-display">Novo Produto</h2>
+          <p className="text-sm text-muted-foreground">Cadastre um novo item no catálogo</p>
+        </div>
+        <div className="space-y-4 mb-8">
+          <div>
+            <label className="text-[10px] font-bold uppercase opacity-40 block mb-1">Nome do Produto</label>
+            <input 
+              autoFocus
+              placeholder="Ex: Tinta Coral Rende Muito"
+              value={f.name} 
+              onChange={e => setF({ ...f, name: e.target.value })} 
+              className="w-full bg-muted/30 border border-border rounded-[5px] px-3 py-2 text-sm focus:ring-1 focus:ring-primary outline-none transition-all" 
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="relative" ref={catRef}>
+              <label className="text-[10px] font-bold uppercase opacity-40 block mb-1">Categoria</label>
+              <div 
+                className="flex items-center bg-muted/30 border border-border rounded-[5px] px-3 py-2 cursor-text group focus-within:ring-1 focus-within:ring-primary transition-all"
+                onClick={() => setCatDropdownOpen(true)}
+              >
+                <input 
+                  placeholder="Pesquisar categoria..."
+                  value={catSearch} 
+                  onChange={e => {
+                    setCatSearch(e.target.value)
+                    setCatDropdownOpen(true)
+                  }}
+                  onFocus={() => setCatDropdownOpen(true)}
+                  className="bg-transparent border-none outline-none text-sm w-full"
+                />
+                <ChevronDown className={cn("h-3 w-3 text-muted-foreground transition-transform", catDropdownOpen && "rotate-180")} />
+              </div>
+
+              {catDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-card border border-border rounded-[5px] shadow-xl max-h-48 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150">
+                  {filteredCats.map(c => (
+                    <button 
+                      key={c}
+                      onClick={() => {
+                        setCatSearch(c)
+                        setF({ ...f, cat: c })
+                        setCatDropdownOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors flex items-center justify-between"
+                    >
+                      {c}
+                      {f.cat === c && <Check className="h-3 w-3" />}
+                    </button>
+                  ))}
+                  
+                  {canCreateCat && (
+                    <button 
+                      onClick={() => {
+                        // Aqui simularia a criação da categoria
+                        setF({ ...f, cat: catSearch })
+                        setCatDropdownOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-primary font-bold hover:bg-primary/5 transition-colors border-t border-border"
+                    >
+                      <Plus className="inline h-3 w-3 mr-2" />
+                      Criar "{catSearch}"
+                    </button>
+                  )}
+
+                  {!canCreateCat && filteredCats.length === 0 && (
+                    <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">
+                      Nenhuma categoria encontrada
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase opacity-40 block mb-1">SKU (Opcional)</label>
+              <input 
+                placeholder="Ex: TIN-999"
+                value={f.sku} 
+                onChange={e => setF({ ...f, sku: e.target.value })} 
+                className="w-full bg-muted/30 border border-border rounded-[5px] px-3 py-2 text-sm focus:ring-1 focus:ring-primary outline-none transition-all" 
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase opacity-40 block mb-1">Descrição</label>
+            <textarea 
+              placeholder="Descreva as características principais do produto..."
+              value={f.desc} 
+              onChange={e => setF({ ...f, desc: e.target.value })} 
+              className="w-full bg-muted/30 border border-border rounded-[5px] px-3 py-2 text-sm h-24 resize-none focus:ring-1 focus:ring-primary outline-none" 
+            />
+          </div>
+          
+          <div className="border-2 border-dashed border-border rounded-[8px] p-8 text-center bg-muted/10 hover:bg-muted/20 transition-colors cursor-pointer group">
+            <div className="mx-auto bg-background h-10 w-10 rounded-full flex items-center justify-center mb-2 shadow-sm border border-border group-hover:border-primary transition-colors">
+              <Plus className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
+            </div>
+            <p className="text-xs font-bold text-muted-foreground group-hover:text-foreground">Adicionar Imagem</p>
+            <p className="text-[10px] text-muted-foreground/60 mt-1">PNG, JPG ou WEBP (Max 2MB)</p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={onClose} className="font-sans rounded-[5px]">Cancelar</Button>
+          <Button onClick={onClose} className="font-sans rounded-[5px] px-8">Criar Produto</Button>
+        </div>
       </div>
     </div>
   )
