@@ -298,24 +298,24 @@ function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose
                onTouchMove={handleMouseMove}
                onTouchEnd={handleMouseUp}
           >
-            <div className="relative aspect-video w-full overflow-hidden">
-              {/* After Image */}
-              <img src={job.resultImage} className="absolute inset-0 h-full w-full object-contain" alt="Resultado" />
+            <div className="relative aspect-video w-full overflow-hidden flex items-center justify-center">
+              {/* After Image (Background) */}
+              <img src={job.resultImage} className="absolute h-full w-full object-contain" alt="Resultado" />
               
-              {/* Before Image (clipped) */}
+              {/* Before Image (Foreground with Clip) */}
               <div 
-                className="absolute inset-0 h-full w-full overflow-hidden border-r-2 border-primary"
-                style={{ width: `${sliderPos}%` }}
+                className="absolute inset-0 h-full w-full overflow-hidden z-20 pointer-events-none"
+                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
               >
-                <img src={job.baseImage} className="absolute inset-0 h-screen lg:h-full w-[max(80vw,500px)] lg:w-[1000px] object-contain max-w-none" alt="Base" />
+                <img src={job.baseImage} className="absolute h-full w-full object-contain" alt="Base" />
                 <div className="absolute top-4 left-4 bg-black/60 text-[10px] text-white px-2 py-1 rounded-sm uppercase font-bold tracking-widest">Base</div>
               </div>
               
-              <div className="absolute top-4 right-4 bg-primary/80 text-[10px] text-white px-2 py-1 rounded-sm uppercase font-bold tracking-widest">Resultado</div>
+              <div className="absolute top-4 right-4 bg-primary/80 text-[10px] text-white px-2 py-1 rounded-sm uppercase font-bold tracking-widest z-10">Resultado</div>
 
               {/* Slider Handle */}
               <div 
-                className="absolute inset-y-0 z-10 cursor-ew-resize group"
+                className="absolute inset-y-0 z-30 cursor-ew-resize group"
                 style={{ left: `${sliderPos}%` }}
                 onMouseDown={handleMouseDown}
                 onTouchStart={handleMouseDown}
