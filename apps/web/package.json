@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "seed:superadmin": "node scripts/seed-superadmin.mjs",
     "start": "next start"
   },
   "dependencies": {

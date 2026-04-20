@@ -34,6 +34,20 @@ Sem o `DATABASE_URL`, o app cai para persistencia local em `web_data`, que deve 
 
 As variaveis `AUTH_BOOTSTRAP_*` criam usuarios apenas quando o e-mail ainda nao existe; elas nao sobrescrevem senhas ja persistidas no PostgreSQL.
 
+Para criar ou garantir um superadmin por seed, execute no ambiente com `DATABASE_URL` configurado:
+
+```bash
+pnpm seed:superadmin
+```
+
+No container de producao do Dokploy, use:
+
+```bash
+docker exec <container-web> node apps/web/scripts/seed-superadmin.mjs
+```
+
+O seed usa `SEED_SUPERADMIN_*` e, se essas variaveis nao existirem, usa `AUTH_BOOTSTRAP_SUPERADMIN_*`. Por padrao ele e idempotente: se o e-mail ja existir, apenas garante `role=superadmin`, `status=active` e remove vinculo de tenant. Para trocar a senha de um usuario existente via seed, use `SEED_SUPERADMIN_OVERWRITE=true`.
+
 ## Observacoes
 
 - O compose atual sobe somente `web` e `segmentation-service`, porque o fluxo ativo de catalogo, inbox, WhatsApp e composicoes roda pelas rotas do Next.js.
