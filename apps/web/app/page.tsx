@@ -34,7 +34,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const { callbackUrl, error } = await searchParams
   const safeCallbackUrl = getSafeCallbackUrl(callbackUrl, session?.user)
 
-  if (session?.user) {
+  if (session?.user && safeCallbackUrl !== "/") {
     redirect(safeCallbackUrl)
   }
 
