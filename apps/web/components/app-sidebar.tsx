@@ -158,8 +158,8 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
                 collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
               )}
             >
-              <p className="text-sm font-medium text-foreground">{tenantSlug || "Loja Demo"}</p>
-              <p className="text-xs text-muted-foreground">{tenantSlug ? `${tenantSlug}.comofica.ai` : "demo.comofica.ai"}</p>
+              <p className="text-sm font-medium text-foreground">{tenantSlug || "Tenant"}</p>
+              <p className="text-xs text-muted-foreground">{tenantSlug ? `${tenantSlug}.comofica.ai` : "Sem tenant vinculado"}</p>
             </div>
           </div>
         </div>

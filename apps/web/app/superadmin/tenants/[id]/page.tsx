@@ -1,256 +1,277 @@
 "use client"
 
-import { useParams } from "next/navigation"
-import {
-  ArrowLeft, Edit2, Trash2, Lock, Users, MessageSquare,
-  BarChart3, CreditCard, Building2, Globe, Mail,
-  Calendar, Clock, Shield, Database, ExternalLink,
-  ChevronRight
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useParams, useRouter } from "next/navigation"
+import {
+  ArrowLeft,
+  Building2,
+  Calendar,
+  Database,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Mail,
+  MessageSquare,
+  Shield,
+  Trash2,
+  Users,
+} from "lucide-react"
 
-const mockTenant = {
-  id: "1",
-  name: "Loja Demo",
-  slug: "loja-demo",
-  email: "contato@lojademo.com.br",
-  domain: "demo.comofica.ai",
-  status: "active",
-  plan: "pro",
-  createdAt: "15 Jan 2024",
-  lastLogin: "Hoje, 14:35",
-  users: 12,
-  conversations: 245,
-  messagesMonthly: 12400,
-  storage: {
-    used: 2.4,
-    limit: 5.0,
-  },
-  billing: {
-    status: "pago",
-    nextBillingDate: "05 Mai 2025",
-    monthlyBill: 299.90,
-  },
-  metadata: {
-    contactName: "João Silva",
-    phone: "+55 11 99999-1234",
-    website: "https://lojademo.com.br",
-  },
-}
+import { Button } from "@/components/ui/button"
+import type { Tenant, TenantStatus } from "@/lib/tenant-types"
+import { cn } from "@/lib/utils"
 
-const statusConfig = {
+const statusConfig: Record<TenantStatus, { label: string; className: string }> = {
   active: { label: "Ativo", className: "bg-primary/20 text-primary" },
   suspended: { label: "Suspenso", className: "bg-destructive/20 text-destructive" },
   draft: { label: "Rascunho", className: "bg-muted text-muted-foreground" },
+  archived: { label: "Arquivado", className: "bg-muted text-muted-foreground" },
+}
+
+const planLabels = {
+  starter: "Starter",
+  pro: "Pro",
+  enterprise: "Enterprise",
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value))
 }
 
 export default function TenantDetailPage() {
-  const params = useParams()
-  const tenantId = params.id
+  const params = useParams<{ id: string }>()
+  const router = useRouter()
+  const [tenant, setTenant] = useState<Tenant | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadTenant() {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const response = await fetch(`/api/superadmin/tenants/${encodeURIComponent(params.id)}`, { cache: "no-store" })
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data?.error || "Tenant nao encontrado.")
+        }
+
+        setTenant(data as Tenant)
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Tenant nao encontrado.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadTenant()
+  }, [params.id])
+
+  async function removeTenant() {
+    if (!tenant || !window.confirm(`Remover o tenant "${tenant.name}"?`)) {
+      return
+    }
+
+    const response = await fetch(`/api/superadmin/tenants/${encodeURIComponent(tenant.id)}`, {
+      method: "DELETE",
+    })
+
+    if (response.ok) {
+      router.replace("/superadmin")
+      router.refresh()
+      return
+    }
+
+    const data = await response.json()
+    setError(data?.error || "Nao foi possivel remover o tenant.")
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Carregando tenant...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!tenant) {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <div className="flex items-center gap-4 border-b border-border bg-background py-4 pl-6 pr-10">
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-[5px] hover:bg-muted" asChild>
+            <Link href="/superadmin">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="font-display text-xl font-bold text-foreground">Tenant nao encontrado</h1>
+            <p className="text-sm text-muted-foreground">{error || "Esse tenant nao existe no cadastro real."}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const status = statusConfig[tenant.status]
 
   return (
-    <div className="flex h-full flex-col bg-background overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-4 border-b border-border pl-6 pr-10 py-4 bg-background">
-        <Link href="/superadmin">
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-[5px] hover:bg-muted">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      <div className="flex items-center gap-4 border-b border-border bg-background py-4 pl-6 pr-10">
+        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-[5px] hover:bg-muted" asChild>
+          <Link href="/superadmin">
             <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex h-12 w-12 items-center justify-center rounded-[5px] bg-primary/10 text-primary border border-primary/20 shrink-0">
+          </Link>
+        </Button>
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[5px] border border-primary/20 bg-primary/10 text-primary">
           <Building2 className="h-6 w-6" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-foreground font-display truncate">{mockTenant.name}</h1>
-            <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider", statusConfig[mockTenant.status as keyof typeof statusConfig]?.className)}>
-              {statusConfig[mockTenant.status as keyof typeof statusConfig]?.label}
+            <h1 className="font-display truncate text-xl font-bold text-foreground">{tenant.name}</h1>
+            <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider", status.className)}>
+              {status.label}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground font-mono truncate">{mockTenant.slug}.comofica.ai</p>
+          <p className="truncate font-mono text-xs text-muted-foreground">{tenant.slug}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="font-sans rounded-[5px] h-9">
-            <Edit2 className="mr-2 h-4 w-4" /> Editar
-          </Button>
-          <Button variant="outline" className="font-sans rounded-[5px] h-9 text-destructive hover:bg-destructive/10 hover:text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" /> Deletar
-          </Button>
-        </div>
+        <Button variant="outline" className="h-9 rounded-[5px] font-sans text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => void removeTenant()}>
+          <Trash2 className="mr-2 h-4 w-4" /> Remover
+        </Button>
       </div>
 
-      {/* Content */}
+      {error ? (
+        <div className="border-b border-destructive/20 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive">
+          {error}
+        </div>
+      ) : null}
+
       <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="grid grid-cols-3 gap-6">
-            
-            {/* Left Column: Basic Info & Contact */}
-            <div className="col-span-2 space-y-6">
-              
-              {/* Basic Info */}
+        <div className="mx-auto max-w-6xl space-y-6">
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="space-y-6 lg:col-span-2">
               <div className="rounded-[5px] border border-border bg-card">
-                <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+                <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Shield className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-bold font-display uppercase tracking-widest text-muted-foreground">Informações Básicas</h2>
+                  <h2 className="font-display text-sm font-bold uppercase tracking-widest text-muted-foreground">Informacoes basicas</h2>
                 </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-2 gap-y-6 gap-x-8">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Email Principal</p>
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Mail className="h-3.5 w-3.5 text-primary/60" />
-                        {mockTenant.email}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Domínio Próprio</p>
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Globe className="h-3.5 w-3.5 text-primary/60" />
-                        {mockTenant.domain || "Não configurado"}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Plano Atual</p>
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-[4px] bg-primary/10 text-primary px-2.5 py-1 text-[10px] font-bold uppercase border border-primary/20">
-                          {mockTenant.plan}
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Data de Criação</p>
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Calendar className="h-3.5 w-3.5 text-primary/60" />
-                        {mockTenant.createdAt}
-                      </div>
-                    </div>
-                  </div>
+                <div className="grid gap-6 p-6 sm:grid-cols-2">
+                  <InfoItem icon={Mail} label="Email principal" value={tenant.contactEmail || "Nao configurado"} />
+                  <InfoItem icon={Globe} label="Dominio proprio" value={tenant.domain || "Nao configurado"} />
+                  <InfoItem label="Plano atual" value={planLabels[tenant.planCode]} />
+                  <InfoItem icon={Calendar} label="Data de criacao" value={formatDate(tenant.createdAt)} />
                 </div>
               </div>
 
-              {/* Contact Metadata */}
               <div className="rounded-[5px] border border-border bg-card">
-                <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+                <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Users className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-bold font-display uppercase tracking-widest text-muted-foreground">Dados de Contato</h2>
+                  <h2 className="font-display text-sm font-bold uppercase tracking-widest text-muted-foreground">Dados de contato</h2>
                 </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-2 gap-y-6 gap-x-8">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Responsável</p>
-                      <p className="text-sm font-bold font-display">{mockTenant.metadata.contactName}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Telefone</p>
-                      <p className="text-sm font-medium">{mockTenant.metadata.phone}</p>
-                    </div>
-                    <div className="col-span-2 pt-2 border-t border-border mt-2">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Website</p>
-                      <a href={mockTenant.metadata.website} target="_blank" rel="noopener noreferrer" 
-                         className="inline-flex items-center gap-2 text-primary font-medium hover:underline group">
-                        {mockTenant.metadata.website}
-                        <ExternalLink className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                <div className="grid gap-6 p-6 sm:grid-cols-2">
+                  <InfoItem label="Responsavel" value={tenant.contactName || "Nao configurado"} />
+                  <InfoItem label="Telefone" value={tenant.phone || "Nao configurado"} />
+                  <div className="sm:col-span-2">
+                    <p className="mb-2 text-[10px] font-bold uppercase text-muted-foreground">Website</p>
+                    {tenant.website ? (
+                      <a href={tenant.website} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 font-medium text-primary hover:underline">
+                        {tenant.website}
+                        <ExternalLink className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                       </a>
-                    </div>
+                    ) : (
+                      <p className="text-sm font-medium">Nao configurado</p>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Quick Stats Grid */}
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { label: "Usuários", value: mockTenant.users, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-                  { label: "Conversas", value: mockTenant.conversations, icon: MessageSquare, color: "text-primary", bg: "bg-primary/10" },
-                  { label: "Msgs (mês)", value: `${(mockTenant.messagesMonthly / 1000).toFixed(0)}k`, icon: BarChart3, color: "text-amber-500", bg: "bg-amber-500/10" },
-                ].map((stat) => (
-                  <div key={stat.label} className="rounded-[5px] border border-border bg-card p-4">
-                    <div className={cn("h-8 w-8 flex items-center justify-center rounded-[5px] mb-3", stat.bg)}>
-                      <stat.icon className={cn("h-4 w-4", stat.color)} />
-                    </div>
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">{stat.label}</p>
-                    <p className="text-xl font-bold text-foreground font-display">{stat.value}</p>
-                  </div>
-                ))}
+              <div className="grid gap-4 sm:grid-cols-3">
+                <StatCard label="Conversas" value={tenant.stats.conversations} icon={MessageSquare} />
+                <StatCard label="Composicoes" value={tenant.stats.compositions} icon={Database} />
+                <StatCard label="Contatos" value={tenant.stats.contacts} icon={Users} />
               </div>
             </div>
 
-            {/* Right Column: Storage & Billing */}
             <div className="space-y-6">
-              
-              {/* Storage */}
               <div className="rounded-[5px] border border-border bg-card p-6">
-                <div className="flex items-center gap-2 mb-6">
+                <div className="mb-6 flex items-center gap-2">
                   <Database className="h-4 w-4 text-primary" />
-                  <h3 className="text-xs font-bold font-display uppercase tracking-widest text-muted-foreground">Armazenamento</h3>
+                  <h3 className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">Estado do cadastro</h3>
                 </div>
-                <div className="space-y-4">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-foreground font-display">{mockTenant.storage.used} GB</p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Utilizado de {mockTenant.storage.limit} GB</p>
-                    </div>
-                    <p className="text-xl font-bold text-primary font-display">
-                      {Math.round((mockTenant.storage.used / mockTenant.storage.limit) * 100)}%
-                    </p>
+                <div className="space-y-4 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">ID</span>
+                    <span className="truncate font-mono text-xs">{tenant.id}</span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div 
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${(mockTenant.storage.used / mockTenant.storage.limit) * 100}%` }}
-                    />
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Slug</span>
+                    <span className="font-mono text-xs">{tenant.slug}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground italic leading-tight pt-2">
-                    Próximo ao limite. Considere upgrade para volume elástico.
-                  </p>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Atualizado</span>
+                    <span className="text-right text-xs">{formatDate(tenant.updatedAt)}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Billing */}
               <div className="rounded-[5px] border border-border bg-card p-6">
-                <div className="flex items-center gap-2 mb-6">
-                  <CreditCard className="h-4 w-4 text-primary" />
-                  <h3 className="text-xs font-bold font-display uppercase tracking-widest text-muted-foreground">Faturamento</h3>
-                </div>
-                <div className="space-y-5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground font-bold uppercase">Status</span>
-                    <span className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-primary/20">
-                      {mockTenant.billing.status}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground font-bold uppercase">Próxima Fatura</span>
-                    <span className="text-sm font-bold font-display">{mockTenant.billing.nextBillingDate}</span>
-                  </div>
-                  <div className="pt-4 border-t border-border">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Valor Mensal</p>
-                    <p className="text-2xl font-bold text-foreground font-display">R$ {mockTenant.billing.monthlyBill.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
+                <h3 className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">Proximos passos</h3>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  Este tenant ja existe como cadastro real. A criacao de usuarios operadores e acessos por tenant deve ser feita na proxima etapa do painel.
+                </p>
               </div>
-
-              {/* Actions */}
-              <div className="space-y-2">
-                <Button className="w-full font-sans rounded-[5px] h-11 border-border justify-start px-4" variant="outline">
-                  <Lock className="mr-3 h-4 w-4 text-muted-foreground" />
-                  Resetar Senha Administrador
-                </Button>
-                <Button className="w-full font-sans rounded-[5px] h-11 border-border justify-start px-4" variant="outline">
-                  <CreditCard className="mr-3 h-4 w-4 text-muted-foreground" />
-                  Gerenciar Assinatura
-                </Button>
-                <Button className="w-full font-sans rounded-[5px] h-11 border-border justify-start px-4" variant="outline">
-                  <Clock className="mr-3 h-4 w-4 text-muted-foreground" />
-                  Ver Logs de Acesso
-                </Button>
-              </div>
-
             </div>
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function InfoItem({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon?: typeof Mail
+  label: string
+  value: string
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-2 text-sm font-medium">
+        {Icon ? <Icon className="h-3.5 w-3.5 text-primary/60" /> : null}
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: number
+  icon: typeof Users
+}) {
+  return (
+    <div className="rounded-[5px] border border-border bg-card p-4">
+      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-[5px] bg-primary/10">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+      <p className="text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
+      <p className="font-display text-xl font-bold text-foreground">{value}</p>
     </div>
   )
 }

@@ -1,127 +1,335 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
-  Building2, Globe, Plus, MoreVertical, Search,
-  CheckCircle2, XCircle, Clock, MessageSquare,
-  Image as ImageIcon, Users,
+  Building2,
+  CheckCircle2,
+  Clock,
+  Globe,
+  Image as ImageIcon,
+  Loader2,
+  MessageSquare,
+  MoreVertical,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  XCircle,
 } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
+import type { Tenant, TenantInput, TenantPlanCode, TenantStatus } from "@/lib/tenant-types"
 import { cn } from "@/lib/utils"
 
-interface Tenant {
-  id: string
-  name: string
-  slug: string
-  status: "draft" | "active" | "suspended" | "archived"
-  planCode: string
-  domain?: string
-  stats: { conversations: number; compositions: number; contacts: number }
-  createdAt: string
-}
-
-const mockTenants: Tenant[] = [
-  { id: "1", name: "Loja Demo", slug: "loja-demo", status: "active", planCode: "pro", domain: "demo.comofica.ai", stats: { conversations: 156, compositions: 89, contacts: 234 }, createdAt: "2024-01-15" },
-  { id: "2", name: "Casa & Decoração", slug: "casa-decoracao", status: "active", planCode: "enterprise", domain: "atendimento.casadecoracao.com.br", stats: { conversations: 1240, compositions: 687, contacts: 2156 }, createdAt: "2024-02-20" },
-  { id: "3", name: "Tintas Express", slug: "tintas-express", status: "suspended", planCode: "starter", stats: { conversations: 45, compositions: 12, contacts: 67 }, createdAt: "2024-03-10" },
-  { id: "4", name: "Móveis Planejados SP", slug: "moveis-sp", status: "draft", planCode: "pro", stats: { conversations: 0, compositions: 0, contacts: 0 }, createdAt: "2024-04-01" },
-  { id: "5", name: "Revestimentos Top", slug: "revestimentos-top", status: "active", planCode: "pro", domain: "chat.revestimentostop.com", stats: { conversations: 432, compositions: 198, contacts: 567 }, createdAt: "2024-02-05" },
-]
-
-const statusConfig = {
+const statusConfig: Record<TenantStatus, { label: string; icon: typeof Clock; className: string }> = {
   draft: { label: "Rascunho", icon: Clock, className: "bg-muted text-muted-foreground" },
   active: { label: "Ativo", icon: CheckCircle2, className: "bg-primary/20 text-primary" },
   suspended: { label: "Suspenso", icon: XCircle, className: "bg-destructive/20 text-destructive" },
   archived: { label: "Arquivado", icon: Clock, className: "bg-muted text-muted-foreground" },
 }
 
-const planLabels: Record<string, { label: string; color: string }> = {
+const planLabels: Record<TenantPlanCode, { label: string; color: string }> = {
   starter: { label: "Starter", color: "bg-muted text-muted-foreground" },
   pro: { label: "Pro", color: "bg-blue-500/10 text-blue-500" },
   enterprise: { label: "Enterprise", color: "bg-primary/10 text-primary" },
 }
 
-export function SuperadminTenants() {
-  const [search, setSearch] = useState("")
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false)
-  const filtered = mockTenants.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    t.slug.toLowerCase().includes(search.toLowerCase())
+const initialForm: TenantInput = {
+  name: "",
+  slug: "",
+  status: "active",
+  planCode: "starter",
+  domain: "",
+  contactEmail: "",
+  contactName: "",
+  phone: "",
+  website: "",
+}
+
+function slugify(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
+function getStats(tenants: Tenant[]) {
+  return tenants.reduce(
+    (acc, tenant) => ({
+      total: acc.total + 1,
+      active: acc.active + (tenant.status === "active" ? 1 : 0),
+      conversations: acc.conversations + tenant.stats.conversations,
+      compositions: acc.compositions + tenant.stats.compositions,
+    }),
+    { total: 0, active: 0, conversations: 0, compositions: 0 }
   )
+}
+
+export function SuperadminTenants() {
+  const [tenants, setTenants] = useState<Tenant[]>([])
+  const [search, setSearch] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false)
+  const [form, setForm] = useState<TenantInput>(initialForm)
+  const [error, setError] = useState<string | null>(null)
+
+  async function loadTenants() {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch("/api/superadmin/tenants", { cache: "no-store" })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Nao foi possivel carregar tenants.")
+      }
+
+      setTenants(Array.isArray(data) ? data : [])
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Nao foi possivel carregar tenants.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadTenants()
+  }, [])
+
+  const filtered = useMemo(() => {
+    const normalizedSearch = search.toLowerCase().trim()
+
+    if (!normalizedSearch) {
+      return tenants
+    }
+
+    return tenants.filter((tenant) =>
+      tenant.name.toLowerCase().includes(normalizedSearch) ||
+      tenant.slug.toLowerCase().includes(normalizedSearch) ||
+      tenant.domain?.toLowerCase().includes(normalizedSearch)
+    )
+  }, [search, tenants])
+
+  const stats = useMemo(() => getStats(tenants), [tenants])
+
+  function updateField<K extends keyof TenantInput>(field: K, value: TenantInput[K]) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      slug: field === "name" && !current.slug ? slugify(String(value ?? "")) : current.slug,
+    }))
+  }
+
+  async function createTenant() {
+    setIsSaving(true)
+    setError(null)
+
+    try {
+      const payload: TenantInput = {
+        ...form,
+        slug: form.slug || slugify(form.name),
+      }
+      const response = await fetch("/api/superadmin/tenants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Nao foi possivel criar o tenant.")
+      }
+
+      setTenants((current) => [data as Tenant, ...current].sort((left, right) => left.name.localeCompare(right.name, "pt-BR")))
+      setForm(initialForm)
+      setIsNewModalOpen(false)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Nao foi possivel criar o tenant.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function removeTenant(tenant: Tenant) {
+    const shouldDelete = window.confirm(`Remover o tenant "${tenant.name}"? Esta acao nao remove dados de conversas ja existentes.`)
+
+    if (!shouldDelete) {
+      return
+    }
+
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/superadmin/tenants/${encodeURIComponent(tenant.id)}`, {
+        method: "DELETE",
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Nao foi possivel remover o tenant.")
+      }
+
+      setTenants((current) => current.filter((item) => item.id !== tenant.id))
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Nao foi possivel remover o tenant.")
+    }
+  }
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Header */}
-      <div className="relative z-10 flex items-center justify-between border-b border-border pl-6 pr-10 py-4 bg-background">
+      <div className="relative z-10 flex items-center justify-between border-b border-border bg-background py-4 pl-6 pr-10">
         <div>
-          <h1 className="text-xl font-bold text-foreground font-display">Gerenciamento de Tenants</h1>
-          <p className="text-sm text-muted-foreground font-sans">Gerencie as empresas cadastradas na plataforma</p>
+          <h1 className="font-display text-xl font-bold text-foreground">Gerenciamento de Tenants</h1>
+          <p className="font-sans text-sm text-muted-foreground">Cadastre e acompanhe empresas reais da plataforma</p>
         </div>
-        <Button className="font-sans rounded-[5px]" onClick={() => setIsNewModalOpen(true)}>
+        <Button className="rounded-[5px] font-sans" onClick={() => setIsNewModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> Novo Tenant
         </Button>
       </div>
 
-      {/* ... (stats and search continue) */}
+      {error ? (
+        <div className="border-b border-destructive/20 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive">
+          {error}
+        </div>
+      ) : null}
 
-      {/* New Tenant Modal */}
-      {isNewModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setIsNewModalOpen(false)}>
-          <div className="relative w-full max-w-lg rounded-[10px] bg-card p-8 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+      {isNewModalOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setIsNewModalOpen(false)}>
+          <div className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[10px] bg-card p-8 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={(event) => event.stopPropagation()}>
             <div className="mb-6">
-              <h2 className="text-xl font-bold font-display">Novo Tenant</h2>
-              <p className="text-sm text-muted-foreground">Cadastre uma nova empresa na plataforma ComoFica</p>
+              <h2 className="font-display text-xl font-bold">Novo Tenant</h2>
+              <p className="text-sm text-muted-foreground">Cadastre uma empresa real. Nenhum dado mockado sera criado.</p>
             </div>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Nome da Empresa</label>
-                <input type="text" placeholder="Ex: Móveis Planejados" className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Slug (URL)</label>
-                <div className="flex">
-                  <span className="flex items-center rounded-l-[5px] border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground italic">comofica.ai/</span>
-                  <input type="text" placeholder="moveis-sp" className="w-full rounded-r-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Nome da empresa</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(event) => updateField("name", event.target.value)}
+                  placeholder="Ex: Decor Labs"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Plano</label>
-                  <select className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    <option>Starter</option>
-                    <option>Pro</option>
-                    <option>Enterprise</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Status Inicial</label>
-                  <select className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    <option>Ativo</option>
-                    <option>Rascunho</option>
-                  </select>
-                </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Slug</label>
+                <input
+                  type="text"
+                  value={form.slug}
+                  onChange={(event) => updateField("slug", slugify(event.target.value))}
+                  placeholder="decor-labs"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
               </div>
 
-              <div className="pt-4 flex gap-3">
-                <Button className="flex-1 rounded-[5px] py-6 font-sans" onClick={() => setIsNewModalOpen(false)}>Criar Empresa</Button>
-                <Button variant="outline" className="flex-1 rounded-[5px] py-6 font-sans" onClick={() => setIsNewModalOpen(false)}>Cancelar</Button>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Dominio</label>
+                <input
+                  type="text"
+                  value={form.domain}
+                  onChange={(event) => updateField("domain", event.target.value)}
+                  placeholder="cliente.com.br"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
               </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Plano</label>
+                <select
+                  value={form.planCode}
+                  onChange={(event) => updateField("planCode", event.target.value as TenantPlanCode)}
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="starter">Starter</option>
+                  <option value="pro">Pro</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Status inicial</label>
+                <select
+                  value={form.status}
+                  onChange={(event) => updateField("status", event.target.value as TenantStatus)}
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="active">Ativo</option>
+                  <option value="draft">Rascunho</option>
+                  <option value="suspended">Suspenso</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Email principal</label>
+                <input
+                  type="email"
+                  value={form.contactEmail}
+                  onChange={(event) => updateField("contactEmail", event.target.value)}
+                  placeholder="responsavel@empresa.com"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Responsavel</label>
+                <input
+                  type="text"
+                  value={form.contactName}
+                  onChange={(event) => updateField("contactName", event.target.value)}
+                  placeholder="Nome do responsavel"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Telefone</label>
+                <input
+                  type="text"
+                  value={form.phone}
+                  onChange={(event) => updateField("phone", event.target.value)}
+                  placeholder="+55 11 99999-9999"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Website</label>
+                <input
+                  type="url"
+                  value={form.website}
+                  onChange={(event) => updateField("website", event.target.value)}
+                  placeholder="https://empresa.com.br"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <Button className="flex-1 rounded-[5px] py-6 font-sans" disabled={isSaving} onClick={() => void createTenant()}>
+                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Criar tenant
+              </Button>
+              <Button variant="outline" className="flex-1 rounded-[5px] py-6 font-sans" disabled={isSaving} onClick={() => setIsNewModalOpen(false)}>
+                Cancelar
+              </Button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 border-b border-border px-6 py-5 bg-card/20">
+      <div className="grid grid-cols-4 gap-4 border-b border-border bg-card/20 px-6 py-5">
         {[
-          { label: "Total de Tenants", value: mockTenants.length, icon: Building2, color: "text-foreground" },
-          { label: "Ativos", value: mockTenants.filter(t => t.status === "active").length, icon: CheckCircle2, color: "text-primary" },
-          { label: "Conversas (30d)", value: "1.8k", icon: MessageSquare, color: "text-blue-500" },
-          { label: "Composições (30d)", value: 986, icon: ImageIcon, color: "text-amber-500" },
+          { label: "Total de Tenants", value: stats.total, icon: Building2, color: "text-foreground" },
+          { label: "Ativos", value: stats.active, icon: CheckCircle2, color: "text-primary" },
+          { label: "Conversas (30d)", value: stats.conversations, icon: MessageSquare, color: "text-blue-500" },
+          { label: "Composições (30d)", value: stats.compositions, icon: ImageIcon, color: "text-amber-500" },
         ].map((stat) => (
           <div key={stat.label} className="flex items-center gap-4 rounded-[5px] border border-border bg-card p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-muted">
@@ -129,13 +337,12 @@ export function SuperadminTenants() {
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{stat.label}</p>
-              <p className="mt-0.5 text-2xl font-bold text-foreground font-display">{stat.value}</p>
+              <p className="font-display mt-0.5 text-2xl font-bold text-foreground">{stat.value}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Search */}
       <div className="border-b border-border px-6 py-3">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -143,13 +350,12 @@ export function SuperadminTenants() {
             type="text"
             placeholder="Buscar tenants..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             className="w-full rounded-[5px] border border-input bg-card py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
-      {/* Table */}
       <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
         <div className="overflow-hidden rounded-[5px] border border-border bg-card">
           <table className="w-full border-collapse">
@@ -158,26 +364,50 @@ export function SuperadminTenants() {
                 <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tenant</th>
                 <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</th>
                 <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Plano</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Domínio</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Estatísticas</th>
-                <th className="px-5 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Ações</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Dominio</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Estatisticas</th>
+                <th className="px-5 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Acoes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map((tenant) => {
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-14 text-center text-sm text-muted-foreground">
+                    <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin text-primary" />
+                    Carregando tenants reais...
+                  </td>
+                </tr>
+              ) : null}
+
+              {!isLoading && filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-16 text-center">
+                    <Building2 className="mx-auto mb-4 h-10 w-10 text-muted-foreground/50" />
+                    <p className="font-display text-lg font-bold text-foreground">
+                      {tenants.length === 0 ? "Nenhum tenant cadastrado" : "Nenhum tenant encontrado"}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {tenants.length === 0 ? "Cadastre o primeiro tenant real para iniciar os testes." : "Ajuste a busca para ver outros tenants."}
+                    </p>
+                  </td>
+                </tr>
+              ) : null}
+
+              {!isLoading && filtered.map((tenant) => {
                 const status = statusConfig[tenant.status]
                 const StatusIcon = status.icon
                 const plan = planLabels[tenant.planCode]
+
                 return (
                   <tr key={tenant.id} className="group transition-colors hover:bg-primary/[0.02]">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-primary/10 text-primary border border-primary/20">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-[5px] border border-primary/20 bg-primary/10 text-primary">
                           <Building2 className="h-5 w-5" />
                         </div>
                         <Link href={`/superadmin/tenants/${tenant.id}`} className="min-w-0">
-                          <p className="font-bold text-foreground font-display group-hover:text-primary transition-colors truncate">{tenant.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono truncate">{tenant.slug}</p>
+                          <p className="font-display truncate font-bold text-foreground transition-colors group-hover:text-primary">{tenant.name}</p>
+                          <p className="truncate font-mono text-xs text-muted-foreground">{tenant.slug}</p>
                         </Link>
                       </div>
                     </td>
@@ -195,7 +425,7 @@ export function SuperadminTenants() {
                           <Globe className="h-3.5 w-3.5 text-primary/60" />{tenant.domain}
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground italic">Não configurado</span>
+                        <span className="text-xs italic text-muted-foreground">Nao configurado</span>
                       )}
                     </td>
                     <td className="px-5 py-4">
@@ -206,9 +436,16 @@ export function SuperadminTenants() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[5px] hover:bg-primary/10 hover:text-primary">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[5px] hover:bg-primary/10 hover:text-primary" asChild>
+                          <Link href={`/superadmin/tenants/${tenant.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[5px] text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => void removeTenant(tenant)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 )
