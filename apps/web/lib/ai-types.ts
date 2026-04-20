@@ -33,6 +33,7 @@ export type AiModelProfilePurpose =
   | "conversation"
   | "vision"
   | "image_prompt"
+  | "image_generation"
   | "fallback"
 
 export type AiModelProfile = {

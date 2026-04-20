@@ -11,6 +11,7 @@ const profilePurposes = new Set<AiModelProfilePurpose>([
   "conversation",
   "vision",
   "image_prompt",
+  "image_generation",
   "fallback",
 ])
 
@@ -104,7 +105,28 @@ function defaultProfiles(): AiModelProfile[] {
       createdAt: timestamp,
       updatedAt: timestamp,
     },
+    {
+      id: "image-generation.default",
+      name: "Criacao de imagem",
+      purpose: "image_generation",
+      provider: "openrouter",
+      modelId: "google/gemini-3-pro-image-preview",
+      fallbackModelIds: [],
+      temperature: 0.4,
+      maxTokens: 1200,
+      enabled: true,
+      notes: "Modelo usado para gerar a imagem final das composicoes.",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
   ]
+}
+
+function withMissingDefaultProfiles(profiles: AiModelProfile[]) {
+  const existingPurposes = new Set(profiles.map((profile) => profile.purpose))
+  const missingDefaults = defaultProfiles().filter((profile) => !existingPurposes.has(profile.purpose))
+
+  return [...profiles, ...missingDefaults]
 }
 
 export async function readAiModelProfiles() {
@@ -115,7 +137,7 @@ export async function readAiModelProfiles() {
     normalize: (parsed) => Array.isArray(parsed) ? parsed as AiModelProfile[] : [],
   })
 
-  return profiles.length > 0 ? profiles : defaultProfiles()
+  return profiles.length > 0 ? withMissingDefaultProfiles(profiles) : defaultProfiles()
 }
 
 export async function writeAiModelProfiles(profiles: AiModelProfile[]) {

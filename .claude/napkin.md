@@ -49,7 +49,7 @@
    Do instead: em dev local, disparar automações de inbox também em `/inbox/sync` somente para mensagens inbound recém-criadas, evitando depender do webhook externo direto.
 
 8. **[2026-04-16] Chave OpenRouter vive no provider de IA, não no `.env`**
-   Do instead: cadastrar API key e Base URL em Superadmin > IA & Modelos > Providers. O `.env` só pode conter opções não secretas de geração (`OPENROUTER_IMAGE_MODEL`, `OPENROUTER_IMAGE_SIZE`, `OPENROUTER_IMAGE_QUALITY`, `OPENROUTER_IMAGE_OUTPUT_FORMAT`); sem provider/credito real, jobs devem falhar explicitamente.
+   Do instead: cadastrar API key e Base URL em Superadmin > IA & Modelos > Providers. O modelo de criação de imagem fica no perfil `Criacao de imagem`, padrão `google/gemini-3-pro-image-preview`. O `.env` só pode conter opções não secretas de geração (`OPENROUTER_IMAGE_SIZE`, `OPENROUTER_IMAGE_QUALITY`, `OPENROUTER_IMAGE_OUTPUT_FORMAT`); sem provider/credito real, jobs devem falhar explicitamente.
 
 9. **[2026-04-05] Contratos TS são fonte de verdade para tipos do domínio**
    Do instead: alterar tipos em `packages/contracts/src/index.ts` e propagar para consumers.

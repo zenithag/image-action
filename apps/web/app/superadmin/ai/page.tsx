@@ -46,6 +46,7 @@ const purposeLabel: Record<AiModelProfilePurpose, string> = {
   conversation: "Atendimento",
   vision: "Visao",
   image_prompt: "Prompt de imagem",
+  image_generation: "Criacao de imagem",
   fallback: "Fallback",
 }
 

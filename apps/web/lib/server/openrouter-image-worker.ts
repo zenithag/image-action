@@ -106,10 +106,6 @@ function getOpenRouterHeaders(provider: AiProvider) {
   }
 }
 
-function getOpenRouterImageModel() {
-  return process.env.OPENROUTER_IMAGE_MODEL?.trim() || "google/gemini-3-pro-image-preview"
-}
-
 function getOpenRouterImageSize() {
   const value = process.env.OPENROUTER_IMAGE_SIZE?.trim()
 
@@ -1319,7 +1315,9 @@ async function saveImageResult(job: CompositionJob, bytes: Buffer, mimeType: str
 }
 
 async function generateImageWithOpenRouter(provider: AiProvider, job: CompositionJob, baseImage: BaseImage, prompt: string) {
-  const model = getOpenRouterImageModel()
+  const profile = await getAiModelProfile("image_generation")
+  const model = profile?.modelId || "google/gemini-3-pro-image-preview"
+  const fallbackModelIds = profile?.fallbackModelIds ?? []
   const catalogImageUrl = await getCatalogMaterialImage(job)
   const referenceImageUrl = isSupportedOpenRouterReferenceImage(catalogImageUrl) ? catalogImageUrl : null
   const content = [
@@ -1340,6 +1338,8 @@ async function generateImageWithOpenRouter(provider: AiProvider, job: Compositio
     headers: getOpenRouterHeaders(provider),
     body: JSON.stringify({
       model,
+      models: fallbackModelIds.length > 0 ? fallbackModelIds : undefined,
+      route: fallbackModelIds.length > 0 ? "fallback" : undefined,
       messages: [
         {
           role: "user",
