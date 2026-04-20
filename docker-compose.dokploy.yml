@@ -1,0 +1,74 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${APP_URL}
+        NEXT_PUBLIC_API_URL: ${APP_URL}
+        NEXT_PUBLIC_WS_URL: ${APP_URL}
+        NEXT_PUBLIC_ENABLE_WS: "false"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --no-experimental-webstorage
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      VISUALFLOW_DATA_DIR: /app/apps/web/.local
+      VISUALFLOW_PUBLIC_DIR: /app/apps/web/public
+      NEXTAUTH_URL: ${APP_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
+      AUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
+      AUTH_TRUST_HOST: "true"
+      NEXT_PUBLIC_APP_URL: ${APP_URL}
+      SEGMENTATION_SERVICE_URL: http://segmentation-service:8010
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_SITE_URL: ${APP_URL}
+      OPENROUTER_SITE_NAME: ${OPENROUTER_SITE_NAME:-VisualFlow}
+      OPENROUTER_IMAGE_MODEL: ${OPENROUTER_IMAGE_MODEL:-google/gemini-3-pro-image-preview}
+      OPENROUTER_IMAGE_QUALITY: ${OPENROUTER_IMAGE_QUALITY:-medium}
+      OPENROUTER_IMAGE_OUTPUT_FORMAT: ${OPENROUTER_IMAGE_OUTPUT_FORMAT:-png}
+      OPENROUTER_MASK_MODEL: ${OPENROUTER_MASK_MODEL:-anthropic/claude-sonnet-4.5}
+      DEV_LOGIN_NAME: ${DEV_LOGIN_NAME:-Wesley Cardoso}
+      DEV_LOGIN_EMAIL: ${DEV_LOGIN_EMAIL:?Configure DEV_LOGIN_EMAIL in Dokploy}
+      DEV_LOGIN_PASSWORD: ${DEV_LOGIN_PASSWORD:?Configure DEV_LOGIN_PASSWORD in Dokploy}
+      DEV_LOGIN_ROLES: ${DEV_LOGIN_ROLES:-superadmin}
+      DEV_TENANT_LOGIN_NAME: ${DEV_TENANT_LOGIN_NAME:-Operador Decor Labs}
+      DEV_TENANT_LOGIN_EMAIL: ${DEV_TENANT_LOGIN_EMAIL:?Configure DEV_TENANT_LOGIN_EMAIL in Dokploy}
+      DEV_TENANT_LOGIN_PASSWORD: ${DEV_TENANT_LOGIN_PASSWORD:?Configure DEV_TENANT_LOGIN_PASSWORD in Dokploy}
+      DEV_TENANT_LOGIN_ROLES: ${DEV_TENANT_LOGIN_ROLES:-tenant}
+      DEV_TENANT_ID: ${DEV_TENANT_ID:-decor-labs}
+      DEV_TENANT_SLUG: ${DEV_TENANT_SLUG:-decor-labs}
+    volumes:
+      - web_data:/app/apps/web/.local
+      - web_generated:/app/apps/web/public/generated
+    depends_on:
+      - segmentation-service
+    expose:
+      - "3000"
+
+  segmentation-service:
+    build:
+      context: ./services/segmentation-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SEGMENTATION_PROVIDER: ${SEGMENTATION_PROVIDER:-grounded_sam}
+      SEGMENTATION_LOCAL_MODEL: ${SEGMENTATION_LOCAL_MODEL:-nvidia/segformer-b2-finetuned-ade-512-512}
+      GROUNDING_DINO_MODEL: ${GROUNDING_DINO_MODEL:-IDEA-Research/grounding-dino-tiny}
+      SAM_MODEL: ${SAM_MODEL:-facebook/sam-vit-base}
+      SEGMENTATION_GROUNDED_SAM_BOX_THRESHOLD: ${SEGMENTATION_GROUNDED_SAM_BOX_THRESHOLD:-0.25}
+      SEGMENTATION_GROUNDED_SAM_TEXT_THRESHOLD: ${SEGMENTATION_GROUNDED_SAM_TEXT_THRESHOLD:-0.25}
+      SEGMENTATION_REQUEST_TIMEOUT_SECONDS: ${SEGMENTATION_REQUEST_TIMEOUT_SECONDS:-120}
+      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN:-}
+      REPLICATE_MODEL: ${REPLICATE_MODEL:-idea-research/ram-grounded-sam}
+    volumes:
+      - segmentation_cache:/root/.cache
+    expose:
+      - "8010"
+
+volumes:
+  web_data:
+  web_generated:
+  segmentation_cache:

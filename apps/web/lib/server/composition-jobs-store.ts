@@ -2,12 +2,13 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { CompositionJob, CompositionJobInput, CompositionJobStatus } from "@/lib/composition-types"
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type CompositionJobsData = {
   jobs: CompositionJob[]
 }
 
-const dataFile = path.join(process.cwd(), ".local", "composition-jobs.json")
+const dataFile = getRuntimeDataFile("composition-jobs.json")
 let mutationQueue = Promise.resolve()
 
 async function withCompositionJobsMutation<T>(mutation: () => Promise<T>) {

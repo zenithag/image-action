@@ -2,12 +2,13 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { CatalogItem, CatalogItemInput, CatalogItemStatus } from "@/lib/catalog-types"
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type CatalogData = {
   items: CatalogItem[]
 }
 
-const dataFile = path.join(process.cwd(), ".local", "catalog-items.json")
+const dataFile = getRuntimeDataFile("catalog-items.json")
 let mutationQueue = Promise.resolve()
 
 const defaultImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450' viewBox='0 0 800 450'%3E%3Crect width='800' height='450' fill='%23f3f4f6'/%3E%3Cpath d='M351 175h98v100h-98z' fill='none' stroke='%239ca3af' stroke-width='12'/%3E%3Ccircle cx='382' cy='205' r='13' fill='%239ca3af'/%3E%3Cpath d='M351 256l35-38 26 25 17-15 20 28' fill='none' stroke='%239ca3af' stroke-width='12' stroke-linejoin='round'/%3E%3Ctext x='400' y='325' text-anchor='middle' font-family='Arial,sans-serif' font-size='24' fill='%236b7280'%3EProduto sem imagem%3C/text%3E%3C/svg%3E"

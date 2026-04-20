@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { InboxConversationSummary, InboxMessage, InboxMessageContentType } from "@/lib/inbox-types"
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type InboxData = {
   conversations: InboxConversationSummary[]
@@ -49,7 +50,7 @@ type UpsertSyncedMessageInput = {
   rawPayload: unknown
 }
 
-const dataFile = path.join(process.cwd(), ".local", "inbox-conversations.json")
+const dataFile = getRuntimeDataFile("inbox-conversations.json")
 let mutationQueue = Promise.resolve()
 
 async function withInboxMutation<T>(mutation: () => Promise<T>) {

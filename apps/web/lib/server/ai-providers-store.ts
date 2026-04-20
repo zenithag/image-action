@@ -1,9 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+
 import type { AiProvider, SafeAiProvider } from "@/lib/ai-types"
 
-const dataFile = path.join(process.cwd(), ".local", "ai-providers.json")
+const dataFile = getRuntimeDataFile("ai-providers.json")
 const defaultOpenRouterBaseUrl = "https://openrouter.ai/api/v1"
 
 function now() {

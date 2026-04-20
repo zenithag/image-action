@@ -9,6 +9,7 @@ import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
 import { findInboxMessage } from "@/lib/server/inbox-store"
 import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
+import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
 import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
 
 type OpenRouterImageChoice = {
@@ -62,7 +63,7 @@ type RgbColor = {
   b: number
 }
 
-const outputDir = path.join(process.cwd(), "public", "generated", "compositions")
+const outputDir = getRuntimeGeneratedDir("compositions")
 const supportedAspectRatios = [
   { value: "1:1", ratio: 1 },
   { value: "2:3", ratio: 2 / 3 },

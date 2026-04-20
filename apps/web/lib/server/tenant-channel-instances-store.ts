@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+
 export type TenantChannelInstanceStatus = "disconnected" | "connecting" | "connected" | "error"
 
 export type StoredTenantChannelInstance = {
@@ -28,7 +30,7 @@ export type StoredTenantChannelInstance = {
   updatedAt: string
 }
 
-const dataFile = path.join(process.cwd(), ".local", "tenant-channel-instances.json")
+const dataFile = getRuntimeDataFile("tenant-channel-instances.json")
 
 export function sanitizeTenantInstance(instance: StoredTenantChannelInstance) {
   const { instanceToken: _instanceToken, ...safeInstance } = instance

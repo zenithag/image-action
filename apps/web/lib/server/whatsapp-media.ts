@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { InboxMessage, InboxMessageContentType } from "@/lib/inbox-types"
+import { getRuntimeDataDir } from "@/lib/server/runtime-paths"
 
 type RawMediaPayload = {
   URL?: unknown
@@ -27,7 +28,7 @@ export type ResolvedWhatsAppMedia = {
   fileName: string
 }
 
-const mediaCacheDir = path.join(process.cwd(), ".local", "inbox-media")
+const mediaCacheDir = path.join(getRuntimeDataDir(), "inbox-media")
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {}

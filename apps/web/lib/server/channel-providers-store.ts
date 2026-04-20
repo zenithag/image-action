@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+
 export type ProviderStatus = "active" | "maintenance" | "disabled"
 export type ChannelKind = "whatsapp" | "instagram" | "telegram"
 export type ProviderKind = "uazapi" | "meta" | "telegram-bot-api"
@@ -21,7 +23,7 @@ export type StoredProvider = {
   createdAt: string
 }
 
-const dataFile = path.join(process.cwd(), ".local", "channel-providers.json")
+const dataFile = getRuntimeDataFile("channel-providers.json")
 
 export function sanitizeProvider(provider: StoredProvider) {
   const { adminToken: _adminToken, ...safeProvider } = provider

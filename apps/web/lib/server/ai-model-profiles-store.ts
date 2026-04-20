@@ -1,9 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+
 import type { AiModelProfile, AiModelProfilePurpose } from "@/lib/ai-types"
 
-const dataFile = path.join(process.cwd(), ".local", "ai-model-profiles.json")
+const dataFile = getRuntimeDataFile("ai-model-profiles.json")
 
 const profilePurposes = new Set<AiModelProfilePurpose>([
   "classification",
