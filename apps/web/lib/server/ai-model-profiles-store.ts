@@ -1,11 +1,10 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import path from "node:path"
-
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 import type { AiModelProfile, AiModelProfilePurpose } from "@/lib/ai-types"
 
 const dataFile = getRuntimeDataFile("ai-model-profiles.json")
+const storeKey = "ai-model-profiles"
 
 const profilePurposes = new Set<AiModelProfilePurpose>([
   "classification",
@@ -109,24 +108,18 @@ function defaultProfiles(): AiModelProfile[] {
 }
 
 export async function readAiModelProfiles() {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as unknown
-    const profiles = Array.isArray(parsed) ? parsed as AiModelProfile[] : []
+  const profiles = await readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: [] as AiModelProfile[],
+    normalize: (parsed) => Array.isArray(parsed) ? parsed as AiModelProfile[] : [],
+  })
 
-    return profiles.length > 0 ? profiles : defaultProfiles()
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return defaultProfiles()
-    }
-
-    throw error
-  }
+  return profiles.length > 0 ? profiles : defaultProfiles()
 }
 
 export async function writeAiModelProfiles(profiles: AiModelProfile[]) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  await writeFile(dataFile, `${JSON.stringify(profiles, null, 2)}\n`, "utf8")
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: [] as AiModelProfile[] }, profiles)
 }
 
 export function buildAiModelProfile(input: {

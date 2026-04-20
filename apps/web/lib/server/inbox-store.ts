@@ -1,7 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
-import path from "node:path"
-
 import type { InboxConversationSummary, InboxMessage, InboxMessageContentType } from "@/lib/inbox-types"
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type InboxData = {
@@ -51,6 +49,7 @@ type UpsertSyncedMessageInput = {
 }
 
 const dataFile = getRuntimeDataFile("inbox-conversations.json")
+const storeKey = "inbox-conversations"
 let mutationQueue = Promise.resolve()
 
 async function withInboxMutation<T>(mutation: () => Promise<T>) {
@@ -61,29 +60,23 @@ async function withInboxMutation<T>(mutation: () => Promise<T>) {
 }
 
 async function readInboxData(): Promise<InboxData> {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as Partial<InboxData>
-
-    return {
-      conversations: Array.isArray(parsed.conversations) ? parsed.conversations : [],
-      messages: Array.isArray(parsed.messages) ? parsed.messages : [],
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { conversations: [], messages: [] }
-    }
-
-    throw error
-  }
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: { conversations: [], messages: [] },
+    normalize: (parsed) => ({
+      conversations: Array.isArray((parsed as Partial<InboxData>)?.conversations)
+        ? (parsed as InboxData).conversations
+        : [],
+      messages: Array.isArray((parsed as Partial<InboxData>)?.messages)
+        ? (parsed as InboxData).messages
+        : [],
+    }),
+  })
 }
 
 async function writeInboxData(data: InboxData) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  const temporaryFile = `${dataFile}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`
-
-  await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, "utf8")
-  await rename(temporaryFile, dataFile)
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: { conversations: [], messages: [] } }, data)
 }
 
 function getConversationId(tenantSlug: string, channelInstanceId: string, externalContactId: string) {

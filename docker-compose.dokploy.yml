@@ -16,6 +16,7 @@ services:
       PORT: 3000
       VISUALFLOW_DATA_DIR: /app/apps/web/.local
       VISUALFLOW_PUBLIC_DIR: /app/apps/web/public
+      DATABASE_URL: ${DATABASE_URL:?Configure DATABASE_URL in Dokploy}
       NEXTAUTH_URL: ${APP_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
       AUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}

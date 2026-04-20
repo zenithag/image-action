@@ -1,7 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
-import path from "node:path"
-
 import type { CatalogItem, CatalogItemInput, CatalogItemStatus } from "@/lib/catalog-types"
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type CatalogData = {
@@ -9,6 +7,7 @@ type CatalogData = {
 }
 
 const dataFile = getRuntimeDataFile("catalog-items.json")
+const storeKey = "catalog-items"
 let mutationQueue = Promise.resolve()
 
 const defaultImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450' viewBox='0 0 800 450'%3E%3Crect width='800' height='450' fill='%23f3f4f6'/%3E%3Cpath d='M351 175h98v100h-98z' fill='none' stroke='%239ca3af' stroke-width='12'/%3E%3Ccircle cx='382' cy='205' r='13' fill='%239ca3af'/%3E%3Cpath d='M351 256l35-38 26 25 17-15 20 28' fill='none' stroke='%239ca3af' stroke-width='12' stroke-linejoin='round'/%3E%3Ctext x='400' y='325' text-anchor='middle' font-family='Arial,sans-serif' font-size='24' fill='%236b7280'%3EProduto sem imagem%3C/text%3E%3C/svg%3E"
@@ -54,28 +53,20 @@ async function withCatalogMutation<T>(mutation: () => Promise<T>) {
 }
 
 async function readCatalogData(): Promise<CatalogData> {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as Partial<CatalogData>
-
-    return {
-      items: Array.isArray(parsed.items) ? parsed.items : [],
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { items: [] }
-    }
-
-    throw error
-  }
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: { items: [] },
+    normalize: (parsed) => ({
+      items: Array.isArray((parsed as Partial<CatalogData>)?.items)
+        ? (parsed as CatalogData).items
+        : [],
+    }),
+  })
 }
 
 async function writeCatalogData(data: CatalogData) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  const temporaryFile = `${dataFile}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`
-
-  await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, "utf8")
-  await rename(temporaryFile, dataFile)
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: { items: [] } }, data)
 }
 
 function normalizeText(value: unknown) {

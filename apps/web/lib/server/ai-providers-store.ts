@@ -1,11 +1,10 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import path from "node:path"
-
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 import type { AiProvider, SafeAiProvider } from "@/lib/ai-types"
 
 const dataFile = getRuntimeDataFile("ai-providers.json")
+const storeKey = "ai-providers"
 const defaultOpenRouterBaseUrl = "https://openrouter.ai/api/v1"
 
 function now() {
@@ -36,23 +35,16 @@ export function sanitizeAiProvider(provider: AiProvider): SafeAiProvider {
 }
 
 export async function readAiProviders() {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as unknown
-
-    return Array.isArray(parsed) ? parsed as AiProvider[] : []
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return []
-    }
-
-    throw error
-  }
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: [] as AiProvider[],
+    normalize: (parsed) => Array.isArray(parsed) ? parsed as AiProvider[] : [],
+  })
 }
 
 export async function writeAiProviders(providers: AiProvider[]) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  await writeFile(dataFile, `${JSON.stringify(providers, null, 2)}\n`, "utf8")
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: [] as AiProvider[] }, providers)
 }
 
 export function buildAiProvider(input: {

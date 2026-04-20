@@ -1,6 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import path from "node:path"
-
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 export type ProviderStatus = "active" | "maintenance" | "disabled"
@@ -24,6 +22,7 @@ export type StoredProvider = {
 }
 
 const dataFile = getRuntimeDataFile("channel-providers.json")
+const storeKey = "channel-providers"
 
 export function sanitizeProvider(provider: StoredProvider) {
   const { adminToken: _adminToken, ...safeProvider } = provider
@@ -35,23 +34,16 @@ export function sanitizeProvider(provider: StoredProvider) {
 }
 
 export async function readProviders() {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as unknown
-
-    return Array.isArray(parsed) ? parsed as StoredProvider[] : []
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return []
-    }
-
-    throw error
-  }
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: [] as StoredProvider[],
+    normalize: (parsed) => Array.isArray(parsed) ? parsed as StoredProvider[] : [],
+  })
 }
 
 export async function writeProviders(providers: StoredProvider[]) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  await writeFile(dataFile, `${JSON.stringify(providers, null, 2)}\n`, "utf8")
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: [] as StoredProvider[] }, providers)
 }
 
 export function getProviderAvailableCapacity(provider: StoredProvider) {

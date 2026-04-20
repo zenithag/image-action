@@ -1,12 +1,12 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto"
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
-import path from "node:path"
 import { promisify } from "node:util"
 
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 const scrypt = promisify(scryptCallback)
 const dataFile = getRuntimeDataFile("auth-users.json")
+const storeKey = "auth-users"
 
 export type AuthUserStatus = "active" | "disabled"
 
@@ -67,28 +67,20 @@ async function withAuthUsersMutation<T>(mutation: () => Promise<T>) {
 }
 
 async function readAuthUsersData(): Promise<AuthUsersData> {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as Partial<AuthUsersData>
-
-    return {
-      users: Array.isArray(parsed.users) ? parsed.users : [],
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { users: [] }
-    }
-
-    throw error
-  }
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: { users: [] },
+    normalize: (parsed) => ({
+      users: Array.isArray((parsed as Partial<AuthUsersData>)?.users)
+        ? (parsed as AuthUsersData).users
+        : [],
+    }),
+  })
 }
 
 async function writeAuthUsersData(data: AuthUsersData) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  const temporaryFile = `${dataFile}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`
-
-  await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, "utf8")
-  await rename(temporaryFile, dataFile)
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: { users: [] } }, data)
 }
 
 async function hashPassword(password: string) {

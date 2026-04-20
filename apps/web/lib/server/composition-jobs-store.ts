@@ -1,7 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
-import path from "node:path"
-
 import type { CompositionJob, CompositionJobInput, CompositionJobStatus } from "@/lib/composition-types"
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type CompositionJobsData = {
@@ -9,6 +7,7 @@ type CompositionJobsData = {
 }
 
 const dataFile = getRuntimeDataFile("composition-jobs.json")
+const storeKey = "composition-jobs"
 let mutationQueue = Promise.resolve()
 
 async function withCompositionJobsMutation<T>(mutation: () => Promise<T>) {
@@ -19,28 +18,20 @@ async function withCompositionJobsMutation<T>(mutation: () => Promise<T>) {
 }
 
 async function readCompositionJobsData(): Promise<CompositionJobsData> {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as Partial<CompositionJobsData>
-
-    return {
-      jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { jobs: [] }
-    }
-
-    throw error
-  }
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: { jobs: [] },
+    normalize: (parsed) => ({
+      jobs: Array.isArray((parsed as Partial<CompositionJobsData>)?.jobs)
+        ? (parsed as CompositionJobsData).jobs
+        : [],
+    }),
+  })
 }
 
 async function writeCompositionJobsData(data: CompositionJobsData) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  const temporaryFile = `${dataFile}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`
-
-  await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, "utf8")
-  await rename(temporaryFile, dataFile)
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: { jobs: [] } }, data)
 }
 
 function sortJobs(jobs: CompositionJob[]) {

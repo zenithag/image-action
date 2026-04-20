@@ -15,21 +15,24 @@ Este projeto deve ser publicado como uma aplicacao Docker Compose no Dokploy usa
 
 - `APP_URL`: URL publica final da aplicacao, por exemplo `https://app.seudominio.com`.
 - `NEXTAUTH_SECRET`: segredo longo e aleatorio para sessoes.
+- `DATABASE_URL`: conexao interna com o PostgreSQL do Dokploy. Se a senha tiver caracteres especiais, codifique a URL, por exemplo `@` como `%40`.
 - `AUTH_BOOTSTRAP_SUPERADMIN_EMAIL` e `AUTH_BOOTSTRAP_SUPERADMIN_PASSWORD`: acesso superadmin inicial.
 - `AUTH_BOOTSTRAP_TENANT_EMAIL` e `AUTH_BOOTSTRAP_TENANT_PASSWORD`: acesso do tenant inicial.
 - `OPENROUTER_API_KEY`: opcional se voce preferir cadastrar o provider pela tela de superadmin, mas recomendado para o primeiro deploy.
 
 ## Persistencia
 
-O deploy usa volumes nomeados:
+Os dados estruturados da aplicacao ficam no PostgreSQL configurado em `DATABASE_URL`, na tabela `app_documents`. Isso inclui usuarios, produtos, providers, inbox, instancias WhatsApp, perfis de IA e jobs de composicao.
 
-- `web_data`: produtos, providers, inbox, instancias WhatsApp, perfis de IA e jobs.
+O deploy ainda usa volumes nomeados para arquivos binarios e cache:
+
+- `web_data`: fallback local e cache de midias do WhatsApp.
 - `web_generated`: imagens geradas pelas composicoes.
 - `segmentation_cache`: cache local dos modelos de segmentacao.
 
-Sem esses volumes, os cadastros e imagens geradas podem sumir a cada redeploy.
+Sem o `DATABASE_URL`, o app cai para persistencia local em `web_data`, que deve ser usado apenas em desenvolvimento ou emergencia. Sem os volumes, imagens geradas e midias em cache podem sumir a cada redeploy.
 
-Os usuarios tambem ficam no volume `web_data`, em `auth-users.json`. As variaveis `AUTH_BOOTSTRAP_*` criam usuarios apenas quando o e-mail ainda nao existe; elas nao sobrescrevem senhas ja persistidas.
+As variaveis `AUTH_BOOTSTRAP_*` criam usuarios apenas quando o e-mail ainda nao existe; elas nao sobrescrevem senhas ja persistidas no PostgreSQL.
 
 ## Observacoes
 

@@ -1,6 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import path from "node:path"
-
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 export type TenantChannelInstanceStatus = "disconnected" | "connecting" | "connected" | "error"
@@ -31,6 +29,7 @@ export type StoredTenantChannelInstance = {
 }
 
 const dataFile = getRuntimeDataFile("tenant-channel-instances.json")
+const storeKey = "tenant-channel-instances"
 
 export function sanitizeTenantInstance(instance: StoredTenantChannelInstance) {
   const { instanceToken: _instanceToken, ...safeInstance } = instance
@@ -42,23 +41,16 @@ export function sanitizeTenantInstance(instance: StoredTenantChannelInstance) {
 }
 
 export async function readTenantInstances() {
-  try {
-    const contents = await readFile(dataFile, "utf8")
-    const parsed = JSON.parse(contents) as unknown
-
-    return Array.isArray(parsed) ? parsed as StoredTenantChannelInstance[] : []
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return []
-    }
-
-    throw error
-  }
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: [] as StoredTenantChannelInstance[],
+    normalize: (parsed) => Array.isArray(parsed) ? parsed as StoredTenantChannelInstance[] : [],
+  })
 }
 
 export async function writeTenantInstances(instances: StoredTenantChannelInstance[]) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  await writeFile(dataFile, `${JSON.stringify(instances, null, 2)}\n`, "utf8")
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: [] as StoredTenantChannelInstance[] }, instances)
 }
 
 export async function findTenantInstance(tenantSlug: string, id: string) {

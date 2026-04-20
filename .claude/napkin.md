@@ -13,8 +13,8 @@
 2. **[2026-04-10] Node 22 quebra o `next dev` com Web Storage experimental**
    Do instead: subir o web com `NODE_OPTIONS=--no-experimental-webstorage` em `dev`, `build`, `start` e no Docker para evitar `localStorage.getItem is not a function`.
 
-3. **[2026-04-05] API usa store em memória (não PostgreSQL em runtime)**
-   Do instead: lembrar que `services/api/app/core/store.py` é in-memory. Schema SQL existe em `services/api/db/schema.sql` para futura migração.
+3. **[2026-04-20] Produção usa PostgreSQL via `DATABASE_URL` para stores do Next**
+   Do instead: no Dokploy, configurar `DATABASE_URL` apontando para o serviço PG interno; os JSON stores do Next persistem na tabela `app_documents`, com fallback local só sem `DATABASE_URL`.
 
 ## Shell & Command Reliability
 1. **[2026-04-05] pnpm 10.30.0 é o package manager**
