@@ -1,0 +1,239 @@
+import type { TenantSettings, TenantSettingsInput, TenantSettingsTeamMember } from "@/lib/tenant-settings-types"
+import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+
+type SettingsData = {
+  settings: TenantSettings[]
+}
+
+const dataFile = getRuntimeDataFile("tenant-settings.json")
+const storeKey = "tenant-settings"
+let mutationQueue = Promise.resolve()
+
+async function withSettingsMutation<T>(mutation: () => Promise<T>) {
+  const run = mutationQueue.then(mutation, mutation)
+  mutationQueue = run.then(() => undefined, () => undefined)
+
+  return run
+}
+
+async function readSettingsData(): Promise<SettingsData> {
+  return readJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: { settings: [] },
+    normalize: (parsed) => ({
+      settings: Array.isArray((parsed as Partial<SettingsData>)?.settings)
+        ? (parsed as SettingsData).settings
+        : [],
+    }),
+  })
+}
+
+async function writeSettingsData(data: SettingsData) {
+  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: { settings: [] } }, data)
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean) {
+  return typeof value === "boolean" ? value : fallback
+}
+
+function normalizeNumber(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = typeof value === "number" ? value : Number(value)
+
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, Math.round(parsed)))
+}
+
+function normalizeList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeText).filter(Boolean)
+  }
+
+  return normalizeText(value)
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function normalizeColor(value: unknown, fallback: string) {
+  const color = normalizeText(value)
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback
+}
+
+function normalizeTeamMembers(value: unknown): TenantSettingsTeamMember[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((member) => {
+      const item = member as Partial<TenantSettingsTeamMember>
+      const name = normalizeText(item.name)
+      const email = normalizeText(item.email).toLowerCase()
+
+      if (!name || !email) {
+        return null
+      }
+
+      return {
+        id: normalizeText(item.id) || crypto.randomUUID(),
+        name,
+        email,
+        role: item.role === "admin" || item.role === "viewer" ? item.role : "operator",
+        status: item.status === "invited" || item.status === "disabled" ? item.status : "active",
+      } satisfies TenantSettingsTeamMember
+    })
+    .filter((member): member is TenantSettingsTeamMember => Boolean(member))
+}
+
+function defaultTenantSettings(tenantSlug: string): TenantSettings {
+  const now = new Date().toISOString()
+
+  return {
+    tenantSlug,
+    general: {
+      companyName: tenantSlug,
+      description: "",
+      timezone: "America/Boa_Vista",
+      locale: "pt-BR",
+    },
+    branding: {
+      primaryColor: "#31c48d",
+      logoUrl: "",
+      brandVoice: "",
+    },
+    channels: {
+      whatsappEnabled: true,
+      instagramEnabled: false,
+      telegramEnabled: false,
+      handoffMode: "manual",
+    },
+    assistant: {
+      enabled: true,
+      modelProfileId: "conversation.default",
+      systemPrompt: "",
+      humanHandoffKeywords: [],
+    },
+    team: {
+      members: [],
+    },
+    notifications: {
+      emailNotifications: false,
+      whatsappNotifications: false,
+      jobFailureAlerts: true,
+      dailySummaryEmail: "",
+    },
+    security: {
+      twoFactorRequired: false,
+      allowedDomains: [],
+      sessionTimeoutMinutes: 480,
+    },
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInput): TenantSettings {
+  const next: TenantSettings = {
+    ...existing,
+    general: {
+      ...existing.general,
+      ...input.general,
+    },
+    branding: {
+      ...existing.branding,
+      ...input.branding,
+    },
+    channels: {
+      ...existing.channels,
+      ...input.channels,
+    },
+    assistant: {
+      ...existing.assistant,
+      ...input.assistant,
+    },
+    team: {
+      ...existing.team,
+      ...input.team,
+    },
+    notifications: {
+      ...existing.notifications,
+      ...input.notifications,
+    },
+    security: {
+      ...existing.security,
+      ...input.security,
+    },
+    updatedAt: new Date().toISOString(),
+  }
+
+  return {
+    ...next,
+    general: {
+      companyName: normalizeText(next.general.companyName) || existing.tenantSlug,
+      description: normalizeText(next.general.description),
+      timezone: normalizeText(next.general.timezone) || "America/Boa_Vista",
+      locale: normalizeText(next.general.locale) || "pt-BR",
+    },
+    branding: {
+      primaryColor: normalizeColor(next.branding.primaryColor, existing.branding.primaryColor || "#31c48d"),
+      logoUrl: normalizeText(next.branding.logoUrl),
+      brandVoice: normalizeText(next.branding.brandVoice),
+    },
+    channels: {
+      whatsappEnabled: normalizeBoolean(next.channels.whatsappEnabled, existing.channels.whatsappEnabled),
+      instagramEnabled: normalizeBoolean(next.channels.instagramEnabled, existing.channels.instagramEnabled),
+      telegramEnabled: normalizeBoolean(next.channels.telegramEnabled, existing.channels.telegramEnabled),
+      handoffMode: next.channels.handoffMode === "auto" ? "auto" : "manual",
+    },
+    assistant: {
+      enabled: normalizeBoolean(next.assistant.enabled, existing.assistant.enabled),
+      modelProfileId: normalizeText(next.assistant.modelProfileId) || "conversation.default",
+      systemPrompt: normalizeText(next.assistant.systemPrompt),
+      humanHandoffKeywords: normalizeList(next.assistant.humanHandoffKeywords),
+    },
+    team: {
+      members: normalizeTeamMembers(next.team.members),
+    },
+    notifications: {
+      emailNotifications: normalizeBoolean(next.notifications.emailNotifications, existing.notifications.emailNotifications),
+      whatsappNotifications: normalizeBoolean(next.notifications.whatsappNotifications, existing.notifications.whatsappNotifications),
+      jobFailureAlerts: normalizeBoolean(next.notifications.jobFailureAlerts, existing.notifications.jobFailureAlerts),
+      dailySummaryEmail: normalizeText(next.notifications.dailySummaryEmail).toLowerCase(),
+    },
+    security: {
+      twoFactorRequired: normalizeBoolean(next.security.twoFactorRequired, existing.security.twoFactorRequired),
+      allowedDomains: normalizeList(next.security.allowedDomains),
+      sessionTimeoutMinutes: normalizeNumber(next.security.sessionTimeoutMinutes, existing.security.sessionTimeoutMinutes, 15, 10080),
+    },
+  }
+}
+
+export async function getTenantSettings(tenantSlug: string) {
+  const data = await readSettingsData()
+  const existing = data.settings.find((settings) => settings.tenantSlug === tenantSlug)
+
+  return existing ?? defaultTenantSettings(tenantSlug)
+}
+
+export async function updateTenantSettings(tenantSlug: string, input: TenantSettingsInput) {
+  return withSettingsMutation(async () => {
+    const data = await readSettingsData()
+    const existing = data.settings.find((settings) => settings.tenantSlug === tenantSlug) ?? defaultTenantSettings(tenantSlug)
+    const updated = mergeTenantSettings(existing, input)
+    const exists = data.settings.some((settings) => settings.tenantSlug === tenantSlug)
+
+    await writeSettingsData({
+      settings: exists
+        ? data.settings.map((settings) => settings.tenantSlug === tenantSlug ? updated : settings)
+        : [updated, ...data.settings],
+    })
+
+    return updated
+  })
+}

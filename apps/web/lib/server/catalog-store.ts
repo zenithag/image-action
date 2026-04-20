@@ -12,39 +12,6 @@ let mutationQueue = Promise.resolve()
 
 const defaultImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450' viewBox='0 0 800 450'%3E%3Crect width='800' height='450' fill='%23f3f4f6'/%3E%3Cpath d='M351 175h98v100h-98z' fill='none' stroke='%239ca3af' stroke-width='12'/%3E%3Ccircle cx='382' cy='205' r='13' fill='%239ca3af'/%3E%3Cpath d='M351 256l35-38 26 25 17-15 20 28' fill='none' stroke='%239ca3af' stroke-width='12' stroke-linejoin='round'/%3E%3Ctext x='400' y='325' text-anchor='middle' font-family='Arial,sans-serif' font-size='24' fill='%236b7280'%3EProduto sem imagem%3C/text%3E%3C/svg%3E"
 
-const seedItems: Array<Omit<CatalogItem, "tenantSlug" | "createdAt" | "updatedAt">> = [
-  {
-    id: "seed-tinta-azul-petroleo",
-    name: "Tinta Azul Petroleo",
-    description: "Tom profundo e elegante para ambientes sofisticados",
-    category: "Tintas",
-    sku: "TIN-001",
-    status: "active",
-    tags: { cor: "Azul", acabamento: "Fosco", marca: "Suvinil" },
-    imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=450&fit=crop",
-  },
-  {
-    id: "seed-porcelanato-carrara",
-    name: "Porcelanato Carrara",
-    description: "Porcelanato polido que reproduz o marmore italiano",
-    category: "Pisos",
-    sku: "PIS-001",
-    status: "active",
-    tags: { cor: "Branco", material: "Porcelanato", dimensao: "60x120cm" },
-    imageUrl: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&h=450&fit=crop",
-  },
-  {
-    id: "seed-sofa-modular-cinza",
-    name: "Sofa Modular Cinza",
-    description: "Sofa modular em tecido suede com configuracao flexivel",
-    category: "Moveis",
-    sku: "MOV-001",
-    status: "active",
-    tags: { cor: "Cinza", material: "Suede", estilo: "Contemporaneo" },
-    imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=450&fit=crop",
-  },
-]
-
 async function withCatalogMutation<T>(mutation: () => Promise<T>) {
   const run = mutationQueue.then(mutation, mutation)
   mutationQueue = run.then(() => undefined, () => undefined)
@@ -89,26 +56,8 @@ function normalizeTags(value: unknown) {
   )
 }
 
-function buildSeedItems(tenantSlug: string) {
-  const now = new Date().toISOString()
-
-  return seedItems.map((item) => ({
-    ...item,
-    id: `${tenantSlug}:${item.id}`,
-    tenantSlug,
-    createdAt: now,
-    updatedAt: now,
-  }))
-}
-
 function getTenantItems(data: CatalogData, tenantSlug: string) {
-  const tenantItems = data.items.filter((item) => item.tenantSlug === tenantSlug)
-
-  if (tenantItems.length > 0) {
-    return tenantItems
-  }
-
-  return buildSeedItems(tenantSlug)
+  return data.items.filter((item) => item.tenantSlug === tenantSlug)
 }
 
 function assertSkuAvailable(items: CatalogItem[], tenantSlug: string, sku: string | undefined, ignoredId?: string) {
@@ -167,14 +116,14 @@ export async function listCatalogItems(tenantSlug: string) {
 export async function createCatalogItem(tenantSlug: string, input: CatalogItemInput) {
   return withCatalogMutation(async () => {
     const data = await readCatalogData()
-    const seededItems = getTenantItems(data, tenantSlug)
+    const tenantItems = getTenantItems(data, tenantSlug)
     const otherTenantItems = data.items.filter((item) => item.tenantSlug !== tenantSlug)
     const item = buildCatalogItem(tenantSlug, input)
 
-    assertSkuAvailable(seededItems, tenantSlug, item.sku)
+    assertSkuAvailable(tenantItems, tenantSlug, item.sku)
 
     await writeCatalogData({
-      items: [...otherTenantItems, item, ...seededItems],
+      items: [...otherTenantItems, item, ...tenantItems],
     })
 
     return item
@@ -184,16 +133,16 @@ export async function createCatalogItem(tenantSlug: string, input: CatalogItemIn
 export async function updateCatalogItem(tenantSlug: string, itemId: string, input: Partial<CatalogItemInput>) {
   return withCatalogMutation(async () => {
     const data = await readCatalogData()
-    const seededItems = getTenantItems(data, tenantSlug)
+    const tenantItems = getTenantItems(data, tenantSlug)
     const otherTenantItems = data.items.filter((item) => item.tenantSlug !== tenantSlug)
-    const existing = seededItems.find((item) => item.id === itemId)
+    const existing = tenantItems.find((item) => item.id === itemId)
 
     if (!existing) {
       return null
     }
 
     const sku = input.sku === undefined ? existing.sku : normalizeText(input.sku) || undefined
-    assertSkuAvailable(seededItems, tenantSlug, sku, itemId)
+    assertSkuAvailable(tenantItems, tenantSlug, sku, itemId)
 
     const updatedItem: CatalogItem = {
       ...existing,
@@ -218,7 +167,7 @@ export async function updateCatalogItem(tenantSlug: string, itemId: string, inpu
     await writeCatalogData({
       items: [
         ...otherTenantItems,
-        ...seededItems.map((item) => item.id === itemId ? updatedItem : item),
+        ...tenantItems.map((item) => item.id === itemId ? updatedItem : item),
       ],
     })
 
@@ -229,9 +178,9 @@ export async function updateCatalogItem(tenantSlug: string, itemId: string, inpu
 export async function deleteCatalogItem(tenantSlug: string, itemId: string) {
   return withCatalogMutation(async () => {
     const data = await readCatalogData()
-    const seededItems = getTenantItems(data, tenantSlug)
+    const tenantItems = getTenantItems(data, tenantSlug)
     const otherTenantItems = data.items.filter((item) => item.tenantSlug !== tenantSlug)
-    const exists = seededItems.some((item) => item.id === itemId)
+    const exists = tenantItems.some((item) => item.id === itemId)
 
     if (!exists) {
       return false
@@ -240,7 +189,7 @@ export async function deleteCatalogItem(tenantSlug: string, itemId: string) {
     await writeCatalogData({
       items: [
         ...otherTenantItems,
-        ...seededItems.filter((item) => item.id !== itemId),
+        ...tenantItems.filter((item) => item.id !== itemId),
       ],
     })
 
@@ -252,12 +201,12 @@ export async function bulkUpdateCatalogItems(tenantSlug: string, ids: string[], 
   return withCatalogMutation(async () => {
     const uniqueIds = new Set(ids.filter(Boolean))
     const data = await readCatalogData()
-    const seededItems = getTenantItems(data, tenantSlug)
+    const tenantItems = getTenantItems(data, tenantSlug)
     const otherTenantItems = data.items.filter((item) => item.tenantSlug !== tenantSlug)
     const now = new Date().toISOString()
     const nextTenantItems = updates.delete
-      ? seededItems.filter((item) => !uniqueIds.has(item.id))
-      : seededItems.map((item) =>
+      ? tenantItems.filter((item) => !uniqueIds.has(item.id))
+      : tenantItems.map((item) =>
           uniqueIds.has(item.id)
             ? { ...item, status: normalizeStatus(updates.status), updatedAt: now }
             : item
