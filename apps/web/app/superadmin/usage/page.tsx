@@ -67,6 +67,10 @@ const chartStyle = {
   fontSize: "12px",
 }
 
+function toNumber(value: unknown) {
+  return typeof value === "number" ? value : Number(value ?? 0)
+}
+
 export default function UsagePage() {
   const [activeTab, setActiveTab] = useState(0)
   const [selectedTenant, setSelectedTenant] = useState("all")
@@ -150,8 +154,8 @@ export default function UsagePage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
-                    <Tooltip contentStyle={chartStyle} formatter={(v: number) => [`${v.toLocaleString()} tokens`, ""]} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `${(toNumber(v)/1000).toFixed(0)}k`} />
+                    <Tooltip contentStyle={chartStyle} formatter={(v) => [`${toNumber(v).toLocaleString()} tokens`, ""]} />
                     <Legend />
                     <Area type="monotone" dataKey="openai" name="OpenAI" stroke={COLORS[0]} fill="url(#g0)" strokeWidth={2} />
                     <Area type="monotone" dataKey="claude" name="Claude" stroke={COLORS[1]} fill="url(#g1)" strokeWidth={2} />
@@ -167,7 +171,7 @@ export default function UsagePage() {
                     <Pie data={providerDistribution} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={4} dataKey="value">
                       {providerDistribution.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
                     </Pie>
-                    <Tooltip contentStyle={chartStyle} formatter={(v: number) => [`${(v/1000000).toFixed(2)}M tokens`, ""]} />
+                    <Tooltip contentStyle={chartStyle} formatter={(v) => [`${(toNumber(v)/1000000).toFixed(2)}M tokens`, ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="mt-4 space-y-2">
@@ -262,8 +266,8 @@ export default function UsagePage() {
                 <BarChart data={hourlyPeaks}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip contentStyle={chartStyle} formatter={(v: number) => [`${v.toLocaleString()} tokens`, "Consumo"]} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `${(toNumber(v)/1000).toFixed(0)}k`} />
+                  <Tooltip contentStyle={chartStyle} formatter={(v) => [`${toNumber(v).toLocaleString()} tokens`, "Consumo"]} />
                   <Bar dataKey="tokens" fill="#00AF67" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -303,8 +307,8 @@ export default function UsagePage() {
                 <LineChart data={tokenUsageByProvider}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `R$ ${(v * 0.00003).toFixed(0)}`} />
-                  <Tooltip contentStyle={chartStyle} formatter={(v: number, name: string) => [`R$ ${(v * 0.00003).toFixed(2)}`, name]} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `R$ ${(toNumber(v) * 0.00003).toFixed(0)}`} />
+                  <Tooltip contentStyle={chartStyle} formatter={(v, name) => [`R$ ${(toNumber(v) * 0.00003).toFixed(2)}`, name]} />
                   <Legend />
                   <Line type="monotone" dataKey="openai" name="OpenAI" stroke={COLORS[0]} strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="claude" name="Claude" stroke={COLORS[1]} strokeWidth={2} dot={false} />

@@ -20,6 +20,7 @@ import {
   Sun,
   Moon,
   Smartphone,
+  Bot,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -31,7 +32,7 @@ interface NavItem {
 }
 
 const tenantNavItems: NavItem[] = [
-  { href: "/tenant/inbox", label: "Inbox", icon: MessageSquare, badge: 12 },
+  { href: "/tenant/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/tenant/catalog", label: "Catálogo", icon: LayoutGrid },
   { href: "/tenant/compositions", label: "Composições", icon: ImageIcon },
   { href: "/tenant/contacts", label: "Contatos", icon: Users },
@@ -44,6 +45,7 @@ const superadminNavItems: NavItem[] = [
   { href: "/superadmin", label: "Tenants", icon: Building2 },
   { href: "/superadmin/usage", label: "Uso & Custos", icon: BarChart3 },
   { href: "/superadmin/channels", label: "Canais", icon: Zap },
+  { href: "/superadmin/ai", label: "IA & Modelos", icon: Bot },
 ]
 
 interface AppSidebarProps {
@@ -58,6 +60,7 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
   const { theme, setTheme } = useTheme()
   const { data: session } = useSession()
   const [mounted, setMounted] = useState(false)
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
   const navItems = variant === "superadmin" ? superadminNavItems : tenantNavItems
   const userName = session?.user?.name || "Usuário"
   const userRole = session?.user?.roles?.includes("superadmin") ? "Superadmin" : "Tenant"
@@ -71,6 +74,41 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (variant !== "tenant" || !tenantSlug) {
+      setInboxUnreadCount(0)
+      return
+    }
+
+    let isMounted = true
+
+    async function loadUnreadCount() {
+      try {
+        const response = await fetch(`/api/tenant/${tenantSlug}/inbox/unread`, { cache: "no-store" })
+        if (!response.ok) return
+
+        const payload = await response.json() as { unreadCount?: unknown }
+        const unreadCount = typeof payload.unreadCount === "number" ? payload.unreadCount : 0
+
+        if (isMounted) {
+          setInboxUnreadCount(unreadCount)
+        }
+      } catch {
+        // O badge nao deve quebrar a navegacao se o inbox estiver indisponivel.
+      }
+    }
+
+    void loadUnreadCount()
+    const intervalId = window.setInterval(loadUnreadCount, 3000)
+    window.addEventListener("inbox:unread-changed", loadUnreadCount)
+
+    return () => {
+      isMounted = false
+      window.clearInterval(intervalId)
+      window.removeEventListener("inbox:unread-changed", loadUnreadCount)
+    }
+  }, [tenantSlug, variant])
 
   return (
     <aside
@@ -132,13 +170,14 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
         {navItems.map((item) => {
           const actualHref = tenantSlug ? item.href.replace("/tenant", `/tenant/${tenantSlug}`) : item.href
           const isActive = pathname === actualHref || pathname?.startsWith(actualHref + "/")
+          const badge = item.label === "Inbox" ? inboxUnreadCount : item.badge ?? 0
           return (
             <Link
               key={item.href}
               href={actualHref}
               title={collapsed ? item.label : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
+                "relative flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
@@ -153,12 +192,12 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
               >
                 {item.label}
               </span>
-              {"badge" in item && item.badge && !collapsed && (
+              {badge > 0 && !collapsed && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                  {item.badge}
+                  {badge}
                 </span>
               )}
-              {"badge" in item && item.badge && collapsed && (
+              {badge > 0 && collapsed && (
                 <span className="absolute left-7 top-1 flex h-2 w-2 rounded-full bg-primary" />
               )}
             </Link>

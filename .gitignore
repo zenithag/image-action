@@ -6,5 +6,10 @@ coverage
 .env
 .env.local
 .venv
+apps/web/.local
+apps/web/public/generated
+.playwright-cli
+output
 __pycache__
 *.pyc
+*.egg-info

@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${poppins.variable} ${dmSans.variable} antialiased font-sans`}>
+      <body className={`${poppins.variable} ${dmSans.variable} antialiased font-sans`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <SessionProvider>{children}</SessionProvider>
         </ThemeProvider>

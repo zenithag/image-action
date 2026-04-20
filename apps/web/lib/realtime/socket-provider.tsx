@@ -12,7 +12,8 @@ export function useSocket() {
   return useContext(SocketContext)
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8000"
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || ""
+const WS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_WS === "true"
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession()
@@ -21,6 +22,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const updateConversation = useConversationStore((s) => s.updateConversation)
 
   useEffect(() => {
+    if (!WS_ENABLED || !WS_URL) {
+      return
+    }
+
     const auth: Record<string, string> = {}
     if (session?.accessToken) {
       auth.token = session.accessToken

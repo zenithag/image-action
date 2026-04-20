@@ -1,151 +1,989 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Plus, Edit2, Trash2, Smartphone, Mail, MessageCircle, Send } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import {
+  AlertTriangle,
+  Bot,
+  CheckCircle2,
+  Edit2,
+  ExternalLink,
+  Globe2,
+  MessageCircle,
+  Plus,
+  Search,
+  Send,
+  Server,
+  ShieldCheck,
+  Smartphone,
+  Trash2,
+  Wrench,
+  Zap,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-interface Channel {
+type ProviderStatus = "active" | "maintenance" | "disabled"
+type ChannelKind = "whatsapp" | "instagram" | "telegram"
+type InstanceStatus = "connected" | "pending" | "error"
+
+type ProviderAccount = {
   id: string
   name: string
-  type: "whatsapp" | "email" | "instagram" | "telegram"
-  status: "ativo" | "inativo"
-  connections: number
-  messagesMonthly: number
+  kind: ChannelKind
+  provider: "uazapi" | "meta" | "telegram-bot-api"
+  status: ProviderStatus
+  baseUrl?: string
+  adminTokenConfigured?: boolean
+  contractedCapacity?: number
+  reservedCapacity?: number
+  usedCapacity: number
+  health: "ok" | "warning" | "error"
+  notes: string
+  createdAt?: string
+}
+
+type TenantChannelInstance = {
+  id: string
+  tenant: string
+  channel: ChannelKind
+  providerAccount: string
+  label: string
+  plan: "starter" | "pro" | "enterprise"
+  status: InstanceStatus
   createdAt: string
 }
 
-const mockChannels: Channel[] = [
-  { id: "1", name: "WhatsApp", type: "whatsapp", status: "ativo", connections: 24, messagesMonthly: 12400, createdAt: "5 de janeiro de 2025" },
-  { id: "2", name: "Email", type: "email", status: "ativo", connections: 18, messagesMonthly: 5600, createdAt: "10 de janeiro de 2025" },
-  { id: "3", name: "Instagram", type: "instagram", status: "inativo", connections: 8, messagesMonthly: 0, createdAt: "15 de fevereiro de 2025" },
-  { id: "4", name: "Telegram", type: "telegram", status: "ativo", connections: 12, messagesMonthly: 3200, createdAt: "20 de fevereiro de 2025" },
+type NewProviderForm = {
+  name: string
+  kind: ChannelKind
+  provider: ProviderAccount["provider"]
+  baseUrl: string
+  adminToken: string
+  contractedCapacity: string
+  reservedCapacity: string
+  notes: string
+}
+
+type ProviderTestResult = {
+  ok: boolean
+  status: "success" | "warning" | "error"
+  message: string
+  httpStatus?: number
+  latencyMs?: number
+  instanceCount?: number
+  checkedAt: string
+}
+
+const tenantInstances: TenantChannelInstance[] = []
+
+const planLimits = [
+  { plan: "Starter", whatsapp: 1, instagram: 1, telegram: 1, extra: "Compra avulsa por instancia" },
+  { plan: "Pro", whatsapp: 3, instagram: 2, telegram: 2, extra: "Pacotes de 3 instancias" },
+  { plan: "Enterprise", whatsapp: 10, instagram: 5, telegram: 5, extra: "Limite negociado" },
 ]
 
-const channelConfig: Record<Channel["type"], { icon: React.ElementType; color: string; bg: string }> = {
-  whatsapp: { icon: Smartphone, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-  email: { icon: Mail, color: "text-blue-500", bg: "bg-blue-500/10" },
-  instagram: { icon: MessageCircle, color: "text-pink-500", bg: "bg-pink-500/10" },
-  telegram: { icon: Send, color: "text-sky-500", bg: "bg-sky-500/10" },
+const channelConfig: Record<ChannelKind, { label: string; icon: React.ElementType; color: string; bg: string }> = {
+  whatsapp: { label: "WhatsApp", icon: Smartphone, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  instagram: { label: "Instagram", icon: MessageCircle, color: "text-pink-500", bg: "bg-pink-500/10" },
+  telegram: { label: "Telegram", icon: Send, color: "text-sky-500", bg: "bg-sky-500/10" },
+}
+
+const statusLabel: Record<ProviderStatus, string> = {
+  active: "Ativo",
+  maintenance: "Manutencao",
+  disabled: "Inativo",
+}
+
+const instanceStatusLabel: Record<InstanceStatus, string> = {
+  connected: "Conectado",
+  pending: "Pendente",
+  error: "Erro",
+}
+
+function getAvailableCapacity(provider: ProviderAccount) {
+  if (!provider.contractedCapacity) return null
+  return provider.contractedCapacity - provider.usedCapacity - (provider.reservedCapacity ?? 0)
+}
+
+const defaultNewProviderForm: NewProviderForm = {
+  name: "",
+  kind: "whatsapp",
+  provider: "uazapi",
+  baseUrl: "",
+  adminToken: "",
+  contractedCapacity: "100",
+  reservedCapacity: "5",
+  notes: "",
 }
 
 export default function ChannelsPage() {
   const [search, setSearch] = useState("")
+  const [activeTab, setActiveTab] = useState<"providers" | "instances" | "plans">("providers")
+  const [providers, setProviders] = useState<ProviderAccount[]>([])
+  const [isLoadingProviders, setIsLoadingProviders] = useState(true)
+  const [providerError, setProviderError] = useState<string | null>(null)
+  const [isCreatingProvider, setIsCreatingProvider] = useState(false)
+  const [testingProviderId, setTestingProviderId] = useState<string | null>(null)
+  const [deletingProviderId, setDeletingProviderId] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, ProviderTestResult>>({})
+  const [isNewProviderOpen, setIsNewProviderOpen] = useState(false)
+  const [newProvider, setNewProvider] = useState<NewProviderForm>(defaultNewProviderForm)
 
-  const filtered = mockChannels.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  )
+  useEffect(() => {
+    let isMounted = true
 
-  const totalMessages = mockChannels.reduce((s, c) => s + c.messagesMonthly, 0)
-  const totalConnections = mockChannels.reduce((s, c) => s + c.connections, 0)
-  const activeCount = mockChannels.filter(c => c.status === "ativo").length
+    async function loadProviders() {
+      setIsLoadingProviders(true)
+      setProviderError(null)
+
+      try {
+        const response = await fetch("/api/superadmin/providers", { cache: "no-store" })
+        if (!response.ok) {
+          throw new Error("Nao foi possivel carregar os providers.")
+        }
+
+        const data = await response.json() as ProviderAccount[]
+        if (isMounted) {
+          setProviders(data)
+        }
+      } catch (error) {
+        if (isMounted) {
+          setProviderError(error instanceof Error ? error.message : "Erro ao carregar providers.")
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingProviders(false)
+        }
+      }
+    }
+
+    void loadProviders()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const whatsappProviders = providers.filter((account) => account.provider === "uazapi")
+  const totalContracted = whatsappProviders.reduce((sum, account) => sum + (account.contractedCapacity ?? 0), 0)
+  const totalReserved = whatsappProviders.reduce((sum, account) => sum + (account.reservedCapacity ?? 0), 0)
+  const totalUsed = whatsappProviders.reduce((sum, account) => sum + account.usedCapacity, 0)
+  const totalAvailable = totalContracted - totalReserved - totalUsed
+
+  const filteredProviders = useMemo(() => {
+    const value = search.trim().toLowerCase()
+    if (!value) return providers
+    return providers.filter((provider) =>
+      [provider.name, provider.provider, provider.kind, provider.notes].some((field) =>
+        field.toLowerCase().includes(value)
+      )
+    )
+  }, [providers, search])
+
+  const filteredInstances = useMemo(() => {
+    const value = search.trim().toLowerCase()
+    if (!value) return tenantInstances
+    return tenantInstances.filter((instance) =>
+      [instance.tenant, instance.label, instance.providerAccount, instance.channel, instance.status].some((field) =>
+        field.toLowerCase().includes(value)
+      )
+    )
+  }, [search])
+
+  function updateNewProvider<K extends keyof NewProviderForm>(key: K, value: NewProviderForm[K]) {
+    if (key === "kind") {
+      const providerByKind: Record<ChannelKind, ProviderAccount["provider"]> = {
+        whatsapp: "uazapi",
+        instagram: "meta",
+        telegram: "telegram-bot-api",
+      }
+
+      setNewProvider((current) => ({
+        ...current,
+        kind: value as ChannelKind,
+        provider: providerByKind[value as ChannelKind],
+        adminToken: value === "whatsapp" ? current.adminToken : "",
+        contractedCapacity: value === "whatsapp" ? current.contractedCapacity || "100" : "",
+        reservedCapacity: value === "whatsapp" ? current.reservedCapacity || "5" : "",
+      }))
+      return
+    }
+
+    setNewProvider((current) => ({ ...current, [key]: value }))
+  }
+
+  async function createProvider() {
+    const name = newProvider.name.trim()
+    if (!name || isCreatingProvider) return
+
+    setIsCreatingProvider(true)
+    setProviderError(null)
+
+    try {
+      const response = await fetch("/api/superadmin/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          kind: newProvider.kind,
+          provider: newProvider.provider,
+          baseUrl: newProvider.baseUrl.trim(),
+          adminToken: newProvider.adminToken.trim(),
+          contractedCapacity: newProvider.contractedCapacity,
+          reservedCapacity: newProvider.reservedCapacity,
+          notes: newProvider.notes.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null
+        throw new Error(payload?.error || "Nao foi possivel salvar o provider.")
+      }
+
+      const provider = await response.json() as ProviderAccount
+      setProviders((current) => [provider, ...current])
+      setSearch("")
+      setActiveTab("providers")
+      setIsNewProviderOpen(false)
+      setNewProvider(defaultNewProviderForm)
+    } catch (error) {
+      setProviderError(error instanceof Error ? error.message : "Erro ao salvar provider.")
+    } finally {
+      setIsCreatingProvider(false)
+    }
+  }
+
+  async function testProvider(providerId: string) {
+    if (testingProviderId) return
+
+    setTestingProviderId(providerId)
+    setProviderError(null)
+
+    try {
+      const response = await fetch(`/api/superadmin/providers/${providerId}/test`, {
+        method: "POST",
+      })
+      const result = await response.json() as ProviderTestResult | { error?: string }
+
+      if (!response.ok && "error" in result) {
+        throw new Error(result.error || "Nao foi possivel testar o provider.")
+      }
+
+      const testResult = result as ProviderTestResult
+      setTestResults((current) => ({ ...current, [providerId]: testResult }))
+      setProviders((current) =>
+        current.map((provider) =>
+          provider.id === providerId
+            ? { ...provider, health: testResult.ok ? "ok" : "error" }
+            : provider
+        )
+      )
+    } catch (error) {
+      const fallbackResult: ProviderTestResult = {
+        ok: false,
+        status: "error",
+        message: error instanceof Error ? error.message : "Erro ao testar provider.",
+        checkedAt: new Date().toISOString(),
+      }
+      setTestResults((current) => ({ ...current, [providerId]: fallbackResult }))
+      setProviders((current) =>
+        current.map((provider) =>
+          provider.id === providerId ? { ...provider, health: "error" } : provider
+        )
+      )
+    } finally {
+      setTestingProviderId(null)
+    }
+  }
+
+  async function deleteProvider(provider: ProviderAccount) {
+    if (deletingProviderId) return
+
+    const shouldDelete = window.confirm(`Excluir o provider "${provider.name}"? Esta acao nao pode ser desfeita.`)
+    if (!shouldDelete) return
+
+    setDeletingProviderId(provider.id)
+    setProviderError(null)
+
+    try {
+      const response = await fetch(`/api/superadmin/providers/${provider.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null
+        throw new Error(payload?.error || "Nao foi possivel excluir o provider.")
+      }
+
+      setProviders((current) => current.filter((item) => item.id !== provider.id))
+      setTestResults((current) => {
+        const { [provider.id]: _removed, ...nextResults } = current
+        return nextResults
+      })
+    } catch (error) {
+      setProviderError(error instanceof Error ? error.message : "Erro ao excluir provider.")
+    } finally {
+      setDeletingProviderId(null)
+    }
+  }
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Header */}
-      <div className="relative z-10 flex items-center justify-between border-b border-border pl-6 pr-10 py-4 bg-background">
+      <div className="relative z-10 flex items-center justify-between border-b border-border bg-background py-4 pl-6 pr-10">
         <div>
-          <h1 className="text-xl font-bold text-foreground font-display">Canais</h1>
-          <p className="text-sm text-muted-foreground font-sans">Gerencie os canais de comunicação disponíveis</p>
+          <h1 className="text-xl font-bold text-foreground font-display">Canais & Provedores</h1>
+          <p className="text-sm text-muted-foreground font-sans">
+            Configure a infraestrutura global e acompanhe as instancias conectadas nos tenants.
+          </p>
         </div>
-        <Button className="font-sans rounded-[5px]">
-          <Plus className="mr-2 h-4 w-4" /> Novo Canal
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="rounded-[5px] font-sans">
+            <Wrench className="mr-2 h-4 w-4" />
+            Rebalancear
+          </Button>
+          <Button className="rounded-[5px] font-sans" onClick={() => setIsNewProviderOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Provider
+          </Button>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 border-b border-border px-6 py-5 bg-card/20">
+      <section className="grid grid-cols-4 gap-4 border-b border-border bg-card/20 px-6 py-5">
         {[
-          { label: "Total de Canais", value: mockChannels.length },
-          { label: "Ativos", value: activeCount },
-          { label: "Conexões Totais", value: totalConnections },
-          { label: "Mensagens (mês)", value: totalMessages.toLocaleString() },
-        ].map(s => (
-          <div key={s.label} className="rounded-[5px] border border-border bg-card px-5 py-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{s.label}</p>
-            <p className="mt-1 text-2xl font-bold text-foreground font-display">{s.value}</p>
+          { label: "UAZAPI contratadas", value: totalContracted, icon: Server, tone: "text-foreground" },
+          { label: "Instancias em uso", value: totalUsed, icon: Smartphone, tone: "text-primary" },
+          { label: "Reserva operacional", value: totalReserved, icon: ShieldCheck, tone: "text-amber-500" },
+          { label: "Disponiveis", value: totalAvailable, icon: Zap, tone: totalAvailable > 10 ? "text-primary" : "text-destructive" },
+        ].map((metric) => (
+          <div key={metric.label} className="flex items-center gap-4 rounded-[5px] border border-border bg-card p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-muted">
+              <metric.icon className={cn("h-5 w-5", metric.tone)} />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{metric.label}</p>
+              <p className="mt-0.5 text-2xl font-bold text-foreground font-display">{metric.value}</p>
+            </div>
           </div>
         ))}
-      </div>
+      </section>
 
-      {/* Search */}
-      <div className="border-b border-border px-6 py-3">
-        <div className="relative max-w-md">
+      <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
+        <div className="flex gap-1">
+          {[
+            { id: "providers", label: "Provedores globais" },
+            { id: "instances", label: "Instancias dos tenants" },
+            { id: "plans", label: "Limites por plano" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              className={cn(
+                "rounded-[5px] px-4 py-2 text-sm font-bold transition-colors",
+                activeTab === tab.id
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Buscar canal..."
+            placeholder="Buscar canal, provider ou tenant..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             className="w-full rounded-[5px] border border-input bg-card py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
-      {/* Cards Grid */}
+      {providerError && (
+        <div className="border-b border-destructive/20 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive">
+          {providerError}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-        <div className="grid grid-cols-2 gap-6 max-w-5xl">
-          {filtered.map(channel => {
-            const config = channelConfig[channel.type]
-            const Icon = config.icon
-            return (
-              <div key={channel.id} className="group rounded-[5px] border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className={cn("flex h-12 w-12 items-center justify-center rounded-[5px]", config.bg)}>
-                      <Icon className={cn("h-6 w-6", config.color)} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-foreground font-display group-hover:text-primary transition-colors">{channel.name}</h3>
-                      <p className="text-xs text-muted-foreground capitalize">{channel.type}</p>
-                    </div>
-                  </div>
-                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
-                    channel.status === "ativo" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                  )}>
-                    {channel.status === "ativo" ? "Ativo" : "Inativo"}
-                  </span>
-                </div>
+        {activeTab === "providers" && (
+          <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+            <div className="grid gap-4">
+              {isLoadingProviders ? (
+                <EmptyState
+                  title="Carregando providers..."
+                  description="Buscando os providers persistidos localmente."
+                />
+              ) : filteredProviders.length > 0 ? (
+                filteredProviders.map((provider) => (
+                  <ProviderCard
+                    key={provider.id}
+                    provider={provider}
+                    isTesting={testingProviderId === provider.id}
+                    isDeleting={deletingProviderId === provider.id}
+                    testResult={testResults[provider.id]}
+                    onTest={() => testProvider(provider.id)}
+                    onDelete={() => deleteProvider(provider)}
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  title="Nenhum provider cadastrado"
+                  description="Cadastre o primeiro provider global. A lista nao usa mais dados mockados."
+                  actionLabel="Novo Provider"
+                  onAction={() => setIsNewProviderOpen(true)}
+                />
+              )}
+            </div>
 
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="rounded-[4px] bg-muted/30 p-3 border border-border">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Conexões</p>
-                    <p className="text-xl font-bold text-foreground">{channel.connections}</p>
-                  </div>
-                  <div className="rounded-[4px] bg-muted/30 p-3 border border-border col-span-2">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Mensagens (mês)</p>
-                    <p className="text-xl font-bold text-foreground">{channel.messagesMonthly.toLocaleString()}</p>
-                  </div>
-                </div>
-
-                <div className="mb-5">
-                  <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                    <span>Taxa de utilização</span>
-                    <span>{channel.status === "ativo" ? Math.round((channel.connections / 30) * 100) : 0}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all"
-                      style={{ width: channel.status === "ativo" ? `${Math.min((channel.connections / 30) * 100, 100)}%` : "0%" }}
-                    />
-                  </div>
-                </div>
-
-                <p className="text-[10px] text-muted-foreground mb-4">Adicionado em {channel.createdAt}</p>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1 font-sans rounded-[5px]">
-                    <Edit2 className="mr-2 h-3.5 w-3.5" /> Editar
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1 font-sans rounded-[5px] text-destructive hover:bg-destructive/10 hover:text-destructive">
-                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Deletar
-                  </Button>
+            <aside className="space-y-4">
+              <div className="rounded-[5px] border border-border bg-card p-5">
+                <h2 className="font-bold text-foreground font-display">Como alocar WhatsApp</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  O Superadmin cadastra os UAZAPIs e informa manualmente a capacidade contratada. O tenant cria as instancias WhatsApp dentro do proprio ambiente, respeitando o plano. A plataforma escolhe um UAZAPI ativo com capacidade disponivel.
+                </p>
+                <div className="mt-4 space-y-3 text-sm">
+                  <RuleItem label="1" text="Validar limite do plano do tenant." />
+                  <RuleItem label="2" text="Selecionar primeiro o UAZAPI ativo com menos instancias em uso." />
+                  <RuleItem label="3" text="Criar instancia e gerar QR Code para o tenant." />
+                  <RuleItem label="4" text="Roteiar webhooks por tenant_id e channel_instance_id." />
                 </div>
               </div>
-            )
-          })}
+
+              <div className="rounded-[5px] border border-border bg-card p-5">
+                <h2 className="font-bold text-foreground font-display">Instagram e Telegram</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  O Superadmin controla o conector global. A autorizacao final fica no tenant, porque a conta Instagram Business/Page e o bot Telegram pertencem ao cliente.
+                </p>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        {activeTab === "instances" && (
+          <div className="overflow-hidden rounded-[5px] border border-border bg-card">
+            {filteredInstances.length > 0 ? (
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tenant</th>
+                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Canal</th>
+                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Instancia</th>
+                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Provider</th>
+                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Plano</th>
+                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</th>
+                    <th className="px-5 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Criada</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredInstances.map((instance) => {
+                    const config = channelConfig[instance.channel]
+                    const Icon = config.icon
+
+                    return (
+                      <tr key={instance.id} className="transition-colors hover:bg-primary/[0.02]">
+                        <td className="px-5 py-4">
+                          <p className="font-bold text-foreground font-display">{instance.tenant}</p>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="flex items-center gap-2 text-sm">
+                            <span className={cn("flex h-8 w-8 items-center justify-center rounded-[5px]", config.bg)}>
+                              <Icon className={cn("h-4 w-4", config.color)} />
+                            </span>
+                            {config.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-sm font-medium text-foreground">{instance.label}</td>
+                        <td className="px-5 py-4 text-sm text-muted-foreground">{instance.providerAccount}</td>
+                        <td className="px-5 py-4">
+                          <span className="rounded-[4px] bg-muted px-2.5 py-1 text-[10px] font-bold uppercase text-muted-foreground">
+                            {instance.plan}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <InstanceStatusBadge status={instance.status} />
+                        </td>
+                        <td className="px-5 py-4 text-right text-sm text-muted-foreground">{instance.createdAt}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <EmptyState
+                title="Nenhuma instancia de tenant"
+                description="As instancias reais serao listadas aqui quando forem criadas pelos tenants."
+              />
+            )}
+          </div>
+        )}
+
+        {activeTab === "plans" && (
+          <div className="grid gap-4 lg:grid-cols-3">
+            {planLimits.map((plan) => (
+              <div key={plan.plan} className="rounded-[5px] border border-border bg-card p-6">
+                <h2 className="text-lg font-bold text-foreground font-display">{plan.plan}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Limites iniciais de instancias por tenant.</p>
+                <div className="mt-6 space-y-4">
+                  <PlanLimitRow label="WhatsApp" value={plan.whatsapp} icon={Smartphone} />
+                  <PlanLimitRow label="Instagram" value={plan.instagram} icon={MessageCircle} />
+                  <PlanLimitRow label="Telegram" value={plan.telegram} icon={Send} />
+                </div>
+                <div className="mt-6 rounded-[5px] border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
+                  {plan.extra}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isNewProviderOpen && (
+        <NewProviderModal
+          form={newProvider}
+          onChange={updateNewProvider}
+          onClose={() => setIsNewProviderOpen(false)}
+          onCreate={createProvider}
+          isCreating={isCreatingProvider}
+        />
+      )}
+    </div>
+  )
+}
+
+function ProviderCard({
+  provider,
+  isTesting,
+  isDeleting,
+  testResult,
+  onTest,
+  onDelete,
+}: {
+  provider: ProviderAccount
+  isTesting: boolean
+  isDeleting: boolean
+  testResult?: ProviderTestResult
+  onTest: () => void
+  onDelete: () => void
+}) {
+  const config = channelConfig[provider.kind]
+  const Icon = config.icon
+  const available = getAvailableCapacity(provider)
+  const capacityPercent = provider.contractedCapacity
+    ? Math.round((provider.usedCapacity / provider.contractedCapacity) * 100)
+    : null
+
+  return (
+    <article className="rounded-[5px] border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-[5px]", config.bg)}>
+            <Icon className={cn("h-6 w-6", config.color)} />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-bold text-foreground font-display">{provider.name}</h2>
+              <ProviderStatusBadge status={provider.status} />
+              <HealthBadge health={provider.health} />
+            </div>
+            <p className="mt-1 text-xs uppercase tracking-widest text-muted-foreground">
+              {config.label} / {provider.provider}
+            </p>
+            {provider.baseUrl && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Globe2 className="h-3.5 w-3.5" />
+                {provider.baseUrl}
+              </p>
+            )}
+            {provider.provider === "uazapi" && provider.adminTokenConfigured && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Admin token configurado
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-[5px]"
+            onClick={onTest}
+            disabled={isTesting}
+          >
+            <ExternalLink className="mr-2 h-3.5 w-3.5" />
+            {isTesting ? "Testando" : "Testar"}
+          </Button>
+          <Button variant="outline" size="sm" className="rounded-[5px]">
+            <Edit2 className="mr-2 h-3.5 w-3.5" />
+            Editar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-[5px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={onDelete}
+            disabled={isDeleting}
+          >
+            <Trash2 className="mr-2 h-3.5 w-3.5" />
+            {isDeleting ? "Excluindo" : "Excluir"}
+          </Button>
         </div>
       </div>
+
+      <p className="mt-5 text-sm leading-relaxed text-muted-foreground">{provider.notes}</p>
+
+      {testResult && (
+        <div
+          className={cn(
+            "mt-5 rounded-[5px] border p-4 text-sm",
+            testResult.ok
+              ? "border-primary/20 bg-primary/5 text-primary"
+              : "border-destructive/20 bg-destructive/10 text-destructive"
+          )}
+        >
+          <div className="flex items-start gap-2">
+            {testResult.ok ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <div>
+              <p className="font-bold">{testResult.ok ? "Conexao validada" : "Falha no teste de conexao"}</p>
+              <p className="mt-1 text-current/85">{testResult.message}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-current/70">
+                {typeof testResult.httpStatus === "number" && <span>HTTP {testResult.httpStatus}</span>}
+                {typeof testResult.latencyMs === "number" && <span>{testResult.latencyMs}ms</span>}
+                {typeof testResult.instanceCount === "number" && <span>{testResult.instanceCount} instancias</span>}
+                <span>{new Date(testResult.checkedAt).toLocaleString("pt-BR")}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {provider.provider === "uazapi" ? (
+        <div className="mt-6">
+          <div className="grid grid-cols-4 gap-3">
+            <CapacityBox label="Contratada" value={provider.contractedCapacity ?? 0} />
+            <CapacityBox label="Em uso" value={provider.usedCapacity} />
+            <CapacityBox label="Reservada" value={provider.reservedCapacity ?? 0} />
+            <CapacityBox label="Disponivel" value={available ?? 0} tone={(available ?? 0) > 5 ? "default" : "danger"} />
+          </div>
+          <div className="mt-4">
+            <div className="mb-1.5 flex justify-between text-xs text-muted-foreground">
+              <span>Uso da capacidade contratada</span>
+              <span>{capacityPercent}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn("h-full rounded-full", (capacityPercent ?? 0) > 85 ? "bg-destructive" : "bg-primary")}
+                style={{ width: `${Math.min(capacityPercent ?? 0, 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <CapacityBox label="Contas conectadas" value={provider.usedCapacity} />
+          <CapacityBox label="Conexao" value={provider.status === "active" ? "OAuth tenant" : "Bloqueada"} />
+        </div>
+      )}
+    </article>
+  )
+}
+
+function NewProviderModal({
+  form,
+  onChange,
+  onClose,
+  onCreate,
+  isCreating,
+}: {
+  form: NewProviderForm
+  onChange: <K extends keyof NewProviderForm>(key: K, value: NewProviderForm[K]) => void
+  onClose: () => void
+  onCreate: () => Promise<void>
+  isCreating: boolean
+}) {
+  const config = channelConfig[form.kind]
+  const Icon = config.icon
+  const isUazapi = form.provider === "uazapi"
+  const canCreate = form.name.trim().length > 0 && (
+    !isUazapi ||
+    (form.baseUrl.trim().length > 0 && form.adminToken.trim().length > 0 && Number(form.contractedCapacity) > 0)
+  )
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[10px] border border-border bg-card p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Superadmin</p>
+            <h2 className="mt-1 text-xl font-bold text-foreground font-display">Novo provider de canal</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cadastre infraestrutura global. As instancias finais continuam vinculadas aos tenants.
+            </p>
+          </div>
+          <div className={cn("flex h-12 w-12 items-center justify-center rounded-[5px]", config.bg)}>
+            <Icon className={cn("h-6 w-6", config.color)} />
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div className="grid grid-cols-3 gap-3">
+            {([
+              { kind: "whatsapp", label: "WhatsApp", provider: "uazapi" },
+              { kind: "instagram", label: "Instagram", provider: "meta" },
+              { kind: "telegram", label: "Telegram", provider: "telegram-bot-api" },
+            ] as Array<{ kind: ChannelKind; label: string; provider: ProviderAccount["provider"] }>).map((option) => {
+              const optionConfig = channelConfig[option.kind]
+              const OptionIcon = optionConfig.icon
+
+              return (
+                <button
+                  key={option.kind}
+                  type="button"
+                  onClick={() => onChange("kind", option.kind)}
+                  className={cn(
+                    "rounded-[5px] border p-4 text-left transition-all",
+                    form.kind === option.kind
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-muted/20 hover:border-primary/30"
+                  )}
+                >
+                  <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-[5px]", optionConfig.bg)}>
+                    <OptionIcon className={cn("h-4 w-4", optionConfig.color)} />
+                  </span>
+                  <span className="block text-sm font-bold text-foreground">{option.label}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{option.provider}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2">
+              <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Nome interno</span>
+              <input
+                value={form.name}
+                onChange={(event) => onChange("name", event.target.value)}
+                placeholder={isUazapi ? "UAZAPI Sao Paulo 01" : form.kind === "instagram" ? "Meta App Principal" : "Telegram Adapter Principal"}
+                className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Provider tecnico</span>
+              <select
+                value={form.provider}
+                onChange={(event) => onChange("provider", event.target.value as ProviderAccount["provider"])}
+                className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="uazapi">uazapi</option>
+                <option value="meta">meta</option>
+                <option value="telegram-bot-api">telegram-bot-api</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="block space-y-2">
+            <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              {isUazapi ? "Base URL do UAZAPI" : "URL / identificador do conector"}
+            </span>
+            <input
+              value={form.baseUrl}
+              onChange={(event) => onChange("baseUrl", event.target.value)}
+              placeholder={isUazapi ? "https://api.uazapi.dev/seu-endpoint" : "https://graph.facebook.com/app ou adapter interno"}
+              className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+            />
+          </label>
+
+          {isUazapi && (
+            <>
+              <label className="block space-y-2">
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Admin token</span>
+                <input
+                  type="password"
+                  value={form.adminToken}
+                  onChange={(event) => onChange("adminToken", event.target.value)}
+                  placeholder="Cole aqui o admintoken do provider"
+                  autoComplete="off"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Capacidade contratada</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.contractedCapacity}
+                    onChange={(event) => onChange("contractedCapacity", event.target.value)}
+                    className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reserva operacional</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.reservedCapacity}
+                    onChange={(event) => onChange("reservedCapacity", event.target.value)}
+                    className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </label>
+              </div>
+            </>
+          )}
+
+          <label className="block space-y-2">
+            <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Observacoes</span>
+            <textarea
+              value={form.notes}
+              onChange={(event) => onChange("notes", event.target.value)}
+              placeholder="Ex: provider dedicado para clientes enterprise, nao receber novas instancias sem aprovacao..."
+              className="h-24 w-full resize-none rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+            />
+          </label>
+
+          <div className="rounded-[5px] border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+            {isUazapi
+              ? "Este provider entra no pool de alocacao WhatsApp. A capacidade disponivel sera calculada como contratada menos instancias em uso menos reserva."
+              : "Este provider habilita o conector global. A conta final sera conectada dentro do tenant por OAuth/token."}
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <Button variant="outline" className="rounded-[5px]" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button className="rounded-[5px]" onClick={onCreate} disabled={!canCreate || isCreating}>
+            {isCreating ? "Salvando..." : "Criar provider"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string
+  description: string
+  actionLabel?: string
+  onAction?: () => void
+}) {
+  return (
+    <div className="rounded-[5px] border border-dashed border-border bg-card p-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[5px] bg-muted">
+        <Server className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <h2 className="mt-4 text-lg font-bold text-foreground font-display">{title}</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
+      {actionLabel && onAction && (
+        <Button className="mt-5 rounded-[5px]" onClick={onAction}>
+          <Plus className="mr-2 h-4 w-4" />
+          {actionLabel}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function CapacityBox({ label, value, tone = "default" }: { label: string; value: number | string; tone?: "default" | "danger" }) {
+  return (
+    <div className="rounded-[4px] border border-border bg-muted/30 p-3">
+      <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
+      <p className={cn("text-xl font-bold font-display", tone === "danger" ? "text-destructive" : "text-foreground")}>
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
+        status === "active" && "bg-primary/10 text-primary",
+        status === "maintenance" && "bg-amber-500/10 text-amber-500",
+        status === "disabled" && "bg-muted text-muted-foreground"
+      )}
+    >
+      {statusLabel[status]}
+    </span>
+  )
+}
+
+function HealthBadge({ health }: { health: ProviderAccount["health"] }) {
+  const Icon = health === "ok" ? CheckCircle2 : AlertTriangle
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
+        health === "ok" && "bg-primary/10 text-primary",
+        health === "warning" && "bg-amber-500/10 text-amber-500",
+        health === "error" && "bg-destructive/10 text-destructive"
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {health === "ok" ? "Saudavel" : health === "warning" ? "Atencao" : "Erro"}
+    </span>
+  )
+}
+
+function InstanceStatusBadge({ status }: { status: InstanceStatus }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
+        status === "connected" && "bg-primary/10 text-primary",
+        status === "pending" && "bg-amber-500/10 text-amber-500",
+        status === "error" && "bg-destructive/10 text-destructive"
+      )}
+    >
+      {status === "connected" && <CheckCircle2 className="h-3 w-3" />}
+      {status === "pending" && <Bot className="h-3 w-3" />}
+      {status === "error" && <AlertTriangle className="h-3 w-3" />}
+      {instanceStatusLabel[status]}
+    </span>
+  )
+}
+
+function RuleItem({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="flex gap-3">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+        {label}
+      </span>
+      <span className="text-muted-foreground">{text}</span>
+    </div>
+  )
+}
+
+function PlanLimitRow({ label, value, icon: Icon }: { label: string; value: number; icon: React.ElementType }) {
+  return (
+    <div className="flex items-center justify-between rounded-[5px] border border-border bg-muted/30 px-4 py-3">
+      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Icon className="h-4 w-4 text-primary" />
+        {label}
+      </span>
+      <span className="text-lg font-bold text-foreground">{value}</span>
     </div>
   )
 }

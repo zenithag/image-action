@@ -1,83 +1,32 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
-  Clock,
   CheckCircle2,
-  XCircle,
-  Loader2,
+  Clock,
   Eye,
-  RotateCcw,
   Image as ImageIcon,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  XCircle,
 } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
+import type { CompositionJob, CompositionJobStatus } from "@/lib/composition-types"
 import { cn } from "@/lib/utils"
 
-interface CompositionJob {
-  id: string
-  mode: "interior" | "product" | "print" | "fashion"
-  status: "queued" | "processing" | "done" | "failed"
-  contact: string
-  catalogItem: string
-  createdAt: string
-  completedAt?: string
-  baseImage: string
-  resultImage?: string
-  errorMessage?: string
+type CompositionJobsResponse = {
+  jobs: CompositionJob[]
+  stats: Record<CompositionJobStatus, number>
 }
 
-const mockJobs: CompositionJob[] = [
-  {
-    id: "1",
-    mode: "interior",
-    status: "done",
-    contact: "Maria Silva",
-    catalogItem: "Tinta Azul Petróleo",
-    createdAt: "14:35",
-    completedAt: "14:36",
-    baseImage: "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=150&h=150&fit=crop",
-    resultImage: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=150&h=150&fit=crop",
-  },
-  {
-    id: "2",
-    mode: "interior",
-    status: "processing",
-    contact: "Pedro Oliveira",
-    catalogItem: "Piso Vinílico Madeira",
-    createdAt: "14:40",
-    baseImage: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=150&h=150&fit=crop",
-  },
-  {
-    id: "3",
-    mode: "product",
-    status: "queued",
-    contact: "Ana Costa",
-    catalogItem: "Caneca Personalizada",
-    createdAt: "14:42",
-    baseImage: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-  },
-  {
-    id: "4",
-    mode: "interior",
-    status: "failed",
-    contact: "Carlos Santos",
-    catalogItem: "Revestimento 3D Wave",
-    createdAt: "14:30",
-    baseImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=150&h=150&fit=crop",
-    errorMessage: "Falha ao processar imagem base: qualidade insuficiente",
-  },
-  {
-    id: "5",
-    mode: "interior",
-    status: "done",
-    contact: "Julia Ferreira",
-    catalogItem: "Tinta Azul Serenity",
-    createdAt: "14:20",
-    completedAt: "14:21",
-    baseImage: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=150&h=150&fit=crop",
-    resultImage: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=150&h=150&fit=crop",
-  },
-]
+const emptyStats: Record<CompositionJobStatus, number> = {
+  queued: 0,
+  processing: 0,
+  done: 0,
+  failed: 0,
+}
 
 const statusConfig = {
   queued: {
@@ -91,7 +40,7 @@ const statusConfig = {
     className: "bg-primary/20 text-primary",
   },
   done: {
-    label: "Concluído",
+    label: "Concluido",
     icon: CheckCircle2,
     className: "bg-primary/20 text-primary",
   },
@@ -106,156 +55,387 @@ const modeLabels = {
   interior: "Interiores",
   product: "Produto",
   print: "Estampa",
-  fashion: "Vestuário",
+  fashion: "Vestuario",
 }
 
-export function CompositionJobs() {
+function formatJobTime(value?: string) {
+  if (!value) return "-"
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value))
+}
+
+function imageUrlWithVersion(url: string | undefined, version: string | undefined) {
+  if (!url || !version || url.startsWith("data:")) return url
+
+  const separator = url.includes("?") ? "&" : "?"
+
+  return `${url}${separator}v=${encodeURIComponent(version)}`
+}
+
+function getImageExtension(url: string) {
+  const pathname = url.split("?")[0] || ""
+  const extension = pathname.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase()
+
+  if (extension && ["png", "jpg", "jpeg", "webp"].includes(extension)) {
+    return extension === "jpeg" ? "jpg" : extension
+  }
+
+  return "png"
+}
+
+async function imageUrlToObjectUrl(url: string) {
+  const response = await fetch(url, { cache: "no-store" })
+
+  if (!response.ok) {
+    throw new Error("Nao foi possivel carregar uma das imagens.")
+  }
+
+  return URL.createObjectURL(await response.blob())
+}
+
+function loadImageElement(url: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error("Nao foi possivel preparar a imagem para download."))
+    image.src = url
+  })
+}
+
+function drawContainedImage(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight)
+  const drawWidth = image.naturalWidth * scale
+  const drawHeight = image.naturalHeight * scale
+  const drawX = x + (width - drawWidth) / 2
+  const drawY = y + (height - drawHeight) / 2
+
+  context.drawImage(image, drawX, drawY, drawWidth, drawHeight)
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob)
+        return
+      }
+
+      reject(new Error("Nao foi possivel gerar o comparativo."))
+    }, "image/png")
+  })
+}
+
+async function requestJson<T>(url: string, init?: RequestInit) {
+  const response = await fetch(url, init)
+  const payload = await response.json().catch(() => null) as T | { error?: string; message?: string } | null
+
+  if (!response.ok) {
+    const errorMessage = typeof payload === "object" && payload && "error" in payload && payload.error
+      ? payload.error
+      : typeof payload === "object" && payload && "message" in payload && payload.message
+        ? payload.message
+      : "Erro na requisicao."
+
+    throw new Error(errorMessage)
+  }
+
+  return payload as T
+}
+
+export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
+  const [jobs, setJobs] = useState<CompositionJob[]>([])
+  const [stats, setStats] = useState(emptyStats)
   const [viewingJob, setViewingJob] = useState<CompositionJob | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRetrying, setIsRetrying] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState<string | null>(null)
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function loadJobs(options?: { silent?: boolean }) {
+    if (!options?.silent) {
+      setIsLoading(true)
+      setError(null)
+    }
+
+    try {
+      const data = await requestJson<CompositionJobsResponse>(`/api/tenant/${tenantSlug}/compositions/jobs`, {
+        cache: "no-store",
+      })
+      setJobs(data.jobs)
+      setStats(data.stats)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Nao foi possivel carregar composicoes.")
+    } finally {
+      if (!options?.silent) {
+        setIsLoading(false)
+      }
+    }
+  }
+
+  async function retryJob(jobId: string) {
+    setIsRetrying(jobId)
+    setError(null)
+
+    try {
+      await requestJson<CompositionJob>(`/api/tenant/${tenantSlug}/compositions/jobs/${encodeURIComponent(jobId)}/retry`, {
+        method: "POST",
+      })
+      await loadJobs({ silent: true })
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Nao foi possivel reprocessar o job.")
+    } finally {
+      setIsRetrying(null)
+    }
+  }
+
+  async function processJob(jobId: string) {
+    setIsProcessing(jobId)
+    setError(null)
+
+    try {
+      await requestJson<{ ok: boolean; message: string; job: CompositionJob | null }>(
+        `/api/tenant/${tenantSlug}/compositions/jobs/${encodeURIComponent(jobId)}/process`,
+        { method: "POST" }
+      )
+    } catch (processError) {
+      setError(processError instanceof Error ? processError.message : "Nao foi possivel processar o job.")
+    } finally {
+      setIsProcessing(null)
+      await loadJobs({ silent: true })
+    }
+  }
+
+  async function processQueue() {
+    setIsProcessingQueue(true)
+    setError(null)
+
+    try {
+      await requestJson<{ ok: boolean; message: string; job: CompositionJob | null }>(
+        `/api/tenant/${tenantSlug}/compositions/jobs/process`,
+        { method: "POST" }
+      )
+    } catch (processError) {
+      setError(processError instanceof Error ? processError.message : "Nao foi possivel processar a fila.")
+    } finally {
+      setIsProcessingQueue(false)
+      await loadJobs({ silent: true })
+    }
+  }
+
+  useEffect(() => {
+    void loadJobs()
+
+    const intervalId = window.setInterval(() => {
+      void loadJobs({ silent: true })
+    }, 5000)
+
+    return () => window.clearInterval(intervalId)
+  }, [tenantSlug])
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      {/* Header */}
-      <div className="relative z-10 flex items-center justify-between border-b border-border pl-6 pr-10 py-4 bg-background">
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-border bg-background py-4 pl-6 pr-10">
         <div>
-          <h1 className="text-xl font-bold text-foreground font-display">Jobs de Composição</h1>
+          <h1 className="text-xl font-bold text-foreground font-display">Jobs de Composicao</h1>
           <p className="text-sm text-muted-foreground font-sans">
-            Acompanhe o processamento das composições visuais
+            Acompanhe os jobs reais criados a partir das conversas do WhatsApp.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="font-sans rounded-[5px] shadow-none">
-            <RotateCcw className="mr-2 h-4 w-4" />
+          <Button
+            size="sm"
+            className="rounded-[5px] font-sans"
+            onClick={() => processQueue()}
+            disabled={isProcessingQueue || stats.queued === 0}
+          >
+            {isProcessingQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            Processar fila
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-[5px] shadow-none font-sans"
+            onClick={() => loadJobs()}
+            disabled={isLoading}
+          >
+            <RotateCcw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
             Atualizar
           </Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-b border-border px-6 py-6 bg-card/30">
+      <div className="grid shrink-0 grid-cols-2 gap-4 border-b border-border bg-card/30 px-6 py-6 lg:grid-cols-4">
         {[
-          { label: "Na Fila", value: 1, color: "text-warning", bg: "bg-warning/10" },
-          { label: "Processando", value: 1, color: "text-primary", bg: "bg-primary/10" },
-          { label: "Concluídos", value: 2, color: "text-primary", bg: "bg-primary/10" },
-          { label: "Falhas", value: 1, color: "text-destructive", bg: "bg-destructive/10" },
+          { label: "Na fila", value: stats.queued, color: "text-warning", bg: "bg-warning/10" },
+          { label: "Processando", value: stats.processing, color: "text-primary", bg: "bg-primary/10" },
+          { label: "Concluidos", value: stats.done, color: "text-primary", bg: "bg-primary/10" },
+          { label: "Falhas", value: stats.failed, color: "text-destructive", bg: "bg-destructive/10" },
         ].map((stat) => (
           <div key={stat.label} className="rounded-[5px] border border-border bg-card p-4">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest font-sans">{stat.label}</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground font-sans">{stat.label}</p>
             <p className={cn("mt-2 text-3xl font-bold font-display", stat.color)}>{stat.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Jobs List */}
-      <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
-        <div className="max-w-6xl mx-auto space-y-4">
-          {mockJobs.map((job) => {
-            const status = statusConfig[job.status]
-            const StatusIcon = status.icon
+      {error && (
+        <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-6 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
 
-            return (
-              <div
-                key={job.id}
-                className="group flex items-center gap-6 rounded-[5px] border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-md"
-              >
-                {/* Base Image */}
-                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[5px] bg-muted border border-border">
-                  <img
-                    src={job.baseImage}
-                    alt="Imagem base"
-                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                  />
-                  <div className="absolute top-1 left-1 bg-black/50 text-[8px] text-white px-1 rounded uppercase">Base</div>
-                </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-8 scrollbar-hide">
+        <div className="mx-auto max-w-6xl space-y-4">
+          {isLoading && jobs.length === 0 ? (
+            <div className="flex h-56 items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando composicoes...
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="flex h-72 flex-col items-center justify-center rounded-[8px] border border-dashed border-border bg-card/40 p-8 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                <Sparkles className="h-7 w-7 text-primary" />
+              </div>
+              <h3 className="mt-4 font-bold text-foreground font-display">Nenhum job criado ainda</h3>
+              <p className="mt-2 max-w-md text-sm text-muted-foreground font-sans">
+                Quando a IA receber imagem base e contexto suficiente no inbox, ela criara uma composicao e o job aparecera aqui.
+              </p>
+            </div>
+          ) : (
+            jobs.map((job) => {
+              const status = statusConfig[job.status]
+              const StatusIcon = status.icon
+              const baseImageUrl = imageUrlWithVersion(job.baseImageUrl, job.baseMessageId || job.createdAt)
+              const resultImageUrl = imageUrlWithVersion(job.resultImageUrl, job.completedAt || job.updatedAt)
 
-                {/* Job Info */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <h4 className="font-bold text-card-foreground font-display text-base">{job.contact}</h4>
-                    <span
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
-                        status.className
-                      )}
-                    >
-                      <StatusIcon
-                        className={cn(
-                          "h-3 w-3",
-                          job.status === "processing" && "animate-spin"
-                        )}
+              return (
+                <div
+                  key={job.id}
+                  className="group flex items-center gap-6 rounded-[5px] border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-md"
+                >
+                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[5px] border border-border bg-muted">
+                    {baseImageUrl ? (
+                      <img
+                        src={baseImageUrl}
+                        alt="Imagem base"
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
                       />
-                      {status.label}
-                    </span>
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <ImageIcon className="h-7 w-7 text-muted-foreground/50" />
+                      </div>
+                    )}
+                    <div className="absolute left-1 top-1 rounded bg-black/50 px-1 text-[8px] uppercase text-white">Base</div>
                   </div>
 
-                  <p className="mt-1 text-sm text-foreground font-sans">
-                    <span className="text-primary font-semibold">{job.catalogItem}</span>
-                    <span className="mx-2 text-muted-foreground">•</span>
-                    <span className="text-muted-foreground">{modeLabels[job.mode]}</span>
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-3">
+                      <h4 className="truncate text-base font-bold text-card-foreground font-display">{job.contactName}</h4>
+                      <span
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                          status.className
+                        )}
+                      >
+                        <StatusIcon className={cn("h-3 w-3", job.status === "processing" && "animate-spin")} />
+                        {status.label}
+                      </span>
+                    </div>
 
-                  {job.errorMessage && (
-                    <p className="mt-2 text-xs text-destructive font-medium border-l-2 border-destructive pl-2">{job.errorMessage}</p>
+                    <p className="mt-1 truncate text-sm text-foreground font-sans">
+                      <span className="font-semibold text-primary">{job.catalogItemName || "Produto a definir"}</span>
+                      <span className="mx-2 text-muted-foreground">-</span>
+                      <span className="text-muted-foreground">{modeLabels[job.mode]}</span>
+                    </p>
+
+                    <p className="mt-2 line-clamp-2 text-xs text-muted-foreground font-sans">{job.prompt}</p>
+
+                    {job.errorMessage && (
+                      <p className="mt-2 border-l-2 border-destructive pl-2 text-xs font-medium text-destructive">{job.errorMessage}</p>
+                    )}
+
+                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground font-sans">
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Criado: {formatJobTime(job.createdAt)}</span>
+                      <span className="font-mono">ID: {job.id.slice(0, 8)}</span>
+                      {job.completedAt && <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-primary" /> Concluido: {formatJobTime(job.completedAt)}</span>}
+                    </div>
+                  </div>
+
+                  {job.resultImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setViewingJob(job)}
+                      className="relative h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-[5px] border border-border bg-muted group/result"
+                    >
+                      <img src={resultImageUrl} alt="Resultado" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-primary/20 opacity-0 backdrop-blur-[2px] transition-opacity group-hover/result:opacity-100">
+                        <Eye className="h-6 w-6 text-white drop-shadow-md" />
+                      </div>
+                      <div className="absolute left-1 top-1 rounded bg-primary/80 px-1 text-[8px] uppercase text-white">Novo</div>
+                    </button>
+                  ) : (
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[5px] border-2 border-dashed border-border bg-muted/30">
+                      <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+                    </div>
                   )}
 
-                  <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground font-sans">
-                    <span className="flex items-center gap-1"><Clock className="h-3 w-3"/> Criado: {job.createdAt}</span>
-                    {job.completedAt && <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-primary"/> Concluído: {job.completedAt}</span>}
-                  </div>
-                </div>
-
-                {/* Result Image */}
-                {job.resultImage ? (
-                  <div 
-                    onClick={() => setViewingJob(job)}
-                    className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[5px] bg-muted border border-border group/result cursor-pointer"
-                  >
-                    <img
-                      src={job.resultImage}
-                      alt="Resultado"
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-primary/20 opacity-0 transition-opacity group-hover/result:opacity-100 backdrop-blur-[2px]">
-                      <Eye className="h-6 w-6 text-white drop-shadow-md" />
-                    </div>
-                    <div className="absolute top-1 left-1 bg-primary/80 text-[8px] text-white px-1 rounded uppercase">Novo</div>
-                  </div>
-                ) : (
-                   <div className="h-20 w-20 shrink-0 border-2 border-dashed border-border rounded-[5px] flex items-center justify-center bg-muted/30">
-                     <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
-                   </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex shrink-0 items-center gap-2 ml-4">
-                  {job.status === "done" && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                  <div className="ml-4 flex shrink-0 items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setViewingJob(job)}
-                      className="font-sans rounded-[5px] border-primary/20 text-primary hover:bg-primary/10"
+                      className="rounded-[5px] border-primary/20 text-primary hover:bg-primary/10 font-sans"
                     >
                       <Eye className="mr-1.5 h-4 w-4" />
-                      Visualizar
+                      Detalhes
                     </Button>
-                  )}
-                  {job.status === "failed" && (
-                    <Button variant="outline" size="sm" className="font-sans rounded-[5px] border-destructive/20 text-destructive hover:bg-destructive/10">
-                      <RotateCcw className="mr-1.5 h-4 w-4" />
-                      Tentar novamente
-                    </Button>
-                  )}
+                    {job.status === "failed" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-[5px] border-destructive/20 text-destructive hover:bg-destructive/10 font-sans"
+                        onClick={() => retryJob(job.id)}
+                        disabled={isRetrying === job.id}
+                      >
+                        {isRetrying === job.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1.5 h-4 w-4" />}
+                        Tentar novamente
+                      </Button>
+                    )}
+                    {job.status === "queued" && (
+                      <Button
+                        size="sm"
+                        className="rounded-[5px] font-sans"
+                        onClick={() => processJob(job.id)}
+                        disabled={isProcessing === job.id}
+                      >
+                        {isProcessing === job.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+                        Processar
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          )}
         </div>
       </div>
 
       {viewingJob && (
-        <CompositionViewerModal 
-          job={viewingJob} 
-          onClose={() => setViewingJob(null)} 
-        />
+        <CompositionViewerModal job={viewingJob} onClose={() => setViewingJob(null)} />
       )}
     </div>
   )
@@ -263,95 +443,264 @@ export function CompositionJobs() {
 
 function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose: () => void }) {
   const [sliderPos, setSliderPos] = useState(50)
+  const [comparisonView, setComparisonView] = useState<"slider" | "side-by-side">("slider")
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloadingComparison, setIsDownloadingComparison] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
   const isResizing = useRef(false)
+  const baseImageUrl = imageUrlWithVersion(job.baseImageUrl, job.baseMessageId || job.createdAt)
+  const jobResultImageUrl = imageUrlWithVersion(job.resultImageUrl, job.completedAt || job.updatedAt)
+  const resultImageUrl = jobResultImageUrl || baseImageUrl
 
   const handleMouseDown = () => { isResizing.current = true }
   const handleMouseUp = () => { isResizing.current = false }
-  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isResizing.current) return
-    const container = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const x = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+  const handleMouseMove = (event: React.MouseEvent | React.TouchEvent) => {
+    if (!isResizing.current || !job.resultImageUrl) return
+    const container = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = "touches" in event ? event.touches[0].clientX : event.clientX
     const position = ((x - container.left) / container.width) * 100
     setSliderPos(Math.max(0, Math.min(100, position)))
   }
 
+  const downloadResult = async () => {
+    if (!job.resultImageUrl || !jobResultImageUrl) return
+
+    setIsDownloading(true)
+    setDownloadError(null)
+
+    try {
+      const response = await fetch(jobResultImageUrl, { cache: "no-store" })
+
+      if (!response.ok) {
+        throw new Error("Nao foi possivel baixar o resultado.")
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+
+      link.href = objectUrl
+      link.download = `composicao-${job.id.slice(0, 8)}.${getImageExtension(job.resultImageUrl)}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Nao foi possivel baixar o resultado.")
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const downloadSideBySideComparison = async () => {
+    if (!baseImageUrl || !job.resultImageUrl || !jobResultImageUrl) return
+
+    const objectUrls: string[] = []
+
+    setIsDownloadingComparison(true)
+    setDownloadError(null)
+
+    try {
+      const [baseObjectUrl, resultObjectUrl] = await Promise.all([
+        imageUrlToObjectUrl(baseImageUrl),
+        imageUrlToObjectUrl(jobResultImageUrl),
+      ])
+
+      objectUrls.push(baseObjectUrl, resultObjectUrl)
+
+      const [baseImage, resultImage] = await Promise.all([
+        loadImageElement(baseObjectUrl),
+        loadImageElement(resultObjectUrl),
+      ])
+
+      const panelWidth = Math.min(Math.max(baseImage.naturalWidth, resultImage.naturalWidth), 1600)
+      const panelHeight = Math.min(Math.max(baseImage.naturalHeight, resultImage.naturalHeight), 1600)
+      const dividerWidth = 6
+      const canvas = document.createElement("canvas")
+      const context = canvas.getContext("2d")
+
+      if (!context) {
+        throw new Error("Nao foi possivel gerar o comparativo.")
+      }
+
+      canvas.width = panelWidth * 2 + dividerWidth
+      canvas.height = panelHeight
+
+      context.fillStyle = "#050505"
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      drawContainedImage(context, baseImage, 0, 0, panelWidth, panelHeight)
+      context.fillStyle = "#22c55e"
+      context.fillRect(panelWidth, 0, dividerWidth, panelHeight)
+      drawContainedImage(context, resultImage, panelWidth + dividerWidth, 0, panelWidth, panelHeight)
+
+      const blob = await canvasToPngBlob(canvas)
+      const downloadUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+
+      objectUrls.push(downloadUrl)
+      link.href = downloadUrl
+      link.download = `comparativo-${job.id.slice(0, 8)}.png`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Nao foi possivel baixar o comparativo.")
+    } finally {
+      objectUrls.forEach((url) => URL.revokeObjectURL(url))
+      setIsDownloadingComparison(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}>
-      <div className="relative w-full max-w-5xl rounded-[10px] bg-card overflow-hidden shadow-2xl border border-border" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}>
+      <div className="relative flex max-h-[92vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-[10px] border border-border bg-card shadow-2xl 2xl:max-w-[1600px]" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold font-display flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-primary" /> Compartilhado por {job.contact}
+            <h2 className="flex items-center gap-2 text-lg font-bold font-display">
+              <ImageIcon className="h-5 w-5 text-primary" /> Job de {job.contactName}
             </h2>
-            <p className="text-xs text-muted-foreground">{job.catalogItem} • {modeLabels[job.mode]}</p>
+            <p className="text-xs text-muted-foreground">{job.catalogItemName || "Produto a definir"} - {modeLabels[job.mode]}</p>
           </div>
-          <button onClick={onClose} className="rounded-full hover:bg-muted p-2 transition-colors">
-            <XCircle className="h-6 w-6 text-muted-foreground" />
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-[5px] border border-border bg-background p-1">
+              <button
+                type="button"
+                className={cn(
+                  "rounded-[4px] px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors",
+                  comparisonView === "slider"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+                onClick={() => setComparisonView("slider")}
+              >
+                Arraste
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "rounded-[4px] px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors",
+                  comparisonView === "side-by-side"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+                onClick={() => setComparisonView("side-by-side")}
+              >
+                Lado a lado
+              </button>
+            </div>
+            <button onClick={onClose} className="rounded-full p-2 transition-colors hover:bg-muted">
+              <XCircle className="h-6 w-6 text-muted-foreground" />
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-0">
-          <div className="lg:col-span-3 bg-black relative select-none"
-               onMouseMove={handleMouseMove}
-               onMouseUp={handleMouseUp}
-               onMouseLeave={handleMouseUp}
-               onTouchMove={handleMouseMove}
-               onTouchEnd={handleMouseUp}
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div
+            className="relative select-none bg-black"
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchMove={handleMouseMove}
+            onTouchEnd={handleMouseUp}
           >
-            <div className="relative aspect-video w-full overflow-hidden flex items-center justify-center">
-              {/* After Image (Background) */}
-              <img src={job.resultImage} className="absolute h-full w-full object-contain" alt="Resultado" />
-              
-              {/* Before Image (Foreground with Clip) */}
-              <div 
-                className="absolute inset-0 h-full w-full overflow-hidden z-20 pointer-events-none"
-                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
-              >
-                <img src={job.baseImage} className="absolute h-full w-full object-contain" alt="Base" />
-                <div className="absolute top-4 left-4 bg-black/60 text-[10px] text-white px-2 py-1 rounded-sm uppercase font-bold tracking-widest">Base</div>
-              </div>
-              
-              <div className="absolute top-4 right-4 bg-primary/80 text-[10px] text-white px-2 py-1 rounded-sm uppercase font-bold tracking-widest z-10">Resultado</div>
+            {comparisonView === "slider" ? (
+              <div className="relative flex h-[72vh] min-h-[520px] w-full items-center justify-center overflow-hidden">
+                {resultImageUrl ? (
+                  <img src={resultImageUrl} className="absolute h-full w-full object-contain" alt={job.resultImageUrl ? "Resultado" : "Imagem base"} />
+                ) : (
+                  <ImageIcon className="h-16 w-16 text-white/35" />
+                )}
 
-              {/* Slider Handle */}
-              <div 
-                className="absolute inset-y-0 z-30 cursor-ew-resize group"
-                style={{ left: `${sliderPos}%` }}
-                onMouseDown={handleMouseDown}
-                onTouchStart={handleMouseDown}
-              >
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-primary border-4 border-white shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <div className="flex gap-0.5">
-                    <div className="h-2 w-0.5 bg-white" />
-                    <div className="h-2 w-0.5 bg-white" />
-                  </div>
+                {job.resultImageUrl && baseImageUrl && (
+                  <>
+                    <div
+                      className="pointer-events-none absolute inset-0 z-20 h-full w-full overflow-hidden"
+                      style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                    >
+                      <img src={baseImageUrl} className="absolute h-full w-full object-contain" alt="Imagem original" />
+                      <div className="absolute left-4 top-4 rounded-sm bg-black/60 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Original</div>
+                    </div>
+
+                    <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Nova imagem</div>
+                    <div
+                      className="absolute inset-y-0 z-30 cursor-ew-resize group"
+                      style={{ left: `${sliderPos}%` }}
+                      onMouseDown={handleMouseDown}
+                      onTouchStart={handleMouseDown}
+                    >
+                      <div className="h-full w-1 -translate-x-1/2 bg-white/90 shadow-[0_0_18px_rgba(0,0,0,0.45)]" />
+                      <div className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white bg-primary shadow-xl transition-transform group-hover:scale-110">
+                        <div className="flex gap-0.5">
+                          <div className="h-2 w-0.5 bg-white" />
+                          <div className="h-2 w-0.5 bg-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="grid h-[72vh] min-h-[520px] w-full grid-cols-1 gap-px bg-border md:grid-cols-2">
+                <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-black">
+                  <div className="absolute left-4 top-4 z-10 rounded-sm bg-black/65 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Original</div>
+                  {baseImageUrl ? (
+                    <img src={baseImageUrl} className="h-full w-full object-contain" alt="Imagem original" />
+                  ) : (
+                    <ImageIcon className="h-16 w-16 text-white/35" />
+                  )}
+                </div>
+
+                <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-black">
+                  <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Nova imagem</div>
+                  {resultImageUrl ? (
+                    <img src={resultImageUrl} className="h-full w-full object-contain" alt={job.resultImageUrl ? "Nova imagem" : "Imagem base"} />
+                  ) : (
+                    <ImageIcon className="h-16 w-16 text-white/35" />
+                  )}
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
-          <div className="border-l border-border p-6 bg-card flex flex-col justify-between">
+          <div className="flex flex-col justify-between border-l border-border bg-card p-6">
             <div className="space-y-6">
               <div>
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Informações</h4>
+                <h4 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Informacoes</h4>
                 <div className="space-y-3">
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">ID do Job</span><span className="font-mono">{job.id}</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Status</span><span className="text-primary font-bold">Concluído</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Concluído em</span><span>{job.completedAt}</span></div>
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">ID do job</span><span className="font-mono">{job.id.slice(0, 8)}</span></div>
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Status</span><span className="font-bold text-primary">{statusConfig[job.status].label}</span></div>
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Criado em</span><span>{formatJobTime(job.createdAt)}</span></div>
                 </div>
               </div>
-              <div className="p-4 rounded-[5px] bg-primary/5 border border-primary/10">
-                <p className="text-xs text-muted-foreground leading-relaxed italic">
-                  "A composição visual foi gerada utilizando IA generativa para integrar {job.catalogItem} em um ambiente de {modeLabels[job.mode]}."
-                </p>
+              <div className="rounded-[5px] border border-primary/10 bg-primary/5 p-4">
+                <p className="text-xs italic leading-relaxed text-muted-foreground">{job.prompt}</p>
               </div>
             </div>
 
-            <div className="space-y-3 mt-8">
-              <Button className="w-full font-sans py-6 rounded-[5px]">
-                Download Resultado
+            <div className="mt-8 space-y-3">
+              {downloadError && (
+                <p className="rounded-[5px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {downloadError}
+                </p>
+              )}
+              <Button
+                variant="secondary"
+                className="w-full rounded-[5px] py-6 font-sans"
+                disabled={!baseImageUrl || !job.resultImageUrl || isDownloadingComparison}
+                onClick={downloadSideBySideComparison}
+              >
+                {isDownloadingComparison ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isDownloadingComparison ? "Gerando..." : "Baixar comparativo lado a lado"}
               </Button>
-              <Button variant="outline" className="w-full font-sans py-6 rounded-[5px]">
+              <Button
+                className="w-full rounded-[5px] py-6 font-sans"
+                disabled={!job.resultImageUrl || isDownloading}
+                onClick={downloadResult}
+              >
+                {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isDownloading ? "Baixando..." : "Download Resultado"}
+              </Button>
+              <Button variant="outline" className="w-full rounded-[5px] py-6 font-sans" disabled={!job.resultImageUrl}>
                 Compartilhar via WhatsApp
               </Button>
             </div>

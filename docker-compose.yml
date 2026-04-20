@@ -102,6 +102,19 @@ services:
       api-server:
         condition: service_started
 
+  segmentation-service:
+    build:
+      context: ./services/segmentation-service
+    ports:
+      - "8010:8010"
+    environment:
+      SEGMENTATION_PROVIDER: ${SEGMENTATION_PROVIDER:-grounded_sam}
+      SEGMENTATION_LOCAL_MODEL: ${SEGMENTATION_LOCAL_MODEL:-nvidia/segformer-b2-finetuned-ade-512-512}
+      SEGMENTATION_GROUNDED_SAM_DETECTOR_MODEL: ${SEGMENTATION_GROUNDED_SAM_DETECTOR_MODEL:-IDEA-Research/grounding-dino-tiny}
+      SEGMENTATION_GROUNDED_SAM_SEGMENTER_MODEL: ${SEGMENTATION_GROUNDED_SAM_SEGMENTER_MODEL:-facebook/sam-vit-base}
+      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN:-}
+      REPLICATE_MODEL: ${REPLICATE_MODEL:-idea-research/ram-grounded-sam}
+
   web:
     build:
       context: .
@@ -125,9 +138,12 @@ services:
       DEV_TENANT_LOGIN_ROLES: tenant
       DEV_TENANT_ID: decor-labs
       DEV_TENANT_SLUG: decor-labs
+      SEGMENTATION_SERVICE_URL: ${SEGMENTATION_SERVICE_URL:-}
       HOSTNAME: "0.0.0.0"
     depends_on:
       api-server:
+        condition: service_started
+      segmentation-service:
         condition: service_started
 
 volumes:

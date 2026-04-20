@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   Building2, Globe, Plus, MoreVertical, Search,
   CheckCircle2, XCircle, Clock, MessageSquare,
