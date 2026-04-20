@@ -16,7 +16,7 @@ const mockTenant = {
   name: "Loja Demo",
   slug: "loja-demo",
   email: "contato@lojademo.com.br",
-  domain: "demo.visualflow.app",
+  domain: "demo.comofica.ai",
   status: "active",
   plan: "pro",
   createdAt: "15 Jan 2024",
@@ -69,7 +69,7 @@ export default function TenantDetailPage() {
               {statusConfig[mockTenant.status as keyof typeof statusConfig]?.label}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground font-mono truncate">{mockTenant.slug}.visualflow.app</p>
+          <p className="text-xs text-muted-foreground font-mono truncate">{mockTenant.slug}.comofica.ai</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="font-sans rounded-[5px] h-9">

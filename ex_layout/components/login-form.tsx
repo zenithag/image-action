@@ -59,7 +59,7 @@ export function LoginForm() {
             <MessageSquare className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-lg font-semibold tracking-tight text-sidebar-foreground">
-            VisualFlow
+            ComoFica
           </span>
         </div>
 
@@ -127,7 +127,7 @@ export function LoginForm() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
             <MessageSquare className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-semibold text-foreground">VisualFlow</span>
+          <span className="text-lg font-semibold text-foreground">ComoFica</span>
         </div>
 
         <div className="w-full max-w-sm space-y-8">
@@ -240,7 +240,7 @@ export function LoginForm() {
         </div>
 
         <p className="mt-12 text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} VisualFlow. Todos os direitos reservados.
+          &copy; {new Date().getFullYear()} ComoFica. Todos os direitos reservados.
         </p>
       </div>
     </div>

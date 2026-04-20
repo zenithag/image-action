@@ -137,7 +137,7 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
     .join("\n")
 
   const systemPrompt = [
-    "Voce e o orquestrador de IA do VisualFlow.",
+    "Voce e o orquestrador de IA do ComoFica.",
     "Classifique a mensagem recebida e escolha a proxima acao.",
     "Responda somente JSON valido, sem markdown.",
     "Campos obrigatorios: intent, mode, next_action, confidence, needs_human_review, missing_inputs, rationale, reply.",

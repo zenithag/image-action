@@ -19,7 +19,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Atendimento Visual Multi-Tenant",
+  title: "ComoFica",
   description: "Plataforma conversacional multi-tenant para composicao visual por WhatsApp.",
 };
 

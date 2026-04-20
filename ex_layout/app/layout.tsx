@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'VisualFlow - Plataforma Conversacional',
+  title: 'ComoFica - Plataforma Conversacional',
   description: 'Plataforma B2B de atendimento conversacional via WhatsApp com composição visual automatizada',
   generator: 'v0.app',
   icons: {

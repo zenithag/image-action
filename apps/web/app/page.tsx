@@ -6,8 +6,8 @@ import { auth } from "@/lib/auth"
 import { getSafeCallbackUrl } from "@/lib/auth-routing"
 
 export const metadata: Metadata = {
-  title: "Login | VisualFlow",
-  description: "Entre na sua conta para acessar a area interna do VisualFlow.",
+  title: "Login | ComoFica",
+  description: "Entre na sua conta para acessar a area interna do ComoFica.",
 }
 
 type HomePageProps = {

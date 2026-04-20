@@ -22,7 +22,7 @@ interface Tenant {
 }
 
 const mockTenants: Tenant[] = [
-  { id: "1", name: "Loja Demo", slug: "loja-demo", status: "active", planCode: "pro", domain: "demo.visualflow.app", stats: { conversations: 156, compositions: 89, contacts: 234 }, createdAt: "2024-01-15" },
+  { id: "1", name: "Loja Demo", slug: "loja-demo", status: "active", planCode: "pro", domain: "demo.comofica.ai", stats: { conversations: 156, compositions: 89, contacts: 234 }, createdAt: "2024-01-15" },
   { id: "2", name: "Casa & Decoração", slug: "casa-decoracao", status: "active", planCode: "enterprise", domain: "atendimento.casadecoracao.com.br", stats: { conversations: 1240, compositions: 687, contacts: 2156 }, createdAt: "2024-02-20" },
   { id: "3", name: "Tintas Express", slug: "tintas-express", status: "suspended", planCode: "starter", stats: { conversations: 45, compositions: 12, contacts: 67 }, createdAt: "2024-03-10" },
   { id: "4", name: "Móveis Planejados SP", slug: "moveis-sp", status: "draft", planCode: "pro", stats: { conversations: 0, compositions: 0, contacts: 0 }, createdAt: "2024-04-01" },
@@ -71,7 +71,7 @@ export function SuperadminTenants() {
           <div className="relative w-full max-w-lg rounded-[10px] bg-card p-8 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
             <div className="mb-6">
               <h2 className="text-xl font-bold font-display">Novo Tenant</h2>
-              <p className="text-sm text-muted-foreground">Cadastre uma nova empresa na plataforma VisualFlow</p>
+              <p className="text-sm text-muted-foreground">Cadastre uma nova empresa na plataforma ComoFica</p>
             </div>
             
             <div className="space-y-4">
@@ -83,7 +83,7 @@ export function SuperadminTenants() {
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase text-muted-foreground">Slug (URL)</label>
                 <div className="flex">
-                  <span className="flex items-center rounded-l-[5px] border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground italic">visualflow.app/</span>
+                  <span className="flex items-center rounded-l-[5px] border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground italic">comofica.ai/</span>
                   <input type="text" placeholder="moveis-sp" className="w-full rounded-r-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>

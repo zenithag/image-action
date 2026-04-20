@@ -128,16 +128,6 @@ services:
       NEXTAUTH_SECRET: dev-secret-change-me
       AUTH_TRUST_HOST: "true"
       NODE_OPTIONS: --no-experimental-webstorage
-      DEV_LOGIN_EMAIL: cardoso.tads@gmail.com
-      DEV_LOGIN_PASSWORD: Admin123!
-      DEV_LOGIN_NAME: Wesley Cardoso
-      DEV_LOGIN_ROLES: superadmin
-      DEV_TENANT_LOGIN_EMAIL: operador@decorlabs.local
-      DEV_TENANT_LOGIN_PASSWORD: Tenant123!
-      DEV_TENANT_LOGIN_NAME: Operador Decor Labs
-      DEV_TENANT_LOGIN_ROLES: tenant
-      DEV_TENANT_ID: decor-labs
-      DEV_TENANT_SLUG: decor-labs
       SEGMENTATION_SERVICE_URL: ${SEGMENTATION_SERVICE_URL:-}
       HOSTNAME: "0.0.0.0"
     depends_on:

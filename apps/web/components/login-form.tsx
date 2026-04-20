@@ -14,26 +14,13 @@ type LoginFormProps = {
   errorMessage?: string | null
 }
 
-const credentialPresets = [
-  {
-    label: "Superadmin",
-    email: "cardoso.tads@gmail.com",
-    password: "Admin123!",
-  },
-  {
-    label: "Tenant Decor Labs",
-    email: "operador@decorlabs.local",
-    password: "Tenant123!",
-  },
-]
-
 export function LoginForm({
   callbackUrl = "/auth/post-login",
   errorMessage = null,
 }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState("cardoso.tads@gmail.com")
-  const [password, setPassword] = useState("Admin123!")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(errorMessage)
   const { theme, setTheme } = useTheme()
@@ -54,7 +41,7 @@ export function LoginForm({
     setIsSubmitting(false)
 
     if (result?.error) {
-      setSubmitError("Credenciais invalidas. Use o e-mail e a senha do ambiente local.")
+      setSubmitError("Credenciais invalidas. Verifique o e-mail e a senha cadastrados.")
       return
     }
 
@@ -86,7 +73,7 @@ export function LoginForm({
             <MessageSquare className="h-6 w-6 text-primary-foreground" />
           </div>
           <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
-            VisualFlow
+            ComoFica
           </span>
         </div>
 
@@ -156,7 +143,7 @@ export function LoginForm({
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
             <MessageSquare className="h-6 w-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground">VisualFlow</span>
+          <span className="text-xl font-bold text-foreground">ComoFica</span>
         </div>
 
         <div className="w-full max-w-sm space-y-10">
@@ -168,29 +155,6 @@ export function LoginForm({
             <p className="text-base text-muted-foreground">
               Entre com suas credenciais para continuar
             </p>
-          </div>
-
-          <div className="space-y-3 rounded-3xl border border-border/60 bg-card/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Perfis de teste
-            </p>
-            <div className="grid gap-2">
-              {credentialPresets.map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => {
-                    setEmail(preset.email)
-                    setPassword(preset.password)
-                    setSubmitError(null)
-                  }}
-                  className="rounded-2xl border border-border/60 px-3 py-3 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
-                >
-                  <p className="text-sm font-semibold text-foreground">{preset.label}</p>
-                  <p className="text-xs text-muted-foreground">{preset.email}</p>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Form */}
@@ -293,7 +257,7 @@ export function LoginForm({
         </div>
 
         <p className="mt-16 text-center text-xs text-muted-foreground font-medium">
-          &copy; {new Date().getFullYear()} VisualFlow. Todos os direitos reservados.
+          &copy; {new Date().getFullYear()} ComoFica. Todos os direitos reservados.
         </p>
       </div>
     </div>

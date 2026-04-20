@@ -107,7 +107,7 @@ export default function SettingsPage() {
                   <Globe className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium text-secondary-foreground">
-                      decor-labs.visualflow.app
+                      decor-labs.comofica.ai
                     </p>
                     <p className="text-xs text-muted-foreground">Domínio padrão</p>
                   </div>

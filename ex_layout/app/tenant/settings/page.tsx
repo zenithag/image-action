@@ -91,7 +91,7 @@ export default function SettingsPage() {
                   <label className="text-sm text-muted-foreground">Descrição</label>
                   <textarea
                     rows={3}
-                    defaultValue="Loja de demonstração para testes da plataforma VisualFlow."
+                    defaultValue="Loja de demonstração para testes da plataforma ComoFica."
                     className="mt-1.5 w-full resize-none rounded-lg border border-input bg-input px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
@@ -111,7 +111,7 @@ export default function SettingsPage() {
                     <Globe className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-medium text-secondary-foreground">
-                        demo.visualflow.app
+                        demo.comofica.ai
                       </p>
                       <p className="text-xs text-muted-foreground">Domínio padrão</p>
                     </div>

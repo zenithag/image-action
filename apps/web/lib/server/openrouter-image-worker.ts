@@ -101,8 +101,8 @@ function getOpenRouterHeaders(provider: AiProvider) {
     Authorization: `Bearer ${provider.apiKey}`,
     "Content-Type": "application/json",
     "HTTP-Referer": process.env.OPENROUTER_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-    "X-Title": process.env.OPENROUTER_SITE_NAME || "VisualFlow",
-    "X-OpenRouter-Title": process.env.OPENROUTER_SITE_NAME || "VisualFlow",
+    "X-Title": process.env.OPENROUTER_SITE_NAME || "ComoFica",
+    "X-OpenRouter-Title": process.env.OPENROUTER_SITE_NAME || "ComoFica",
   }
 }
 

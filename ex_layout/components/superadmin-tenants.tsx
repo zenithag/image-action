@@ -38,7 +38,7 @@ const mockTenants: Tenant[] = [
     slug: "loja-demo",
     status: "active",
     planCode: "pro",
-    domain: "demo.visualflow.app",
+    domain: "demo.comofica.ai",
     stats: { conversations: 156, compositions: 89, contacts: 234 },
     createdAt: "2024-01-15",
   },

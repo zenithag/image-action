@@ -141,7 +141,7 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
             collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
           )}
         >
-          VisualFlow
+          ComoFica
         </span>
       </div>
 
@@ -159,7 +159,7 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
               )}
             >
               <p className="text-sm font-medium text-foreground">{tenantSlug || "Loja Demo"}</p>
-              <p className="text-xs text-muted-foreground">{tenantSlug ? `${tenantSlug}.visualflow.app` : "demo.visualflow.app"}</p>
+              <p className="text-xs text-muted-foreground">{tenantSlug ? `${tenantSlug}.comofica.ai` : "demo.comofica.ai"}</p>
             </div>
           </div>
         </div>
