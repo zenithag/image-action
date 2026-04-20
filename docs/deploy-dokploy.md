@@ -15,8 +15,8 @@ Este projeto deve ser publicado como uma aplicacao Docker Compose no Dokploy usa
 
 - `APP_URL`: URL publica final da aplicacao, por exemplo `https://app.seudominio.com`.
 - `NEXTAUTH_SECRET`: segredo longo e aleatorio para sessoes.
-- `DEV_LOGIN_EMAIL` e `DEV_LOGIN_PASSWORD`: acesso superadmin inicial.
-- `DEV_TENANT_LOGIN_EMAIL` e `DEV_TENANT_LOGIN_PASSWORD`: acesso do tenant inicial.
+- `AUTH_BOOTSTRAP_SUPERADMIN_EMAIL` e `AUTH_BOOTSTRAP_SUPERADMIN_PASSWORD`: acesso superadmin inicial.
+- `AUTH_BOOTSTRAP_TENANT_EMAIL` e `AUTH_BOOTSTRAP_TENANT_PASSWORD`: acesso do tenant inicial.
 - `OPENROUTER_API_KEY`: opcional se voce preferir cadastrar o provider pela tela de superadmin, mas recomendado para o primeiro deploy.
 
 ## Persistencia
@@ -28,6 +28,8 @@ O deploy usa volumes nomeados:
 - `segmentation_cache`: cache local dos modelos de segmentacao.
 
 Sem esses volumes, os cadastros e imagens geradas podem sumir a cada redeploy.
+
+Os usuarios tambem ficam no volume `web_data`, em `auth-users.json`. As variaveis `AUTH_BOOTSTRAP_*` criam usuarios apenas quando o e-mail ainda nao existe; elas nao sobrescrevem senhas ja persistidas.
 
 ## Observacoes
 

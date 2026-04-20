@@ -2,43 +2,7 @@ import NextAuth from "next-auth"
 import type { NextAuthConfig } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 
-type DevUser = {
-  id: string
-  name: string
-  email: string
-  password: string
-  tenantId: string | null
-  tenantSlug: string | null
-  roles: string[]
-}
-
-function parseRoles(value: string) {
-  return value
-    .split(",")
-    .map((role) => role.trim())
-    .filter(Boolean)
-}
-
-const devUsers: DevUser[] = [
-  {
-    id: "dev-superadmin",
-    name: process.env.DEV_LOGIN_NAME || "Wesley Cardoso",
-    email: process.env.DEV_LOGIN_EMAIL || "cardoso.tads@gmail.com",
-    password: process.env.DEV_LOGIN_PASSWORD || "Admin123!",
-    tenantId: null,
-    tenantSlug: null,
-    roles: parseRoles(process.env.DEV_LOGIN_ROLES || "superadmin"),
-  },
-  {
-    id: "dev-tenant-decor-labs",
-    name: process.env.DEV_TENANT_LOGIN_NAME || "Operador Decor Labs",
-    email: process.env.DEV_TENANT_LOGIN_EMAIL || "operador@decorlabs.local",
-    password: process.env.DEV_TENANT_LOGIN_PASSWORD || "Tenant123!",
-    tenantId: process.env.DEV_TENANT_ID || "decor-labs",
-    tenantSlug: process.env.DEV_TENANT_SLUG || "decor-labs",
-    roles: parseRoles(process.env.DEV_TENANT_LOGIN_ROLES || "tenant"),
-  },
-]
+import { authenticateStoredUser } from "@/lib/server/auth-users-store"
 
 const hasZitadelConfig = Boolean(
   process.env.ZITADEL_ISSUER_URL &&
@@ -55,13 +19,7 @@ const providers: NonNullable<NextAuthConfig["providers"]> = [
       password: { label: "Senha", type: "password" },
     },
     async authorize(credentials) {
-      const email = String(credentials?.email || "").trim().toLowerCase()
-      const password = String(credentials?.password || "")
-      const matchedUser = devUsers.find(
-        (user) => user.email.toLowerCase() === email && user.password === password
-      )
-
-      return matchedUser || null
+      return authenticateStoredUser(credentials?.email, credentials?.password)
     },
   }),
 ]
