@@ -225,7 +225,7 @@ export default function TenantDetailPage() {
               <div className="rounded-[5px] border border-border bg-card p-6">
                 <h3 className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">Proximos passos</h3>
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  Este tenant ja existe como cadastro real. A criacao de usuarios operadores e acessos por tenant deve ser feita na proxima etapa do painel.
+                  Este tenant ja existe como cadastro real. O email principal criado no cadastro e a senha inicial definida pelo superadmin ja podem ser usados no login do tenant.
                 </p>
               </div>
             </div>

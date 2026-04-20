@@ -38,6 +38,10 @@ type BootstrapUserInput = {
   roles: string[]
 }
 
+type CreateAuthUserInput = BootstrapUserInput & {
+  status?: AuthUserStatus
+}
+
 let mutationQueue = Promise.resolve()
 
 function normalizeText(value: unknown) {
@@ -138,7 +142,7 @@ function readBootstrapUsers(): BootstrapUserInput[] {
   return users
 }
 
-async function buildAuthUser(input: BootstrapUserInput): Promise<StoredAuthUser> {
+async function buildAuthUser(input: CreateAuthUserInput): Promise<StoredAuthUser> {
   const timestamp = new Date().toISOString()
   const password = await hashPassword(input.password)
 
@@ -150,10 +154,72 @@ async function buildAuthUser(input: BootstrapUserInput): Promise<StoredAuthUser>
     tenantId: input.tenantId,
     tenantSlug: input.tenantSlug,
     roles: input.roles,
-    status: "active",
+    status: "status" in input && input.status ? input.status : "active",
     createdAt: timestamp,
     updatedAt: timestamp,
   }
+}
+
+export function validateStrongPassword(passwordInput: unknown) {
+  const password = normalizeText(passwordInput)
+
+  if (password.length < 12) {
+    throw new Error("A senha precisa ter pelo menos 12 caracteres.")
+  }
+
+  if (!/[a-z]/.test(password)) {
+    throw new Error("A senha precisa ter pelo menos uma letra minuscula.")
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    throw new Error("A senha precisa ter pelo menos uma letra maiuscula.")
+  }
+
+  if (!/[0-9]/.test(password)) {
+    throw new Error("A senha precisa ter pelo menos um numero.")
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    throw new Error("A senha precisa ter pelo menos um caractere especial.")
+  }
+
+  return password
+}
+
+export async function createStoredAuthUser(input: CreateAuthUserInput) {
+  const email = normalizeEmail(input.email)
+  const name = normalizeText(input.name)
+  const password = validateStrongPassword(input.password)
+
+  if (!name) {
+    throw new Error("Nome do usuario e obrigatorio.")
+  }
+
+  if (!email) {
+    throw new Error("Email do usuario e obrigatorio.")
+  }
+
+  return withAuthUsersMutation(async () => {
+    const data = await readAuthUsersData()
+    const emailTaken = data.users.some((user) => user.email.toLowerCase() === email)
+
+    if (emailTaken) {
+      throw new Error("Ja existe um usuario com esse email.")
+    }
+
+    const user = await buildAuthUser({
+      ...input,
+      name,
+      email,
+      password,
+    })
+
+    await writeAuthUsersData({
+      users: [...data.users, user],
+    })
+
+    return user
+  })
 }
 
 async function ensureBootstrapUsers() {

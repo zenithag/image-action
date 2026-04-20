@@ -22,6 +22,11 @@ import { Button } from "@/components/ui/button"
 import type { Tenant, TenantInput, TenantPlanCode, TenantStatus } from "@/lib/tenant-types"
 import { cn } from "@/lib/utils"
 
+type TenantCreateForm = TenantInput & {
+  initialUserPassword: string
+  initialUserPasswordConfirmation: string
+}
+
 const statusConfig: Record<TenantStatus, { label: string; icon: typeof Clock; className: string }> = {
   draft: { label: "Rascunho", icon: Clock, className: "bg-muted text-muted-foreground" },
   active: { label: "Ativo", icon: CheckCircle2, className: "bg-primary/20 text-primary" },
@@ -35,7 +40,7 @@ const planLabels: Record<TenantPlanCode, { label: string; color: string }> = {
   enterprise: { label: "Enterprise", color: "bg-primary/10 text-primary" },
 }
 
-const initialForm: TenantInput = {
+const initialForm: TenantCreateForm = {
   name: "",
   slug: "",
   status: "active",
@@ -45,6 +50,8 @@ const initialForm: TenantInput = {
   contactName: "",
   phone: "",
   website: "",
+  initialUserPassword: "",
+  initialUserPasswordConfirmation: "",
 }
 
 function slugify(value: string) {
@@ -68,13 +75,23 @@ function getStats(tenants: Tenant[]) {
   )
 }
 
+function getPasswordChecks(password: string) {
+  return [
+    { label: "12 caracteres", valid: password.length >= 12 },
+    { label: "letra maiuscula", valid: /[A-Z]/.test(password) },
+    { label: "letra minuscula", valid: /[a-z]/.test(password) },
+    { label: "numero", valid: /[0-9]/.test(password) },
+    { label: "caractere especial", valid: /[^A-Za-z0-9]/.test(password) },
+  ]
+}
+
 export function SuperadminTenants() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [search, setSearch] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isNewModalOpen, setIsNewModalOpen] = useState(false)
-  const [form, setForm] = useState<TenantInput>(initialForm)
+  const [form, setForm] = useState<TenantCreateForm>(initialForm)
   const [error, setError] = useState<string | null>(null)
 
   async function loadTenants() {
@@ -116,8 +133,16 @@ export function SuperadminTenants() {
   }, [search, tenants])
 
   const stats = useMemo(() => getStats(tenants), [tenants])
+  const passwordChecks = useMemo(() => getPasswordChecks(form.initialUserPassword), [form.initialUserPassword])
+  const isPasswordStrong = passwordChecks.every((check) => check.valid)
+  const canCreateTenant = Boolean(
+    form.name.trim() &&
+    form.contactEmail?.trim() &&
+    isPasswordStrong &&
+    form.initialUserPassword === form.initialUserPasswordConfirmation
+  )
 
-  function updateField<K extends keyof TenantInput>(field: K, value: TenantInput[K]) {
+  function updateField<K extends keyof TenantCreateForm>(field: K, value: TenantCreateForm[K]) {
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -273,8 +298,10 @@ export function SuperadminTenants() {
                   value={form.contactEmail}
                   onChange={(event) => updateField("contactEmail", event.target.value)}
                   placeholder="responsavel@empresa.com"
+                  autoComplete="email"
                   className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
+                <p className="text-[11px] text-muted-foreground">Esse email sera o login inicial do tenant.</p>
               </div>
 
               <div className="space-y-2">
@@ -309,10 +336,50 @@ export function SuperadminTenants() {
                   className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Senha inicial forte</label>
+                <input
+                  type="password"
+                  value={form.initialUserPassword}
+                  onChange={(event) => updateField("initialUserPassword", event.target.value)}
+                  placeholder="Minimo 12 caracteres"
+                  autoComplete="new-password"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {passwordChecks.map((check) => (
+                    <span
+                      key={check.label}
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                        check.valid ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {check.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Confirmar senha</label>
+                <input
+                  type="password"
+                  value={form.initialUserPasswordConfirmation}
+                  onChange={(event) => updateField("initialUserPasswordConfirmation", event.target.value)}
+                  placeholder="Repita a senha"
+                  autoComplete="new-password"
+                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                {form.initialUserPasswordConfirmation && form.initialUserPassword !== form.initialUserPasswordConfirmation ? (
+                  <p className="text-[11px] font-medium text-destructive">A confirmacao ainda nao confere.</p>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-6 flex gap-3">
-              <Button className="flex-1 rounded-[5px] py-6 font-sans" disabled={isSaving} onClick={() => void createTenant()}>
+              <Button className="flex-1 rounded-[5px] py-6 font-sans" disabled={isSaving || !canCreateTenant} onClick={() => void createTenant()}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Criar tenant
               </Button>
