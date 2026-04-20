@@ -21,6 +21,13 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "ComoFica",
   description: "Plataforma conversacional multi-tenant para composicao visual por WhatsApp.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
