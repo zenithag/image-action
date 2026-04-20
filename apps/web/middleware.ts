@@ -8,9 +8,14 @@ import {
 } from "@/lib/auth-routing"
 
 export default async function middleware(req: NextRequest) {
+  const isSecureRequest =
+    req.nextUrl.protocol === "https:" ||
+    req.headers.get("x-forwarded-proto") === "https" ||
+    process.env.NEXTAUTH_URL?.startsWith("https://") === true
   const token = await getToken({
     req,
     secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+    secureCookie: isSecureRequest,
   })
 
   if (!token) {
