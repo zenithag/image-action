@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import type { TenantInput } from "@/lib/tenant-types"
+import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 import { deleteTenant, findTenant, updateTenant } from "@/lib/server/tenants-store"
 
 export const runtime = "nodejs"
@@ -16,6 +17,9 @@ function getErrorMessage(error: unknown) {
 }
 
 export async function GET(_request: Request, context: RouteContext) {
+  const unauthorized = await requireSuperadmin()
+  if (unauthorized) return unauthorized
+
   const { id } = await context.params
   const tenant = await findTenant(id)
 
@@ -27,6 +31,9 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const unauthorized = await requireSuperadmin()
+  if (unauthorized) return unauthorized
+
   try {
     const { id } = await context.params
     const payload = await request.json() as Partial<TenantInput>
@@ -43,6 +50,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
+  const unauthorized = await requireSuperadmin()
+  if (unauthorized) return unauthorized
+
   const { id } = await context.params
   const deleted = await deleteTenant(id)
 
