@@ -129,23 +129,5 @@ export async function getActiveOpenRouterProvider() {
     return storedProvider
   }
 
-  const envApiKey = process.env.OPENROUTER_API_KEY?.trim()
-  if (!envApiKey) {
-    return null
-  }
-
-  const timestamp = now()
-
-  return {
-    id: "env-openrouter",
-    name: "OpenRouter ENV",
-    provider: "openrouter",
-    status: "active",
-    apiKey: envApiKey,
-    baseUrl: process.env.OPENROUTER_BASE_URL?.trim() || defaultOpenRouterBaseUrl,
-    health: "warning",
-    notes: "Provider carregado via variavel OPENROUTER_API_KEY.",
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  } satisfies AiProvider
+  return null
 }

@@ -23,8 +23,6 @@ services:
       AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_APP_URL: ${APP_URL}
       SEGMENTATION_SERVICE_URL: http://segmentation-service:8010
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       OPENROUTER_SITE_URL: ${APP_URL}
       OPENROUTER_SITE_NAME: ${OPENROUTER_SITE_NAME:-ComoFica}
       OPENROUTER_IMAGE_MODEL: ${OPENROUTER_IMAGE_MODEL:-google/gemini-3-pro-image-preview}
