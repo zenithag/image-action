@@ -8,8 +8,6 @@ import {
   Building2,
   Calendar,
   Database,
-  ExternalLink,
-  Globe,
   Loader2,
   Mail,
   MessageSquare,
@@ -165,7 +163,6 @@ export default function TenantDetailPage() {
                 </div>
                 <div className="grid gap-6 p-6 sm:grid-cols-2">
                   <InfoItem icon={Mail} label="Email principal" value={tenant.contactEmail || "Nao configurado"} />
-                  <InfoItem icon={Globe} label="Dominio proprio" value={tenant.domain || "Nao configurado"} />
                   <InfoItem label="Plano atual" value={planLabels[tenant.planCode]} />
                   <InfoItem icon={Calendar} label="Data de criacao" value={formatDate(tenant.createdAt)} />
                 </div>
@@ -179,17 +176,6 @@ export default function TenantDetailPage() {
                 <div className="grid gap-6 p-6 sm:grid-cols-2">
                   <InfoItem label="Responsavel" value={tenant.contactName || "Nao configurado"} />
                   <InfoItem label="Telefone" value={tenant.phone || "Nao configurado"} />
-                  <div className="sm:col-span-2">
-                    <p className="mb-2 text-[10px] font-bold uppercase text-muted-foreground">Website</p>
-                    {tenant.website ? (
-                      <a href={tenant.website} target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 font-medium text-primary hover:underline">
-                        {tenant.website}
-                        <ExternalLink className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                      </a>
-                    ) : (
-                      <p className="text-sm font-medium">Nao configurado</p>
-                    )}
-                  </div>
                 </div>
               </div>
 

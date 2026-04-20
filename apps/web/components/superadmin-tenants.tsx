@@ -6,7 +6,6 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  Globe,
   Image as ImageIcon,
   Loader2,
   MessageSquare,
@@ -45,11 +44,9 @@ const initialForm: TenantCreateForm = {
   slug: "",
   status: "active",
   planCode: "starter",
-  domain: "",
   contactEmail: "",
   contactName: "",
   phone: "",
-  website: "",
   initialUserPassword: "",
   initialUserPasswordConfirmation: "",
 }
@@ -92,6 +89,7 @@ export function SuperadminTenants() {
   const [isSaving, setIsSaving] = useState(false)
   const [isNewModalOpen, setIsNewModalOpen] = useState(false)
   const [form, setForm] = useState<TenantCreateForm>(initialForm)
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function loadTenants() {
@@ -127,8 +125,7 @@ export function SuperadminTenants() {
 
     return tenants.filter((tenant) =>
       tenant.name.toLowerCase().includes(normalizedSearch) ||
-      tenant.slug.toLowerCase().includes(normalizedSearch) ||
-      tenant.domain?.toLowerCase().includes(normalizedSearch)
+      tenant.slug.toLowerCase().includes(normalizedSearch)
     )
   }, [search, tenants])
 
@@ -142,11 +139,28 @@ export function SuperadminTenants() {
     form.initialUserPassword === form.initialUserPasswordConfirmation
   )
 
+  function openNewTenantModal() {
+    setForm(initialForm)
+    setIsSlugManuallyEdited(false)
+    setError(null)
+    setIsNewModalOpen(true)
+  }
+
+  function closeNewTenantModal() {
+    setForm(initialForm)
+    setIsSlugManuallyEdited(false)
+    setIsNewModalOpen(false)
+  }
+
   function updateField<K extends keyof TenantCreateForm>(field: K, value: TenantCreateForm[K]) {
+    if (field === "slug") {
+      setIsSlugManuallyEdited(true)
+    }
+
     setForm((current) => ({
       ...current,
       [field]: value,
-      slug: field === "name" && !current.slug ? slugify(String(value ?? "")) : current.slug,
+      slug: field === "name" && !isSlugManuallyEdited ? slugify(String(value ?? "")) : field === "slug" ? String(value ?? "") : current.slug,
     }))
   }
 
@@ -171,8 +185,7 @@ export function SuperadminTenants() {
       }
 
       setTenants((current) => [data as Tenant, ...current].sort((left, right) => left.name.localeCompare(right.name, "pt-BR")))
-      setForm(initialForm)
-      setIsNewModalOpen(false)
+      closeNewTenantModal()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Nao foi possivel criar o tenant.")
     } finally {
@@ -212,7 +225,7 @@ export function SuperadminTenants() {
           <h1 className="font-display text-xl font-bold text-foreground">Gerenciamento de Tenants</h1>
           <p className="font-sans text-sm text-muted-foreground">Cadastre e acompanhe empresas reais da plataforma</p>
         </div>
-        <Button className="rounded-[5px] font-sans" onClick={() => setIsNewModalOpen(true)}>
+        <Button className="rounded-[5px] font-sans" onClick={openNewTenantModal}>
           <Plus className="mr-2 h-4 w-4" /> Novo Tenant
         </Button>
       </div>
@@ -224,7 +237,7 @@ export function SuperadminTenants() {
       ) : null}
 
       {isNewModalOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setIsNewModalOpen(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={closeNewTenantModal}>
           <div className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[10px] bg-card p-8 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={(event) => event.stopPropagation()}>
             <div className="mb-6">
               <h2 className="font-display text-xl font-bold">Novo Tenant</h2>
@@ -250,17 +263,6 @@ export function SuperadminTenants() {
                   value={form.slug}
                   onChange={(event) => updateField("slug", slugify(event.target.value))}
                   placeholder="decor-labs"
-                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Dominio</label>
-                <input
-                  type="text"
-                  value={form.domain}
-                  onChange={(event) => updateField("domain", event.target.value)}
-                  placeholder="cliente.com.br"
                   className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
@@ -327,17 +329,6 @@ export function SuperadminTenants() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Website</label>
-                <input
-                  type="url"
-                  value={form.website}
-                  onChange={(event) => updateField("website", event.target.value)}
-                  placeholder="https://empresa.com.br"
-                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase text-muted-foreground">Senha inicial forte</label>
                 <input
                   type="password"
@@ -383,7 +374,7 @@ export function SuperadminTenants() {
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Criar tenant
               </Button>
-              <Button variant="outline" className="flex-1 rounded-[5px] py-6 font-sans" disabled={isSaving} onClick={() => setIsNewModalOpen(false)}>
+              <Button variant="outline" className="flex-1 rounded-[5px] py-6 font-sans" disabled={isSaving} onClick={closeNewTenantModal}>
                 Cancelar
               </Button>
             </div>
@@ -431,7 +422,6 @@ export function SuperadminTenants() {
                 <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tenant</th>
                 <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</th>
                 <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Plano</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Dominio</th>
                 <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Estatisticas</th>
                 <th className="px-5 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Acoes</th>
               </tr>
@@ -439,7 +429,7 @@ export function SuperadminTenants() {
             <tbody className="divide-y divide-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-14 text-center text-sm text-muted-foreground">
+                  <td colSpan={5} className="px-5 py-14 text-center text-sm text-muted-foreground">
                     <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin text-primary" />
                     Carregando tenants reais...
                   </td>
@@ -448,7 +438,7 @@ export function SuperadminTenants() {
 
               {!isLoading && filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-16 text-center">
+                  <td colSpan={5} className="px-5 py-16 text-center">
                     <Building2 className="mx-auto mb-4 h-10 w-10 text-muted-foreground/50" />
                     <p className="font-display text-lg font-bold text-foreground">
                       {tenants.length === 0 ? "Nenhum tenant cadastrado" : "Nenhum tenant encontrado"}
@@ -485,15 +475,6 @@ export function SuperadminTenants() {
                     </td>
                     <td className="px-5 py-4">
                       <span className={cn("rounded-[4px] px-2.5 py-1 text-[10px] font-bold uppercase", plan.color)}>{plan.label}</span>
-                    </td>
-                    <td className="px-5 py-4">
-                      {tenant.domain ? (
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <Globe className="h-3.5 w-3.5 text-primary/60" />{tenant.domain}
-                        </div>
-                      ) : (
-                        <span className="text-xs italic text-muted-foreground">Nao configurado</span>
-                      )}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
