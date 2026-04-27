@@ -7,7 +7,7 @@ import type { CompositionJob, CompositionJobReference } from "@/lib/composition-
 import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
-import { findInboxMessage } from "@/lib/server/inbox-store"
+import { findInboxMessage, listInboxMessages } from "@/lib/server/inbox-store"
 import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
@@ -1419,18 +1419,69 @@ async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
       throw new Error("Mensagem base da composicao nao e uma imagem.")
     }
 
-    const media = await resolveWhatsAppMedia(message)
+    try {
+      const media = await resolveWhatsAppMedia(message)
 
-    return buildBaseImage(media.bytes, media.mimeType)
+      return buildBaseImage(media.bytes, media.mimeType)
+    } catch (error) {
+      if (!isMissingGeneratedMediaError(error)) {
+        throw error
+      }
+    }
   }
 
   if (job.baseImageUrl) {
-    const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.baseImageUrl))
+    try {
+      const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.baseImageUrl))
 
-    return buildBaseImage(image.bytes, image.mimeType)
+      return buildBaseImage(image.bytes, image.mimeType)
+    } catch (error) {
+      if (!isMissingGeneratedMediaError(error)) {
+        throw error
+      }
+    }
+  }
+
+  const fallback = await getLatestInboundBaseImage(job)
+
+  if (fallback) {
+    return fallback
   }
 
   throw new Error("Job nao possui imagem base vinculada.")
+}
+
+function isMissingGeneratedMediaError(error: unknown) {
+  const code = (error as NodeJS.ErrnoException)?.code
+  const message = error instanceof Error ? error.message : String(error)
+
+  return code === "ENOENT" && message.includes("/generated/")
+}
+
+async function getLatestInboundBaseImage(job: CompositionJob): Promise<BaseImage | null> {
+  const messages = await listInboxMessages(job.tenantSlug, job.conversationId)
+  const createdAt = new Date(job.createdAt).getTime()
+  const candidates = messages
+    .filter((message) =>
+      message.direction === "inbound" &&
+      message.contentType === "image" &&
+      (!Number.isFinite(createdAt) || new Date(message.createdAt).getTime() <= createdAt)
+    )
+    .reverse()
+
+  for (const message of candidates) {
+    try {
+      const media = await resolveWhatsAppMedia(message)
+
+      return buildBaseImage(media.bytes, media.mimeType)
+    } catch (error) {
+      if (!isMissingGeneratedMediaError(error)) {
+        throw error
+      }
+    }
+  }
+
+  return null
 }
 
 function getImageUrlFromString(value: string): string | null {

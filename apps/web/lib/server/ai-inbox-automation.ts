@@ -1,3 +1,6 @@
+import { stat } from "node:fs/promises"
+import path from "node:path"
+
 import type { NextAction } from "@studio/contracts"
 
 import type { CatalogItem } from "@/lib/catalog-types"
@@ -25,6 +28,7 @@ import {
 } from "@/lib/server/inbox-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
+import { getRuntimePublicDir } from "@/lib/server/runtime-paths"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import type { StoredTenantChannelInstance } from "@/lib/server/tenant-channel-instances-store"
 import { sendUazapiText } from "@/lib/server/uazapi-client"
@@ -402,21 +406,73 @@ function getPendingBaseChoiceRequest(messages: InboxMessage[], currentMessageId:
   return null
 }
 
-function resolveCompositionBase(input: {
+function getGeneratedPublicFilePath(imageUrl?: string) {
+  if (!imageUrl) {
+    return null
+  }
+
+  try {
+    const url = /^https?:\/\//i.test(imageUrl) ? new URL(imageUrl) : null
+    const pathname = url ? url.pathname : imageUrl
+
+    if (!pathname.startsWith("/generated/")) {
+      return null
+    }
+
+    return path.join(getRuntimePublicDir(), pathname.replace(/^\/+/, ""))
+  } catch {
+    return null
+  }
+}
+
+async function isCompositionBaseAvailable(base: CompositionBase) {
+  const generatedPath = getGeneratedPublicFilePath(base.imageUrl)
+
+  if (!generatedPath) {
+    return true
+  }
+
+  try {
+    await stat(generatedPath)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false
+    }
+
+    throw error
+  }
+}
+
+function getCompletedJobCompositionBase(input: {
+  latestResultMessage: InboxMessage | null
+  latestCompletedJob: Awaited<ReturnType<typeof getLatestCompletedCompositionJob>>
+  tenantSlug: string
+}) {
+  if (!input.latestCompletedJob?.resultImageUrl) {
+    return null
+  }
+
+  return {
+    message: input.latestResultMessage ?? undefined,
+    imageUrl: input.latestResultMessage
+      ? getMessageMediaUrl(input.tenantSlug, input.latestResultMessage)
+      : input.latestCompletedJob.resultImageUrl,
+    label: "imagem gerada",
+  } satisfies CompositionBase
+}
+
+async function resolveCompositionBase(input: {
   choice: CompositionBaseChoice | null
   latestBaseImageMessage: InboxMessage | null
   latestResultMessage: InboxMessage | null
   latestCompletedJob: Awaited<ReturnType<typeof getLatestCompletedCompositionJob>>
   tenantSlug: string
 }) {
-  if (input.choice === "result" && input.latestCompletedJob?.resultImageUrl) {
-    return {
-      message: input.latestResultMessage ?? undefined,
-      imageUrl: input.latestResultMessage
-        ? getMessageMediaUrl(input.tenantSlug, input.latestResultMessage)
-        : input.latestCompletedJob.resultImageUrl,
-      label: "imagem gerada",
-    } satisfies CompositionBase
+  const resultBase = getCompletedJobCompositionBase(input)
+
+  if (input.choice === "result" && resultBase && await isCompositionBaseAvailable(resultBase)) {
+    return resultBase
   }
 
   if (input.latestBaseImageMessage) {
@@ -427,14 +483,8 @@ function resolveCompositionBase(input: {
     } satisfies CompositionBase
   }
 
-  if (input.latestCompletedJob?.resultImageUrl) {
-    return {
-      message: input.latestResultMessage ?? undefined,
-      imageUrl: input.latestResultMessage
-        ? getMessageMediaUrl(input.tenantSlug, input.latestResultMessage)
-        : input.latestCompletedJob.resultImageUrl,
-      label: "imagem gerada",
-    } satisfies CompositionBase
+  if (resultBase && await isCompositionBaseAvailable(resultBase)) {
+    return resultBase
   }
 
   return null
@@ -1663,7 +1713,7 @@ export async function processInboundMessageWithAi(input: {
   }
 
   if (nextAction === "create_composition_job") {
-    const compositionBase = resolveCompositionBase({
+    const compositionBase = await resolveCompositionBase({
       choice: compositionBaseChoice,
       latestBaseImageMessage,
       latestResultMessage: latestCompositionResultMessage,
