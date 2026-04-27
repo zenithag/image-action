@@ -49,6 +49,7 @@ const tenantNavItems: NavItem[] = [
 
 const superadminNavItems: NavItem[] = [
   { href: "/superadmin", label: "Tenants", icon: Building2 },
+  { href: "/superadmin/users", label: "Usuários", icon: Users },
   { href: "/superadmin/usage", label: "Uso & Custos", icon: BarChart3 },
   { href: "/superadmin/domains", label: "Domínios", icon: Globe },
   { href: "/superadmin/channels", label: "Canais", icon: Zap },

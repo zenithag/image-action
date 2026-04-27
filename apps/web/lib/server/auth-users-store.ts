@@ -25,6 +25,8 @@ export type StoredAuthUser = {
   lastLoginAt?: string
 }
 
+export type PublicStoredAuthUser = Omit<StoredAuthUser, "passwordHash" | "passwordSalt">
+
 type AuthUsersData = {
   users: StoredAuthUser[]
 }
@@ -124,6 +126,20 @@ async function hashPassword(password: string) {
 
 function isTenantScopedUser(user: StoredAuthUser, tenantSlug: string) {
   return user.tenantSlug === tenantSlug && user.roles.includes("tenant")
+}
+
+function isSuperadminUser(user: StoredAuthUser) {
+  return user.roles.includes("superadmin")
+}
+
+function countActiveSuperadmins(users: StoredAuthUser[]) {
+  return users.filter((user) => isSuperadminUser(user) && user.status === "active").length
+}
+
+export function toPublicAuthUser(user: StoredAuthUser): PublicStoredAuthUser {
+  const { passwordHash: _passwordHash, passwordSalt: _passwordSalt, ...publicUser } = user
+
+  return publicUser
 }
 
 async function verifyPassword(password: string, user: StoredAuthUser) {
@@ -255,6 +271,133 @@ export async function listStoredAuthUsersForTenant(tenantSlug: string) {
   const data = await ensureBootstrapUsers()
 
   return data.users.filter((user) => isTenantScopedUser(user, tenantSlug))
+}
+
+export async function listStoredSuperadminUsers() {
+  const data = await ensureBootstrapUsers()
+
+  return data.users
+    .filter(isSuperadminUser)
+    .map(toPublicAuthUser)
+    .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"))
+}
+
+export async function createStoredSuperadminUser(input: {
+  name: unknown
+  email: unknown
+  password: unknown
+  status?: AuthUserStatus
+}) {
+  const user = await createStoredAuthUser({
+    name: normalizeText(input.name),
+    email: normalizeEmail(input.email),
+    password: validateStrongPassword(input.password),
+    tenantId: null,
+    tenantSlug: null,
+    roles: ["superadmin"],
+    status: input.status === "disabled" ? "disabled" : "active",
+  })
+
+  return toPublicAuthUser(user)
+}
+
+export async function updateStoredSuperadminUser(idInput: unknown, input: {
+  name?: unknown
+  email?: unknown
+  password?: unknown
+  status?: AuthUserStatus
+}) {
+  const id = normalizeText(idInput)
+
+  if (!id) {
+    throw new Error("Usuario nao encontrado.")
+  }
+
+  return withAuthUsersMutation(async () => {
+    const data = await ensureBootstrapUsersUnlocked()
+    const index = data.users.findIndex((user) => user.id === id && isSuperadminUser(user))
+
+    if (index === -1) {
+      return null
+    }
+
+    const currentUser = data.users[index]
+    const name = input.name === undefined ? currentUser.name : normalizeText(input.name)
+    const email = input.email === undefined ? currentUser.email : normalizeEmail(input.email)
+    const status = input.status === "disabled" ? "disabled" : input.status === "active" ? "active" : currentUser.status
+    const password = input.password === undefined ? "" : normalizeText(input.password)
+
+    if (!name) {
+      throw new Error("Nome do usuario e obrigatorio.")
+    }
+
+    if (!email) {
+      throw new Error("Email do usuario e obrigatorio.")
+    }
+
+    if (status === "disabled" && currentUser.status === "active" && countActiveSuperadmins(data.users) <= 1) {
+      throw new Error("Nao e possivel desativar o ultimo superadmin ativo.")
+    }
+
+    const emailTaken = data.users.some((user) => user.id !== currentUser.id && user.email.toLowerCase() === email)
+
+    if (emailTaken) {
+      throw new Error("Ja existe um usuario com esse email.")
+    }
+
+    let passwordFields: Partial<Pick<StoredAuthUser, "passwordHash" | "passwordSalt">> = {}
+
+    if (password) {
+      validateStrongPassword(password)
+      passwordFields = await hashPassword(password)
+    }
+
+    const updatedUser: StoredAuthUser = {
+      ...currentUser,
+      ...passwordFields,
+      name,
+      email,
+      tenantId: null,
+      tenantSlug: null,
+      roles: Array.from(new Set([...currentUser.roles, "superadmin"])),
+      status,
+      updatedAt: new Date().toISOString(),
+    }
+
+    const nextUsers = [...data.users]
+    nextUsers[index] = updatedUser
+
+    await writeAuthUsersData({ users: nextUsers })
+
+    return toPublicAuthUser(updatedUser)
+  })
+}
+
+export async function deleteStoredSuperadminUser(idInput: unknown) {
+  const id = normalizeText(idInput)
+
+  if (!id) {
+    throw new Error("Usuario nao encontrado.")
+  }
+
+  return withAuthUsersMutation(async () => {
+    const data = await ensureBootstrapUsersUnlocked()
+    const user = data.users.find((item) => item.id === id && isSuperadminUser(item))
+
+    if (!user) {
+      return false
+    }
+
+    if (user.status === "active" && countActiveSuperadmins(data.users) <= 1) {
+      throw new Error("Nao e possivel remover o ultimo superadmin ativo.")
+    }
+
+    await writeAuthUsersData({
+      users: data.users.filter((item) => item.id !== user.id),
+    })
+
+    return true
+  })
 }
 
 export async function syncStoredTenantUsers(input: {
