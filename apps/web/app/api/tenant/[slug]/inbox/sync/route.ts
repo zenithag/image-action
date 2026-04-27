@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { processInboundMessageWithAi } from "@/lib/server/ai-inbox-automation"
 import { readProviders } from "@/lib/server/channel-providers-store"
 import { purgeInboxExceptChannelInstances, upsertSyncedInboxMessage } from "@/lib/server/inbox-store"
+import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { readTenantInstances, updateTenantInstance } from "@/lib/server/tenant-channel-instances-store"
 import {
   type UazapiChat,
@@ -16,6 +17,84 @@ export const runtime = "nodejs"
 
 type RouteContext = {
   params: Promise<{ slug: string }>
+}
+
+type InboxSyncPayload = {
+  ok: boolean
+  instances: number
+  scannedChats: number
+  scannedMessages: number
+  createdMessages: number
+  aiProcessedMessages: number
+  aiSkippedMessages: number
+  aiFailedMessages: number
+  errors: Array<{ instanceId: string; message: string }>
+  syncedAt?: string
+  coalesced?: boolean
+  skipped?: boolean
+  reason?: string
+}
+
+type InboxSyncRunResult = {
+  status: number
+  body: InboxSyncPayload
+}
+
+type InboxSyncState = {
+  inFlight?: Promise<InboxSyncRunResult>
+  lastCompletedAt?: number
+  lastResult?: InboxSyncRunResult
+}
+
+const MIN_SYNC_INTERVAL_MS = 15_000
+const syncStateByTenant = new Map<string, InboxSyncState>()
+
+function getEmptySyncPayload(reason: string): InboxSyncPayload {
+  return {
+    ok: true,
+    instances: 0,
+    scannedChats: 0,
+    scannedMessages: 0,
+    createdMessages: 0,
+    aiProcessedMessages: 0,
+    aiSkippedMessages: 0,
+    aiFailedMessages: 0,
+    errors: [],
+    syncedAt: new Date().toISOString(),
+    skipped: true,
+    reason,
+  }
+}
+
+function cacheSyncResult(slug: string, result: InboxSyncRunResult) {
+  syncStateByTenant.set(slug, {
+    lastCompletedAt: Date.now(),
+    lastResult: result,
+  })
+}
+
+function cacheSyncError(slug: string, error: unknown) {
+  const result: InboxSyncRunResult = {
+    status: 500,
+    body: {
+      ok: false,
+      instances: 0,
+      scannedChats: 0,
+      scannedMessages: 0,
+      createdMessages: 0,
+      aiProcessedMessages: 0,
+      aiSkippedMessages: 0,
+      aiFailedMessages: 0,
+      syncedAt: new Date().toISOString(),
+      errors: [{
+        instanceId: "sync",
+        message: error instanceof Error ? error.message : "Erro ao sincronizar inbox.",
+      }],
+    },
+  }
+
+  cacheSyncResult(slug, result)
+  return result
 }
 
 function firstText(...values: unknown[]) {
@@ -58,12 +137,116 @@ function getTime(value: string) {
   return new Date(value).getTime()
 }
 
+function getProviderTimestampTime(timestamp: unknown) {
+  if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
+    return timestamp > 9999999999 ? timestamp : timestamp * 1000
+  }
+
+  if (typeof timestamp === "string" && timestamp.trim()) {
+    const numericTimestamp = Number(timestamp)
+
+    if (Number.isFinite(numericTimestamp)) {
+      return numericTimestamp > 9999999999 ? numericTimestamp : numericTimestamp * 1000
+    }
+
+    const dateTimestamp = Date.parse(timestamp)
+
+    if (Number.isFinite(dateTimestamp)) {
+      return dateTimestamp
+    }
+  }
+
+  return 0
+}
+
 function getInstanceSyncStartedAt(instance: { syncStartedAt?: string; createdAt: string }) {
   return instance.syncStartedAt ?? instance.createdAt
 }
 
 export async function POST(_request: Request, context: RouteContext) {
   const { slug } = await context.params
+  const waitForCompletion = new URL(_request.url).searchParams.get("wait") === "1"
+  const now = Date.now()
+  const state = syncStateByTenant.get(slug)
+
+  if (state?.inFlight) {
+    if (!waitForCompletion) {
+      return NextResponse.json({
+        ...(state.lastResult?.body ?? getEmptySyncPayload("Sincronizacao ja esta em andamento.")),
+        coalesced: true,
+        skipped: true,
+        reason: "Sincronizacao ja esta em andamento.",
+      })
+    }
+
+    const result = await state.inFlight
+
+    return NextResponse.json({
+      ...result.body,
+      coalesced: true,
+      reason: "Sincronizacao em andamento reutilizada.",
+    }, { status: result.status })
+  }
+
+  if (
+    state?.lastCompletedAt &&
+    state.lastResult &&
+    now - state.lastCompletedAt < MIN_SYNC_INTERVAL_MS
+  ) {
+    return NextResponse.json({
+      ...state.lastResult.body,
+      skipped: true,
+      reason: "Sincronizacao recente reutilizada.",
+    }, { status: state.lastResult.status })
+  }
+
+  const inFlight = runInboxSync(slug)
+  syncStateByTenant.set(slug, {
+    ...state,
+    inFlight,
+  })
+
+  if (!waitForCompletion) {
+    void inFlight
+      .then((result) => cacheSyncResult(slug, result))
+      .catch((error) => cacheSyncError(slug, error))
+
+    return NextResponse.json(getEmptySyncPayload("Sincronizacao iniciada em segundo plano."), { status: 202 })
+  }
+
+  try {
+    const result = await inFlight
+    cacheSyncResult(slug, result)
+
+    return NextResponse.json(result.body, { status: result.status })
+  } catch (error) {
+    const result = cacheSyncError(slug, error)
+
+    return NextResponse.json(result.body, { status: result.status })
+  }
+}
+
+async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
+  const settings = await getTenantSettings(slug)
+
+  if (!settings.channels.whatsappEnabled) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        instances: 0,
+        scannedChats: 0,
+        scannedMessages: 0,
+        createdMessages: 0,
+        aiProcessedMessages: 0,
+        aiSkippedMessages: 0,
+        aiFailedMessages: 0,
+        syncedAt: new Date().toISOString(),
+        errors: [{ instanceId: "tenant-settings", message: "O canal WhatsApp deste tenant esta desabilitado." }],
+      },
+    }
+  }
+
   const [instances, providers] = await Promise.all([
     readTenantInstances(),
     readProviders(),
@@ -80,6 +263,7 @@ export async function POST(_request: Request, context: RouteContext) {
   let scannedMessages = 0
   let createdMessages = 0
   let aiProcessedMessages = 0
+  let aiSkippedMessages = 0
   let aiFailedMessages = 0
   const errors: Array<{ instanceId: string; message: string }> = []
 
@@ -100,7 +284,8 @@ export async function POST(_request: Request, context: RouteContext) {
       for (const chat of chats) {
         const chatid = getChatId(chat)
         if (!chatid || chatid.endsWith("@g.us")) continue
-        if (chat.wa_lastMsgTimestamp && chat.wa_lastMsgTimestamp < syncStartedTime) continue
+        const chatLastMessageTime = getProviderTimestampTime(chat.wa_lastMsgTimestamp)
+        if (chatLastMessageTime && chatLastMessageTime < syncStartedTime) continue
 
         const messages = await findUazapiMessages(provider, instance.instanceToken, chatid, 20)
         scannedMessages += messages.length
@@ -143,7 +328,11 @@ export async function POST(_request: Request, context: RouteContext) {
               })
 
               if (aiResult.ok) {
-                aiProcessedMessages += 1
+                if (aiResult.skipped) {
+                  aiSkippedMessages += 1
+                } else {
+                  aiProcessedMessages += 1
+                }
               } else {
                 aiFailedMessages += 1
                 errors.push({
@@ -169,14 +358,19 @@ export async function POST(_request: Request, context: RouteContext) {
     }
   }
 
-  return NextResponse.json({
-    ok: errors.length === 0,
-    instances: activeInstances.length,
-    scannedChats,
-    scannedMessages,
-    createdMessages,
-    aiProcessedMessages,
-    aiFailedMessages,
-    errors,
-  })
+  return {
+    status: 200,
+    body: {
+      ok: errors.length === 0,
+      instances: activeInstances.length,
+      scannedChats,
+      scannedMessages,
+      createdMessages,
+      aiProcessedMessages,
+      aiSkippedMessages,
+      aiFailedMessages,
+      syncedAt: new Date().toISOString(),
+      errors,
+    },
+  }
 }

@@ -19,6 +19,9 @@
 4. **[2026-04-20] Produção usa PostgreSQL via `DATABASE_URL` para stores do Next**
    Do instead: no Dokploy, configurar `DATABASE_URL` apontando para o serviço PG interno; os JSON stores do Next persistem na tabela `app_documents`, com fallback local só sem `DATABASE_URL`.
 
+5. **[2026-04-26] Mídia gerada local não pode ir para UAZAPI como URL localhost**
+   Do instead: para `/generated/...`, ler o arquivo do `public`, otimizar para JPEG menor e enviar via `/send/media` com `file` base64 e `text` caption; `localhost` só deve ficar para preview interno, nunca como fonte remota da UAZAPI.
+
 ## Shell & Command Reliability
 1. **[2026-04-05] pnpm 10.30.0 é o package manager**
    Do instead: sempre usar `pnpm` (não npm/yarn). Workspace definido em `pnpm-workspace.yaml` com `apps/*` e `packages/*`.
@@ -39,23 +42,23 @@
 4. **[2026-04-17] Composições localizadas precisam de acabamento fotográfico**
    Do instead: após renderizar a superfície, aplicar integração de luz ambiente, sombras suaves, textura do material, correção leve de contraste/saturação e borda sem halo; o objetivo é parecer pintura/revestimento real, não overlay translúcido.
 
-5. **[2026-04-17] Pedido genérico de parede significa todas as paredes visíveis**
-   Do instead: quando o cliente pedir “parede” sem lado específico, aplicar em parede do fundo e paredes laterais visíveis. Só restringir a uma parede quando o prompt disser direita, esquerda, fundo ou outra posição específica.
-
-6. **[2026-04-16] Composições devem preservar proporção e dimensões da imagem base**
+5. **[2026-04-16] Composições devem preservar proporção e dimensões da imagem base**
    Do instead: calcular `aspect_ratio` pela foto original, evitar `1024x1024` fixo e instruir o modelo a preencher 100% do quadro; se normalizar localmente, usar `cover` no resultado gerado, nunca `fill`/stretch e nunca compor quadrado sobre a foto original.
+
+6. **[2026-04-26] Continuação de composição usa memória de artefatos**
+   Do instead: tratar imagens enviadas, composições geradas e SKUs/produtos como conhecimento consultável; não prender o cliente em etapas fixas. Depois de uma composição pronta, pedidos como “adicionar mais” usam a imagem gerada; original só quando o cliente pedir. Se uma nova imagem inbound chegou depois do último resultado, ela vira a base padrão.
 
 7. **[2026-04-16] UAZAPI local entra por sync quando webhook não alcança localhost**
    Do instead: em dev local, disparar automações de inbox também em `/inbox/sync` somente para mensagens inbound recém-criadas, evitando depender do webhook externo direto.
 
-8. **[2026-04-16] Chave OpenRouter vive no provider de IA, não no `.env`**
+8. **[2026-04-25] Referências do catálogo só vão quando o cliente pede**
+   Do instead: no WhatsApp, enviar imagens/cards de produtos apenas em pedido explícito de catálogo/referências/mais opções ou quando a ação for `show_catalog_options`; usar produto/cor mencionados internamente na composição sem reenviar cards a cada mensagem.
+
+9. **[2026-04-26] Conversa da IA não pode ficar travada em pergunta antiga**
+   Do instead: mensagens claras como SKU, catálogo, imagem ou edição seguem direto, ignorando pendências antigas; `original/nova` é inferência interna, não resposta obrigatória. Se a mensagem atual trouxer SKU/produto sem direção de montagem, perguntar o que fazer em vez de reaproveitar direção antiga.
+
+10. **[2026-04-16] Chave OpenRouter vive no provider de IA, não no `.env`**
    Do instead: cadastrar API key e Base URL em Superadmin > IA & Modelos > Providers. O modelo de criação de imagem fica no perfil `Criacao de imagem`, padrão `google/gemini-3-pro-image-preview`. O `.env` só pode conter opções não secretas de geração (`OPENROUTER_IMAGE_SIZE`, `OPENROUTER_IMAGE_QUALITY`, `OPENROUTER_IMAGE_OUTPUT_FORMAT`); sem provider/credito real, jobs devem falhar explicitamente.
-
-9. **[2026-04-05] Contratos TS são fonte de verdade para tipos do domínio**
-   Do instead: alterar tipos em `packages/contracts/src/index.ts` e propagar para consumers.
-
-10. **[2026-04-05] Fluxo: canal → gateway → API → orchestrator → composition**
-   Do instead: respeitar essa cadeia ao adicionar funcionalidades. Cada serviço tem responsabilidade única.
 
 ## User Directives
 1. **[2026-04-05] Sempre responder em Português**

@@ -20,6 +20,54 @@ export type InboxMessageContentType =
   | "catalog_options"
   | "composition_result"
 
+export type InboxCompositionSessionStep =
+  | "idle"
+  | "browsing_catalog"
+  | "product_selected"
+  | "awaiting_base_image"
+  | "awaiting_base_choice"
+  | "composing"
+  | "completed"
+
+export type InboxCompositionSessionImage = {
+  kind: "base" | "result"
+  messageId?: string
+  jobId?: string
+  imageUrl?: string
+  label?: string
+  createdAt: string
+}
+
+export type InboxCompositionSessionProduct = {
+  id?: string
+  sku?: string
+  name: string
+  category?: string
+  color?: string
+}
+
+export type InboxCompositionSessionChange = {
+  id: string
+  prompt: string
+  product?: InboxCompositionSessionProduct
+  base: "original" | "result" | "new_upload" | "unspecified"
+  jobId?: string
+  status: "pending" | "queued" | "done" | "failed"
+  createdAt: string
+  completedAt?: string
+}
+
+export type InboxCompositionSession = {
+  step: InboxCompositionSessionStep
+  baseImage?: InboxCompositionSessionImage
+  workingImage?: InboxCompositionSessionImage
+  selectedProducts: InboxCompositionSessionProduct[]
+  pendingPrompt?: string
+  pendingBaseChoice?: boolean
+  changes: InboxCompositionSessionChange[]
+  updatedAt: string
+}
+
 export type InboxConversationSummary = {
   id: string
   tenantSlug: string
@@ -37,6 +85,8 @@ export type InboxConversationSummary = {
   handledBy: InboxHandledBy
   unreadCount: number
   state: InboxConversationState
+  contextResetAt?: string
+  compositionSession?: InboxCompositionSession
   createdAt: string
   updatedAt: string
 }

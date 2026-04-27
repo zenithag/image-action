@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { classifyInboundMessage } from "@/lib/server/ai-orchestrator"
+import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 
 export const runtime = "nodejs"
 
@@ -12,11 +13,21 @@ type ClassificationPayload = {
   text?: unknown
   mediaTypes?: unknown
   conversationState?: unknown
+  catalogContext?: unknown
+  hasBaseImage?: unknown
   recentMessages?: unknown
 }
 
 export async function POST(request: Request, context: RouteContext) {
   const { slug } = await context.params
+  const settings = await getTenantSettings(slug)
+
+  if (!settings.assistant.enabled) {
+    return NextResponse.json({
+      error: "O assistente de IA deste tenant esta desabilitado.",
+    }, { status: 409 })
+  }
+
   const payload = await request.json().catch(() => null) as ClassificationPayload | null
   const mediaTypes = Array.isArray(payload?.mediaTypes)
     ? payload.mediaTypes.filter((item): item is string => typeof item === "string")
@@ -39,7 +50,11 @@ export async function POST(request: Request, context: RouteContext) {
     text: typeof payload?.text === "string" ? payload.text : "",
     mediaTypes,
     conversationState: typeof payload?.conversationState === "string" ? payload.conversationState : "idle",
+    catalogContext: typeof payload?.catalogContext === "string" ? payload.catalogContext : "",
+    hasBaseImage: payload?.hasBaseImage === true,
     recentMessages,
+    modelProfileId: settings.assistant.modelProfileId,
+    systemPrompt: settings.assistant.systemPrompt,
   })
 
   return NextResponse.json(result)

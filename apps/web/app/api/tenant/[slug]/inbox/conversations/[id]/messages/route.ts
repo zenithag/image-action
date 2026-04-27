@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { readProviders } from "@/lib/server/channel-providers-store"
-import { appendOperatorInboxMessage, findInboxConversation, listInboxMessages, markInboxConversationRead } from "@/lib/server/inbox-store"
+import { appendOperatorInboxMessage, findInboxConversation, listInboxMessages } from "@/lib/server/inbox-store"
 import { findTenantInstance } from "@/lib/server/tenant-channel-instances-store"
 import { sendUazapiText } from "@/lib/server/uazapi-client"
 
@@ -32,7 +32,6 @@ function getProviderMessageId(payload: unknown) {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { slug, id } = await context.params
-  await markInboxConversationRead(slug, id)
   const messages = await listInboxMessages(slug, id)
 
   return NextResponse.json(messages)

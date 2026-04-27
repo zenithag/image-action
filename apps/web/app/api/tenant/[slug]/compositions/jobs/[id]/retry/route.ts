@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { scheduleTenantCompositionProcessing } from "@/lib/server/composition-processor"
 import { retryCompositionJob } from "@/lib/server/composition-jobs-store"
 
 export const runtime = "nodejs"
@@ -15,6 +16,8 @@ export async function POST(_request: Request, context: RouteContext) {
   if (!job) {
     return NextResponse.json({ error: "Job de composicao nao encontrado." }, { status: 404 })
   }
+
+  scheduleTenantCompositionProcessing(slug)
 
   return NextResponse.json(job)
 }

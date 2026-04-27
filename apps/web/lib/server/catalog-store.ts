@@ -219,3 +219,22 @@ export async function bulkUpdateCatalogItems(tenantSlug: string, ids: string[], 
     return nextTenantItems.filter((item) => uniqueIds.has(item.id))
   })
 }
+
+export async function importCatalogItems(tenantSlug: string, inputs: CatalogItemInput[]) {
+  return withCatalogMutation(async () => {
+    const data = await readCatalogData()
+    const tenantItems = getTenantItems(data, tenantSlug)
+    const otherTenantItems = data.items.filter((item) => item.tenantSlug !== tenantSlug)
+    const importedItems = inputs.map((input) => buildCatalogItem(tenantSlug, input))
+
+    for (const item of importedItems) {
+      assertSkuAvailable([...tenantItems, ...importedItems], tenantSlug, item.sku, item.id)
+    }
+
+    await writeCatalogData({
+      items: [...otherTenantItems, ...importedItems, ...tenantItems],
+    })
+
+    return importedItems
+  })
+}

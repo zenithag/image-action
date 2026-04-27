@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 
 import type { CompositionJobInput } from "@/lib/composition-types"
+import { scheduleTenantCompositionProcessing } from "@/lib/server/composition-processor"
 import { createCompositionJob, getCompositionJobStats, listCompositionJobs } from "@/lib/server/composition-jobs-store"
+import { canTenantCreateComposition } from "@/lib/server/token-ledger-store"
 
 export const runtime = "nodejs"
 
@@ -24,7 +26,21 @@ export async function POST(request: Request, context: RouteContext) {
   const payload = await request.json() as CompositionJobInput
 
   try {
+    const tokenCheck = await canTenantCreateComposition(slug)
+
+    if (!tokenCheck.allowed) {
+      return NextResponse.json({
+        error: "Este tenant ficou sem tokens para novas composições.",
+        code: "TOKEN_BALANCE_EXHAUSTED",
+        tokenSnapshot: tokenCheck.snapshot,
+      }, { status: 402 })
+    }
+
     const result = await createCompositionJob(slug, payload)
+
+    if (result.job.status === "queued") {
+      scheduleTenantCompositionProcessing(slug)
+    }
 
     return NextResponse.json(result, { status: result.created ? 201 : 200 })
   } catch (error) {

@@ -1,4 +1,4 @@
-import type { Tenant, TenantInput, TenantPlanCode, TenantStatus } from "@/lib/tenant-types"
+import type { Tenant, TenantBusinessVertical, TenantInput, TenantPlanCode, TenantStatus } from "@/lib/tenant-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
@@ -10,6 +10,7 @@ const dataFile = getRuntimeDataFile("tenants.json")
 const storeKey = "tenants"
 const tenantStatuses = new Set<TenantStatus>(["draft", "active", "suspended", "archived"])
 const tenantPlans = new Set<TenantPlanCode>(["starter", "pro", "enterprise"])
+const tenantVerticals = new Set<TenantBusinessVertical>(["generic", "decor", "fashion", "automotive", "furniture"])
 
 let mutationQueue = Promise.resolve()
 
@@ -42,6 +43,9 @@ function normalizeTenant(value: unknown): Tenant | null {
   const slug = slugifyTenant(normalizeText(tenant.slug))
   const status = tenantStatuses.has(tenant.status as TenantStatus) ? tenant.status as TenantStatus : "draft"
   const planCode = tenantPlans.has(tenant.planCode as TenantPlanCode) ? tenant.planCode as TenantPlanCode : "starter"
+  const businessVertical = tenantVerticals.has(tenant.businessVertical as TenantBusinessVertical)
+    ? tenant.businessVertical as TenantBusinessVertical
+    : "generic"
 
   if (!id || !name || !slug) {
     return null
@@ -55,6 +59,7 @@ function normalizeTenant(value: unknown): Tenant | null {
     slug,
     status,
     planCode,
+    businessVertical,
     domain: normalizeText(tenant.domain) || undefined,
     contactEmail: normalizeText(tenant.contactEmail).toLowerCase() || undefined,
     contactName: normalizeText(tenant.contactName) || undefined,
@@ -130,6 +135,9 @@ function assertTenantInput(input: TenantInput) {
   const slug = slugifyTenant(normalizeText(input.slug) || name)
   const status = tenantStatuses.has(input.status as TenantStatus) ? input.status as TenantStatus : "draft"
   const planCode = tenantPlans.has(input.planCode as TenantPlanCode) ? input.planCode as TenantPlanCode : "starter"
+  const businessVertical = tenantVerticals.has(input.businessVertical as TenantBusinessVertical)
+    ? input.businessVertical as TenantBusinessVertical
+    : "generic"
 
   if (!name) {
     throw new Error("Nome do tenant e obrigatorio.")
@@ -144,6 +152,7 @@ function assertTenantInput(input: TenantInput) {
     slug,
     status,
     planCode,
+    businessVertical,
     domain: normalizeText(input.domain) || undefined,
     contactEmail: normalizeText(input.contactEmail).toLowerCase() || undefined,
     contactName: normalizeText(input.contactName) || undefined,
@@ -200,6 +209,7 @@ export async function updateTenant(id: string, input: Partial<TenantInput>) {
       slug: input.slug ?? existing.slug,
       status: input.status ?? existing.status,
       planCode: input.planCode ?? existing.planCode,
+      businessVertical: input.businessVertical ?? existing.businessVertical,
       domain: input.domain ?? existing.domain,
       contactEmail: input.contactEmail ?? existing.contactEmail,
       contactName: input.contactName ?? existing.contactName,

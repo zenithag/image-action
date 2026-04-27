@@ -1,22 +1,19 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SafeImage } from "@/components/safe-image"
 import { cn } from "@/lib/utils"
 import {
   ArrowRight,
   CheckCircle2,
-  Clock3,
   Loader2,
-  MessageCircle,
   QrCode,
   RefreshCw,
-  Server,
   Smartphone,
   Trash2,
   Unlink,
@@ -42,6 +39,8 @@ type TenantWhatsappInstance = {
   profileName?: string
   profilePicUrl?: string
   phoneNumber?: string
+  syncStartedAt?: string
+  lastSyncedAt?: string
   lastError?: string
   createdAt: string
   updatedAt: string
@@ -75,7 +74,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
   const [step, setStep] = useState<Step>("name")
   const [instances, setInstances] = useState<TenantWhatsappInstance[]>([])
   const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null)
-  const [isLoadingInstances, setIsLoadingInstances] = useState(true)
+  const [, setIsLoadingInstances] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -249,6 +248,13 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
     setError(null)
   }
 
+  const selectInstance = (instance: TenantWhatsappInstance) => {
+    setActiveInstanceId(instance.id)
+    setSavedName(instance.name)
+    setStep("qrcode")
+    setError(null)
+  }
+
   const deleteInstance = async (instance: TenantWhatsappInstance) => {
     if (deletingInstanceId) return
 
@@ -295,28 +301,28 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
     switch (status) {
       case "connected":
         return (
-          <Badge className="bg-primary/10 text-primary border-primary/20 rounded-[5px]">
+          <Badge className="shrink-0 whitespace-nowrap rounded-[10px] border-primary/20 bg-primary/10 text-primary">
             <CheckCircle2 className="mr-1 h-3 w-3" />
             Conectado
           </Badge>
         )
       case "connecting":
         return (
-          <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 rounded-[5px]">
+          <Badge className="shrink-0 whitespace-nowrap rounded-[10px] border-amber-500/20 bg-amber-500/10 text-amber-500">
             <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
             Aguardando leitura
           </Badge>
         )
       case "error":
         return (
-          <Badge className="bg-red-500/10 text-red-500 border-red-500/20 rounded-[5px]">
+          <Badge className="shrink-0 whitespace-nowrap rounded-[10px] border-red-500/20 bg-red-500/10 text-red-500">
             <XCircle className="mr-1 h-3 w-3" />
             Erro
           </Badge>
         )
       default:
         return (
-          <Badge variant="secondary" className="rounded-[5px]">
+          <Badge variant="secondary" className="shrink-0 whitespace-nowrap rounded-[10px]">
             <Unlink className="mr-1 h-3 w-3" />
             Desconectado
           </Badge>
@@ -325,280 +331,194 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
   }
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <div className="relative z-10 flex items-center justify-between border-b border-border pl-6 pr-10 py-4 bg-background">
-        <div>
-          <h1 className="text-xl font-bold text-foreground font-display">WhatsApp</h1>
-          <p className="text-sm text-muted-foreground font-sans">
-            Crie a instancia no UAZAPI, gere o QR Code e conecte o WhatsApp do tenant.
-          </p>
+    <div className="flex h-full min-w-0 flex-col bg-background">
+      <div className="flex min-h-[60px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-6 lg:px-7">
+        <div className="min-w-0 flex flex-col">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Canal</p>
+          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">WhatsApp</h1>
         </div>
         {getStatusBadge()}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
-        <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_360px]">
-          <Card className="rounded-[5px] border-border shadow-sm overflow-hidden">
-            <CardHeader className="bg-muted/30 pb-8">
-              <CardTitle className="flex items-center gap-2 font-display text-lg">
-                <MessageCircle className="h-5 w-5 text-primary" />
-                Conectar WhatsApp
-              </CardTitle>
-              <CardDescription className="font-sans">
-                {status === "connected"
-                  ? "Seu WhatsApp esta conectado e pronto para uso."
-                  : step === "name"
-                    ? "Dê um nome para a instancia que sera criada na UAZAPI."
-                    : "Gere o QR Code e escaneie no WhatsApp para concluir a conexao."}
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="pt-8">
-              {error && (
-                <Alert variant="destructive" className="mb-6 rounded-[5px]">
-                  <XCircle className="h-4 w-4" />
-                  <AlertDescription className="font-sans">{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {status !== "connected" && step === "name" && (
-                <div className="py-6 space-y-6 max-w-sm mx-auto">
-                  <div className="text-center space-y-2">
-                    <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                      <Smartphone className="h-8 w-8 text-primary" />
-                    </div>
-                    <p className="text-sm text-muted-foreground font-sans">
-                      Esse nome sera enviado para o UAZAPI como nome da instancia.
-                      <br />Ex.: <span className="font-medium text-foreground">Loja Centro</span> ou{" "}
-                      <span className="font-medium text-foreground">Vendas</span>.
+      <div className="flex-1 overflow-y-auto px-4 py-5 scrollbar-hide sm:px-6 lg:px-10 lg:py-8">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 xl:grid-cols-2">
+          {/* Left card: connected instance or name input */}
+          <div className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-6">
+            {activeInstance?.status === "connected" ? (
+              <>
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <h3 className="font-display text-lg font-bold">Instância principal</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">via UAZAPI · {activeInstance.name}</p>
+                  </div>
+                  <span className="flex w-fit items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+                    <CheckCircle2 className="h-3 w-3" /> Conectado
+                  </span>
+                </div>
+                <div className="flex flex-col items-start gap-4 rounded-xl bg-muted/50 p-4 sm:flex-row sm:items-center">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Smartphone className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-[15px] font-medium">{activeInstance.phoneNumber ? `+${activeInstance.phoneNumber}` : "Número não disponível"}</p>
+                    <p className="mt-1 break-words font-mono text-xs text-muted-foreground">
+                      {activeInstance.profileName || "Perfil não identificado"} · {activeInstance.providerName}
                     </p>
                   </div>
-                  <div className="space-y-2 text-left">
-                    <Label htmlFor="connection-name" className="font-sans font-bold text-xs uppercase tracking-widest text-muted-foreground">
-                      Nome da instancia
-                    </Label>
-                    <Input
-                      id="connection-name"
-                      placeholder="Ex.: Loja Principal"
-                      value={connectionName}
-                      onChange={(event) => setConnectionName(event.target.value)}
-                      onKeyDown={(event) => event.key === "Enter" && handleSaveName()}
-                      className="rounded-[5px] border-input focus:ring-primary font-sans"
-                    />
-                  </div>
-                  <Button
-                    className="w-full font-sans rounded-[5px] shadow-none"
-                    onClick={handleSaveName}
-                    disabled={!connectionName.trim()}
-                  >
-                    Continuar
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-
-              {status !== "connected" && step === "qrcode" && (
-                <div className="text-center py-6 space-y-8">
-                  {savedName && (
-                    <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary uppercase tracking-wider">
-                      <Smartphone className="h-3.5 w-3.5" />
-                      <span>{savedName}</span>
-                    </div>
-                  )}
-
-                  {activeInstance?.providerName && (
-                    <div className="mx-auto flex max-w-sm items-center justify-center gap-2 rounded-[5px] border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                      <Server className="h-3.5 w-3.5" />
-                      Provider alocado automaticamente: <span className="font-bold text-foreground">{activeInstance.providerName}</span>
-                    </div>
-                  )}
-
-                  {qrCode ? (
-                    <>
-                      <div className="inline-block p-6 bg-white rounded-[5px] border border-border/50 shadow-lg">
-                        <img
-                          src={qrCode}
-                          alt="QR Code WhatsApp"
-                          className="w-64 h-64 mx-auto"
-                        />
-                      </div>
-
-                      <div className="space-y-4">
-                        <p className="font-bold text-foreground font-display">Como conectar:</p>
-                        <ol className="text-sm text-muted-foreground space-y-2 max-w-sm mx-auto text-left list-decimal list-inside font-sans">
-                          <li>Abra o <span className="text-foreground font-medium">WhatsApp</span> no celular</li>
-                          <li>Toque em <span className="text-foreground font-medium">Menu</span> ou <span className="text-foreground font-medium">Configurações</span></li>
-                          <li>Selecione <span className="text-foreground font-medium">Aparelhos conectados</span></li>
-                          <li>Toque em <span className="text-foreground font-medium">Conectar um aparelho</span></li>
-                          <li>Aponte a camera para este QR Code</li>
-                        </ol>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row justify-center gap-3 pt-4">
-                        <Button variant="outline" onClick={generateQRCode} disabled={isLoading} className="rounded-[5px] font-sans shadow-none">
-                          <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
-                          Atualizar QR Code
-                        </Button>
-                        <Button onClick={() => refreshStatus()} disabled={isLoading} className="rounded-[5px] font-sans shadow-none">
-                          {isLoading ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                          )}
-                          Verificar status
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="space-y-6">
-                      <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-                        <QrCode className="h-10 w-10 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-xl font-bold text-foreground font-display">Pronto para gerar QR Code</p>
-                        <p className="text-muted-foreground mt-1 text-sm font-sans">
-                          O sistema vai escolher automaticamente o UAZAPI com menos instancias em uso.
-                        </p>
-                      </div>
-                      <Button onClick={generateQRCode} disabled={isLoading} size="lg" className="rounded-[5px] font-sans shadow-none">
-                        {isLoading ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <QrCode className="mr-2 h-4 w-4" />
-                        )}
-                        Gerar QR Code
-                      </Button>
-                      <div>
-                        <button
-                          className="text-xs text-muted-foreground underline-offset-4 hover:underline font-sans"
-                          onClick={() => setStep("name")}
-                        >
-                          Alterar nome da instancia
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {status === "connected" && (
-                <div className="text-center py-10 space-y-6">
-                  <div className="relative inline-flex h-24 w-24 items-center justify-center rounded-full bg-primary/10">
-                    <CheckCircle2 className="h-12 w-12 text-primary" />
-                    <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin-slow" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-foreground font-display">WhatsApp Conectado</h2>
-                    {activeInstance?.name && (
-                      <p className="text-sm font-bold text-primary mt-1 uppercase tracking-widest">{activeInstance.name}</p>
-                    )}
-                    {activeInstance?.phoneNumber && (
-                      <p className="text-muted-foreground font-mono mt-2">+{activeInstance.phoneNumber}</p>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground max-w-sm mx-auto font-sans leading-relaxed">
-                    As conversas desta instancia entram na caixa de entrada do tenant.
-                  </p>
-                  <div className="flex flex-col justify-center gap-3 sm:flex-row">
-                    <Button onClick={() => refreshStatus()} disabled={isLoading} className="rounded-[5px] font-sans shadow-none">
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                      Atualizar status
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => refreshStatus(activeInstance.id)} disabled={isLoading}>
+                      <RefreshCw className={cn("mr-2 h-3.5 w-3.5", isLoading && "animate-spin")} />
+                      Atualizar
                     </Button>
-                    <Button variant="outline" onClick={startNewConnection} className="rounded-[5px] font-sans shadow-none">
-                      Nova instancia
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <aside className="space-y-4">
-            <Card className="rounded-[5px] border-border shadow-sm">
-              <CardHeader>
-                <CardTitle className="font-display text-base">Instancias do tenant</CardTitle>
-                <CardDescription>
-                  Criadas a partir deste tenant. Tokens ficam armazenados somente no servidor.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {isLoadingInstances ? (
-                  <div className="flex items-center gap-2 rounded-[5px] border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Carregando conexoes...
-                  </div>
-                ) : instances.length > 0 ? (
-                  instances.map((instance) => (
-                    <div
-                      key={instance.id}
-                      className={cn(
-                        "w-full rounded-[5px] border p-3 text-left transition-colors",
-                        activeInstanceId === instance.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card hover:bg-muted/40"
-                      )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+                      onClick={() => deleteInstance(activeInstance)}
+                      disabled={deletingInstanceId === activeInstance.id}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveInstanceId(instance.id)
-                            setSavedName(instance.name)
-                            setStep("qrcode")
-                            setError(null)
-                          }}
-                          className="min-w-0 flex-1 text-left"
-                        >
-                          <p className="truncate font-bold text-foreground font-display">{instance.name}</p>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">{instance.providerName}</p>
-                        </button>
-                        <div className="flex items-center gap-2">
-                          <InstanceStatusIcon status={instance.status} />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteInstance(instance)}
-                            disabled={deletingInstanceId === instance.id}
-                            className="h-8 w-8 rounded-[5px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            aria-label={`Remover instancia ${instance.name}`}
-                          >
-                            {deletingInstanceId === instance.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Clock3 className="h-3 w-3" />
-                        Atualizada em {formatDate(instance.updatedAt)}
-                      </p>
-                      {instance.lastError && (
-                        <p className="mt-2 text-xs text-destructive">{instance.lastError}</p>
-                      )}
+                      {deletingInstanceId === activeInstance.id ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-2 h-3.5 w-3.5" />}
+                      Remover
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    ["Criada em", formatDate(activeInstance.createdAt)],
+                    ["Última sync", activeInstance.lastSyncedAt ? formatDate(activeInstance.lastSyncedAt) : "pendente"],
+                    ["Status real", activeInstance.loggedIn ? "logado" : activeInstance.connected ? "conectado" : activeInstance.status],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-border p-3">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+                      <p className="mt-1 font-mono text-sm font-medium">{value}</p>
                     </div>
-                  ))
-                ) : (
-                  <div className="rounded-[5px] border border-dashed border-border p-5 text-center">
-                    <p className="text-sm font-bold text-foreground">Nenhuma instancia criada</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Informe um nome e gere o primeiro QR Code.
-                    </p>
+                  ))}
+                </div>
+                {activeInstance.lastError && (
+                  <Alert variant="destructive" className="mt-4">
+                    <XCircle className="h-4 w-4" />
+                    <AlertDescription>{activeInstance.lastError}</AlertDescription>
+                  </Alert>
+                )}
+              </>
+            ) : (
+              <div className="py-6">
+                <h3 className="font-display text-lg font-bold">Conectar WhatsApp</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {step === "name" ? "Dê um nome para a instância que será criada na UAZAPI." : "Gerando QR Code..."}
+                </p>
+                {step === "name" && (
+                  <div className="mt-6 max-w-sm space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="connection-name" className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Nome da instância
+                      </Label>
+                      <Input
+                        id="connection-name"
+                        placeholder="Ex.: Loja Principal"
+                        value={connectionName}
+                        onChange={(event) => setConnectionName(event.target.value)}
+                        onKeyDown={(event) => event.key === "Enter" && handleSaveName()}
+                      />
+                    </div>
+                    <Button className="w-full" onClick={handleSaveName} disabled={!connectionName.trim()}>
+                      Continuar <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
+          </div>
 
-            <Alert className="rounded-[5px] border-primary/20 bg-primary/10">
-              <Server className="h-4 w-4 text-primary" />
-              <AlertTitle className="font-display text-primary">Alocacao automatica</AlertTitle>
-              <AlertDescription className="text-xs text-primary/80">
-                Ao criar uma instancia, o sistema usa primeiro o provider WhatsApp com menos instancias em uso e capacidade disponivel.
-              </AlertDescription>
-            </Alert>
-          </aside>
+          {/* Right card: QR code / new instance */}
+          <div className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-6">
+            <h3 className="font-display text-lg font-bold">Adicionar nova instância</h3>
+            <p className="mt-1 mb-5 text-xs text-muted-foreground">Escaneie o QR com o WhatsApp do aparelho</p>
+
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <XCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex flex-col items-center rounded-xl bg-muted/50 p-4 sm:p-6">
+              {qrCode ? (
+                <>
+                  <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+                    <SafeImage
+                      src={qrCode}
+                      alt="QR Code WhatsApp"
+                      className="h-48 w-48 sm:h-56 sm:w-56"
+                      fallbackLabel="QR indisponível"
+                      fallbackHint="Gere um novo QR Code."
+                    />
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-500">
+                      <RefreshCw className="h-3 w-3 animate-spin" /> Aguardando leitura
+                    </span>
+                  </div>
+                  <div className="mt-4 flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={generateQRCode} disabled={isLoading}>
+                      <RefreshCw className={cn("mr-2 h-3.5 w-3.5", isLoading && "animate-spin")} /> Atualizar QR
+                    </Button>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={() => refreshStatus()} disabled={isLoading}>
+                      <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> Verificar
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-background">
+                    <QrCode className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <p className="mt-4 text-center text-sm text-muted-foreground">
+                    {savedName ? "Clique abaixo para gerar o QR Code" : "Informe o nome da instância primeiro"}
+                  </p>
+                  <Button className="mt-4 w-full sm:w-auto" onClick={generateQRCode} disabled={isLoading || !savedName}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
+                    Gerar QR Code
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {savedName && (
+              <div className="mt-4">
+                <Label className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Nome da conexão</Label>
+                <p className="mt-1 text-sm font-medium">{savedName}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Instances list below (full width) */}
+          {instances.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 sm:p-5 xl:col-span-2">
+              <h3 className="mb-3 font-display text-base font-bold">Instâncias do tenant</h3>
+              <div className="space-y-2">
+                {instances.map((instance) => (
+                  <div key={instance.id} className={cn(
+                    "flex items-start gap-3 rounded-lg border p-3 transition-colors sm:items-center",
+                    activeInstanceId === instance.id ? "border-primary bg-primary/5" : "border-border hover:bg-secondary"
+                  )}>
+                    <button type="button" onClick={() => selectInstance(instance)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                      <InstanceStatusIcon status={instance.status} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{instance.name}</p>
+                        <p className="break-words text-xs text-muted-foreground">
+                          {instance.providerName} · {instance.phoneNumber ? `+${instance.phoneNumber}` : formatDate(instance.updatedAt)}
+                        </p>
+                      </div>
+                    </button>
+                    <Button variant="ghost" size="icon" onClick={() => deleteInstance(instance)} disabled={deletingInstanceId === instance.id} className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                      {deletingInstanceId === instance.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

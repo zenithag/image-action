@@ -32,7 +32,13 @@ function toInstanceStatus(uazapiStatus: unknown, connected: boolean) {
 }
 
 function getPublicWebhookUrl() {
-  const publicBaseUrl = process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL
+  const publicBaseUrl = (
+    process.env.APP_PUBLIC_URL ||
+    process.env.PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    process.env.AUTH_URL
+  )
 
   if (!publicBaseUrl || publicBaseUrl.includes("localhost") || publicBaseUrl.includes("127.0.0.1")) {
     return null

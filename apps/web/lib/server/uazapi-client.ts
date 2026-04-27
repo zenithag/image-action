@@ -1,5 +1,10 @@
+import { readFile } from "node:fs/promises"
+import path from "node:path"
+import sharp from "sharp"
+
 import type { StoredProvider } from "@/lib/server/channel-providers-store"
 import type { InboxMessageContentType } from "@/lib/inbox-types"
+import { getRuntimePublicDir } from "@/lib/server/runtime-paths"
 
 export type UazapiInstancePayload = {
   id?: string
@@ -506,6 +511,367 @@ export async function sendUazapiText(provider: StoredProvider, instanceToken: st
     id?: string
     messageid?: string
   }
+}
+
+type UazapiSendMediaResponse = UazapiResponseBody & {
+  id?: string
+  messageid?: string
+}
+
+function getDataUrlMedia(value: string) {
+  const match = value.match(/^data:([^;,]+);base64,(.+)$/i)
+
+  if (!match) {
+    return null
+  }
+
+  return {
+    mimeType: match[1],
+    base64: match[2],
+  }
+}
+
+function getMediaMimeType(imageUrl: string) {
+  return getDataUrlMedia(imageUrl)?.mimeType || "image/png"
+}
+
+function getMediaPayload(imageUrl: string) {
+  return getDataUrlMedia(imageUrl)?.base64 || imageUrl
+}
+
+function getPublicFilePathFromMediaUrl(imageUrl: string) {
+  if (!imageUrl) {
+    return null
+  }
+
+  try {
+    const url = /^https?:\/\//i.test(imageUrl) ? new URL(imageUrl) : null
+    const pathname = url ? url.pathname : imageUrl
+    const isLocalhost = url ? ["localhost", "127.0.0.1", "::1"].includes(url.hostname) : true
+
+    if (!isLocalhost || !pathname.startsWith("/generated/")) {
+      return null
+    }
+
+    return path.join(getRuntimePublicDir(), pathname.replace(/^\/+/, ""))
+  } catch {
+    return null
+  }
+}
+
+async function getMediaBytes(imageUrl: string, options: { allowRemote?: boolean } = {}) {
+  const dataUrlMedia = getDataUrlMedia(imageUrl)
+
+  if (dataUrlMedia) {
+    return Buffer.from(dataUrlMedia.base64, "base64")
+  }
+
+  const publicFilePath = getPublicFilePathFromMediaUrl(imageUrl)
+
+  if (publicFilePath) {
+    try {
+      return await readFile(publicFilePath)
+    } catch {
+      return null
+    }
+  }
+
+  if (!options.allowRemote) {
+    return null
+  }
+
+  if (!/^https?:\/\//i.test(imageUrl)) {
+    return null
+  }
+
+  const response = await fetch(imageUrl, {
+    headers: { accept: "image/*,*/*" },
+    signal: AbortSignal.timeout(30000),
+  })
+
+  if (!response.ok) {
+    return null
+  }
+
+  return Buffer.from(await response.arrayBuffer())
+}
+
+async function prepareImageBytesForWhatsapp(bytes: Buffer, mimeType: string) {
+  if (!mimeType.startsWith("image/")) {
+    return { bytes, mimeType }
+  }
+
+  try {
+    const metadata = await sharp(bytes).metadata()
+    const width = metadata.width ?? 0
+    const height = metadata.height ?? 0
+
+    if (bytes.length <= 900_000 && width <= 1600 && height <= 1600 && mimeType.includes("jpeg")) {
+      return { bytes, mimeType }
+    }
+
+    const optimized = await sharp(bytes)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 84, mozjpeg: true })
+      .toBuffer()
+
+    return {
+      bytes: optimized,
+      mimeType: "image/jpeg",
+    }
+  } catch {
+    return { bytes, mimeType }
+  }
+}
+
+async function postUazapiJson(
+  provider: StoredProvider,
+  instanceToken: string,
+  pathname: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+) {
+  const response = await fetch(appendUazapiPath(provider.baseUrl!, pathname), {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      token: instanceToken,
+      ...headers,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
+  })
+  const responseBody = await readBody(response)
+
+  return { response, body: responseBody }
+}
+
+async function postUazapiMultipart(
+  provider: StoredProvider,
+  instanceToken: string,
+  pathname: string,
+  formData: FormData,
+  headers: Record<string, string> = {},
+) {
+  const response = await fetch(appendUazapiPath(provider.baseUrl!, pathname), {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      token: instanceToken,
+      ...headers,
+    },
+    body: formData,
+    signal: AbortSignal.timeout(30000),
+  })
+  const responseBody = await readBody(response)
+
+  return { response, body: responseBody }
+}
+
+function shouldTryMediaFallback(status: number) {
+  return status === 400 || status === 404 || status === 405 || status === 422
+}
+
+export async function sendUazapiImage(
+  provider: StoredProvider,
+  instanceToken: string,
+  number: string,
+  imageUrl: string,
+  caption?: string,
+  instanceName?: string,
+) {
+  assertUazapiBaseUrl(provider)
+  const embeddedMediaBytes = await getMediaBytes(imageUrl)
+  const shouldSendAsUpload = Boolean(embeddedMediaBytes)
+
+  const legacyResult = shouldSendAsUpload
+    ? null
+    : await postUazapiJson(
+      provider,
+      instanceToken,
+      "/send/image",
+      {
+        number,
+        url: imageUrl,
+        caption,
+        readchat: true,
+      },
+    )
+
+  if (legacyResult?.response.ok) {
+    return legacyResult.body as UazapiSendMediaResponse
+  }
+
+  if (legacyResult && !shouldTryMediaFallback(legacyResult.response.status)) {
+    throw new UazapiError(
+      getBodyMessage(legacyResult.body, `UAZAPI respondeu HTTP ${legacyResult.response.status}.`),
+      legacyResult.response.status,
+      legacyResult.body,
+    )
+  }
+
+  const initialMimeType = getMediaMimeType(imageUrl)
+  const preparedEmbeddedMedia = embeddedMediaBytes
+    ? await prepareImageBytesForWhatsapp(embeddedMediaBytes, initialMimeType)
+    : null
+  const mimeType = preparedEmbeddedMedia?.mimeType ?? initialMimeType
+  const media = preparedEmbeddedMedia ? preparedEmbeddedMedia.bytes.toString("base64") : getMediaPayload(imageUrl)
+  const fileName = mimeType.includes("jpeg") || mimeType.includes("jpg")
+    ? "imagem.jpg"
+    : "imagem.png"
+  const uazapiMediaBody = {
+    number,
+    type: "image",
+    file: media,
+    text: caption,
+    caption,
+    readchat: true,
+  }
+  const flatMediaBody = {
+    number,
+    mediatype: "image",
+    mimetype: mimeType,
+    caption,
+    media,
+    fileName,
+    delay: 200,
+  }
+  const nestedMediaBody = {
+    number,
+    mediaMessage: {
+      mediatype: "image",
+      mimetype: mimeType,
+      fileName,
+      caption,
+      media,
+    },
+    options: {
+      delay: 200,
+    },
+  }
+  const endpointInstances = [...new Set(
+    [instanceName, instanceToken]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value))
+  )]
+  const fallbackAttempts: Array<{
+    pathname: string
+    body: Record<string, unknown>
+    headers: Record<string, string>
+  }> = [
+    {
+      pathname: "/send/media",
+      body: uazapiMediaBody,
+      headers: {},
+    },
+    ...endpointInstances.flatMap((endpointInstance) => [
+    {
+      pathname: `/message/sendMedia/${encodeURIComponent(endpointInstance)}`,
+      body: flatMediaBody,
+      headers: { apikey: instanceToken },
+    },
+    {
+      pathname: `/message/sendMedia/${encodeURIComponent(endpointInstance)}`,
+      body: nestedMediaBody,
+      headers: { apikey: instanceToken },
+    },
+  ])]
+
+  fallbackAttempts.push(
+    {
+      pathname: "/message/sendMedia",
+      body: flatMediaBody,
+      headers: { apikey: instanceToken },
+    },
+    {
+      pathname: "/message/sendMedia",
+      body: nestedMediaBody,
+      headers: { apikey: instanceToken },
+    },
+    {
+      pathname: "/send/media",
+      body: {
+        number,
+        type: "image",
+        mediaType: "image",
+        mimetype: mimeType,
+        url: imageUrl,
+        media,
+        file: media,
+        caption,
+        text: caption,
+        fileName,
+        readchat: true,
+      },
+      headers: {},
+    },
+  )
+  let lastResult = legacyResult
+  let lastAttempt = shouldSendAsUpload ? "upload local" : "/send/image json"
+
+  for (const attempt of fallbackAttempts) {
+    const result = await postUazapiJson(provider, instanceToken, attempt.pathname, attempt.body, attempt.headers)
+
+    if (result.response.ok) {
+      return result.body as UazapiSendMediaResponse
+    }
+
+    lastResult = result
+    lastAttempt = `${attempt.pathname} json`
+  }
+
+  const mediaBytes = preparedEmbeddedMedia?.bytes ??
+    embeddedMediaBytes ??
+    await getMediaBytes(imageUrl, { allowRemote: true })
+
+  if (mediaBytes) {
+    const multipartAttempts: Array<{ pathname: string; headers: Record<string, string> }> = [
+      ...endpointInstances.map((endpointInstance) => ({
+        pathname: `/message/sendMedia/${encodeURIComponent(endpointInstance)}`,
+        headers: { apikey: instanceToken },
+      })),
+      { pathname: "/send/image", headers: {} },
+      { pathname: "/send/media", headers: {} },
+      { pathname: "/message/sendMedia", headers: { apikey: instanceToken } },
+    ]
+    const multipartMedia = preparedEmbeddedMedia ?? await prepareImageBytesForWhatsapp(mediaBytes, mimeType)
+    const file = new Blob([new Uint8Array(multipartMedia.bytes)], { type: multipartMedia.mimeType })
+    const multipartFileName = multipartMedia.mimeType.includes("jpeg") || multipartMedia.mimeType.includes("jpg")
+      ? "imagem.jpg"
+      : fileName
+
+    for (const attempt of multipartAttempts) {
+      const formData = new FormData()
+      formData.append("number", number)
+      formData.append("caption", caption ?? "")
+      formData.append("type", "image")
+      formData.append("mediaType", "image")
+      formData.append("mediatype", "image")
+      formData.append("mimetype", multipartMedia.mimeType)
+      formData.append("fileName", multipartFileName)
+      formData.append("readchat", "true")
+      formData.append("file", file, multipartFileName)
+
+      const result = await postUazapiMultipart(provider, instanceToken, attempt.pathname, formData, attempt.headers)
+
+      if (result.response.ok) {
+        return result.body as UazapiSendMediaResponse
+      }
+
+      lastResult = result
+      lastAttempt = `${attempt.pathname} multipart`
+    }
+  }
+
+  throw new UazapiError(
+    lastResult
+      ? `${lastAttempt}: ${getBodyMessage(lastResult.body, `UAZAPI respondeu HTTP ${lastResult.response.status}.`)}`
+      : `${lastAttempt}: nao foi possivel carregar a midia local para upload.`,
+    lastResult?.response.status,
+    lastResult?.body,
+  )
 }
 
 export async function configureUazapiWebhook(provider: StoredProvider, instanceToken: string, url: string) {

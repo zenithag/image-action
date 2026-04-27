@@ -3,32 +3,33 @@ import path from "node:path"
 import sharp from "sharp"
 
 import type { AiProvider } from "@/lib/ai-types"
-import type { CompositionJob } from "@/lib/composition-types"
+import type { CompositionJob, CompositionJobReference } from "@/lib/composition-types"
 import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
 import { findInboxMessage } from "@/lib/server/inbox-store"
 import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
+import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
 
 type OpenRouterImageChoice = {
+  finish_reason?: unknown
+  native_finish_reason?: unknown
   message?: {
-    content?: string | null
-    images?: Array<{
-      image_url?: { url?: string }
-      imageUrl?: { url?: string }
-      url?: string
-    }>
+    content?: unknown
+    images?: unknown
   }
 }
 
 type OpenRouterImageResponse = {
+  id?: string
   model?: string
   choices?: OpenRouterImageChoice[]
   error?: {
     message?: string
   } | string
+  usage?: unknown
 }
 
 type BaseImage = {
@@ -91,6 +92,7 @@ const surfaceSegmentationGuardrail = [
   "Quando o cliente disser lado direito, lado esquerdo, parede do fundo, teto ou piso, altere somente essa superficie indicada e preserve todas as outras superficies.",
   "Nunca pinte portas, janelas, vidro, piso, teto, moveis ou objetos quando o pedido for apenas parede.",
 ].join("\n")
+const defaultImageFallbackModel = "google/gemini-3-pro-image-preview"
 
 function appendPath(baseUrl: string, pathname: string) {
   return `${baseUrl.replace(/\/+$/, "")}/${pathname.replace(/^\/+/, "")}`
@@ -145,6 +147,65 @@ function normalizeText(value: string) {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
+}
+
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;")
+}
+
+async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
+  const settings = await getTenantSettings(job.tenantSlug)
+  const branding = settings.branding
+
+  if (!branding.watermarkEnabled) {
+    return imageBytes
+  }
+
+  const text = (branding.watermarkText || settings.general.companyName || "ComoFica").trim()
+  if (!text) {
+    return imageBytes
+  }
+
+  const metadata = await sharp(imageBytes).metadata()
+  const width = metadata.width ?? 1280
+  const height = metadata.height ?? 720
+  const fontSize = Math.max(20, Math.round(Math.min(width, height) * (branding.watermarkPosition === "center" ? 0.045 : 0.028)))
+  const padding = Math.max(24, Math.round(Math.min(width, height) * 0.03))
+  const escapedText = escapeSvgText(text)
+
+  const overlaySvg = branding.watermarkPosition === "bottom-right"
+    ? `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <style>
+          .wm { fill: rgba(255,255,255,0.26); font-family: Arial, sans-serif; font-weight: 700; font-size: ${fontSize}px; letter-spacing: 0.18em; text-transform: uppercase; }
+          .bg { fill: rgba(0,0,0,0.10); rx: 12px; ry: 12px; }
+        </style>
+        <g transform="translate(${width - padding}, ${height - padding})">
+          <rect class="bg" x="-${Math.round((escapedText.length + 8) * fontSize * 0.48)}" y="-${Math.round(fontSize * 1.55)}" width="${Math.round((escapedText.length + 6) * fontSize * 0.58)}" height="${Math.round(fontSize * 1.9)}" />
+          <text class="wm" text-anchor="end" dominant-baseline="ideographic"> ${escapedText} </text>
+        </g>
+      </svg>
+    `
+    : `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <style>
+          .wm { fill: rgba(255,255,255,0.22); stroke: rgba(0,0,0,0.12); stroke-width: 1; paint-order: stroke; font-family: Arial, sans-serif; font-weight: 700; font-size: ${fontSize}px; letter-spacing: 0.22em; text-transform: uppercase; }
+        </style>
+        <g transform="translate(${width / 2}, ${height / 2}) rotate(-14)">
+          <text class="wm" text-anchor="middle" dominant-baseline="middle">${escapedText}</text>
+        </g>
+      </svg>
+    `
+
+  return sharp(imageBytes)
+    .composite([{ input: Buffer.from(overlaySvg) }])
+    .png()
+    .toBuffer()
 }
 
 function getTargetSurfaceInstruction(job: CompositionJob) {
@@ -648,7 +709,10 @@ async function requestWallMask(provider: AiProvider, job: CompositionJob, baseIm
     throw new Error(getOpenRouterError(response.status, payload))
   }
 
-  const content = payload?.choices?.[0]?.message?.content?.trim()
+  const rawContent = payload?.choices?.[0]?.message?.content
+  const content = typeof rawContent === "string"
+    ? rawContent.trim()
+    : collectPayloadText(rawContent).join(" ").trim()
 
   if (!content) {
     throw new Error("Modelo de visao nao retornou mascara de parede.")
@@ -747,10 +811,119 @@ function smoothStep(edge0: number, edge1: number, value: number) {
   return t * t * (3 - 2 * t)
 }
 
-async function getCatalogMaterialImage(job: CompositionJob) {
+async function normalizeReferenceImageUrl(imageUrl: string) {
+  if (isSupportedOpenRouterReferenceImage(imageUrl)) {
+    return imageUrl
+  }
+
+  const image = await bytesFromImageUrl(toAbsoluteImageUrl(imageUrl))
+  const isNativeImage = /^image\/(?:png|jpe?g|webp)$/i.test(image.mimeType)
+
+  if (isNativeImage) {
+    return `data:${image.mimeType};base64,${image.bytes.toString("base64")}`
+  }
+
+  const pngBytes = await sharp(image.bytes).png().toBuffer()
+  return `data:image/png;base64,${pngBytes.toString("base64")}`
+}
+
+async function getCatalogItemForReference(job: CompositionJob, reference: CompositionJobReference) {
+  if (!reference.catalogItemId && !reference.catalogItemName && !reference.catalogSku) {
+    return null
+  }
+
+  const items = await listCatalogItems(job.tenantSlug)
+  const normalizedName = normalizeText(reference.catalogItemName || "")
+  const normalizedSku = normalizeText(reference.catalogSku || "")
+
+  return items.find((catalogItem) => catalogItem.id === reference.catalogItemId) ||
+    items.find((catalogItem) => normalizeText(catalogItem.sku || "") === normalizedSku) ||
+    items.find((catalogItem) => normalizeText(catalogItem.name) === normalizedName) ||
+    null
+}
+
+async function resolveReferenceMaterialImage(job: CompositionJob, reference: CompositionJobReference) {
+  if (reference.source === "inbox" && reference.messageId) {
+    const message = await findInboxMessage(job.tenantSlug, job.conversationId, reference.messageId)
+
+    if (message?.contentType === "image") {
+      const media = await resolveWhatsAppMedia(message)
+      return `data:${media.mimeType};base64,${media.bytes.toString("base64")}`
+    }
+  }
+
+  if (reference.source === "catalog") {
+    const item = await getCatalogItemForReference(job, reference)
+
+    if (item?.imageUrl) {
+      return normalizeReferenceImageUrl(item.imageUrl)
+    }
+  }
+
+  if (reference.imageUrl) {
+    return normalizeReferenceImageUrl(reference.imageUrl)
+  }
+
+  return null
+}
+
+async function resolveLegacyMaterialImage(job: CompositionJob) {
+  if (job.referenceMessageId) {
+    try {
+      const message = await findInboxMessage(job.tenantSlug, job.conversationId, job.referenceMessageId)
+
+      if (message?.contentType === "image") {
+        const media = await resolveWhatsAppMedia(message)
+        return `data:${media.mimeType};base64,${media.bytes.toString("base64")}`
+      }
+    } catch {
+      // Reference images are optional. The composition can still use the text prompt.
+    }
+  }
+
+  if (job.referenceImageUrl) {
+    try {
+      const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.referenceImageUrl))
+      return `data:${image.mimeType};base64,${image.bytes.toString("base64")}`
+    } catch {
+      // Reference images are optional. The composition can still use the text prompt.
+    }
+  }
+
   const item = await getCatalogItem(job)
 
   return item?.imageUrl || null
+}
+
+async function getCatalogMaterialImages(job: CompositionJob) {
+  const references = job.references ?? []
+  const images: string[] = []
+
+  for (const reference of references) {
+    try {
+      const image = await resolveReferenceMaterialImage(job, reference)
+      if (image && isSupportedOpenRouterReferenceImage(image) && !images.includes(image)) {
+        images.push(image)
+      }
+    } catch {
+      // Individual references are optional. Keep the job processable with the remaining ones.
+    }
+  }
+
+  if (images.length === 0) {
+    const legacyImage = await resolveLegacyMaterialImage(job)
+    const normalizedLegacyImage = legacyImage ? await normalizeReferenceImageUrl(legacyImage).catch(() => null) : null
+
+    if (normalizedLegacyImage && isSupportedOpenRouterReferenceImage(normalizedLegacyImage)) {
+      images.push(normalizedLegacyImage)
+    }
+  }
+
+  return images
+}
+
+async function getCatalogMaterialImage(job: CompositionJob) {
+  return (await getCatalogMaterialImages(job))[0] ?? null
 }
 
 function isSupportedOpenRouterReferenceImage(imageUrl: string | null) {
@@ -765,19 +938,23 @@ function isSupportedOpenRouterReferenceImage(imageUrl: string | null) {
   return /^data:image\/(?:png|jpe?g|webp);base64,/i.test(imageUrl)
 }
 
-function getReferenceImageInstruction(referenceImageUrl: string | null) {
-  if (!referenceImageUrl) {
+function getReferenceImageInstruction(referenceImageCount: number) {
+  if (referenceImageCount <= 0) {
     return ""
   }
 
   return [
+    "A resposta obrigatoriamente deve conter uma nova imagem gerada no campo message.images. Nao responda apenas com texto.",
     "Use a primeira imagem como foto do ambiente.",
-    "Use a segunda imagem como referencia visual obrigatoria e exata do produto/material a aplicar.",
-    "Para revestimentos, replique fielmente o padrao geometrico, a orientacao, a cor, o relevo, a paginacao, as juntas, a escala relativa e o acabamento da segunda imagem.",
-    "Trate a segunda imagem como um modulo/amostra repetivel do revestimento: repita o mesmo modulo de forma uniforme, com a mesma escala fisica em toda a mesma parede.",
+    referenceImageCount === 1
+      ? "Use a segunda imagem como referencia visual obrigatoria e exata do produto/material a aplicar."
+      : `Use as ${referenceImageCount} imagens seguintes como referencias visuais obrigatorias para montar a composicao final.`,
+    "Quando houver varias referencias, combine todas conforme o briefing: uma pode representar material, outra produto, outra textura, outra movel ou objeto.",
+    "Para revestimentos, replique fielmente o padrao geometrico, a orientacao, a cor, o relevo, a paginacao, as juntas, a escala relativa e o acabamento da imagem de referencia correspondente.",
+    "Trate imagens de textura/revestimento como modulos/amostras repetiveis: repita o mesmo modulo de forma uniforme, com a mesma escala fisica em toda a mesma superficie.",
     "A escala dos modulos so pode mudar pela perspectiva natural do plano da parede; nao aumente nem reduza desenhos em pontos isolados, nao misture tamanhos diferentes e nao distorca o padrao.",
     "Alinhe as juntas e a grade do revestimento com as quinas, planos e linhas de fuga da parede para manter proporcao arquitetonica realista.",
-    "Nao substitua por textura parecida, nao simplifique o desenho e nao invente outro revestimento.",
+    "Nao substitua por referencia parecida, nao simplifique o desenho e nao invente outro produto.",
     "Preserve a estrutura da primeira imagem.",
   ].join(" ")
 }
@@ -1131,6 +1308,7 @@ async function compositeGeneratedSurface(job: CompositionJob, baseImage: BaseIma
 
 function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
   return [
+    "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
     "Edite a imagem base recebida pelo cliente para criar uma composicao visual realista.",
     getFrameInstruction(baseImage),
     environmentStructureGuardrail,
@@ -1140,6 +1318,7 @@ function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
     "Nao adicione textos, marcas d'agua, logos ou elementos que nao foram pedidos.",
     job.catalogItemName ? `Produto ou referencia principal: ${job.catalogItemName}.` : "",
     job.catalogColorReference ? `Referencia tecnica de cor obrigatoria: ${job.catalogColorReference}. Use essa cor na parede/area solicitada.` : "",
+    typeof job.changeStrength === "number" ? `Intensidade da mudanca: ${job.changeStrength} de 100. Quanto menor, mais conservadora e fiel a imagem original; quanto maior, mais perceptivel a alteracao solicitada.` : "",
     `Modo: ${job.mode}.`,
     `Briefing do cliente: ${job.prompt}`,
   ].filter(Boolean).join("\n")
@@ -1147,6 +1326,7 @@ function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
 
 function buildLocalizedRenderPrompt(job: CompositionJob, baseImage: BaseImage) {
   return [
+    "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
     "Renderize uma versao da imagem base com a alteracao solicitada, mantendo alinhamento perfeito com a foto original.",
     getFrameInstruction(baseImage),
     environmentStructureGuardrail,
@@ -1157,6 +1337,7 @@ function buildLocalizedRenderPrompt(job: CompositionJob, baseImage: BaseImage) {
     "Apenas a superficie alvo pode parecer nova/renderizada.",
     job.catalogItemName ? `Produto ou referencia principal: ${job.catalogItemName}.` : "",
     job.catalogColorReference ? `Cor/material obrigatorio da superficie alvo: ${job.catalogColorReference}.` : "",
+    typeof job.changeStrength === "number" ? `Intensidade da mudanca: ${job.changeStrength} de 100. Quanto menor, mais conservadora e fiel a imagem original; quanto maior, mais perceptivel a alteracao solicitada.` : "",
     `Modo: ${job.mode}.`,
     `Briefing do cliente: ${job.prompt}`,
   ].filter(Boolean).join("\n")
@@ -1201,59 +1382,217 @@ function getOpenRouterError(status: number, payload: OpenRouterImageResponse | n
   return `OpenRouter respondeu HTTP ${status}.`
 }
 
-async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
-  if (!job.baseMessageId) {
-    throw new Error("Job nao possui mensagem base vinculada.")
+function getPublicAppBaseUrl() {
+  const baseUrl = process.env.PUBLIC_APP_URL || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  return baseUrl.replace(/\/+$/, "")
+}
+
+function toAbsoluteImageUrl(value: string) {
+  if (!value || /^https?:\/\//i.test(value) || value.startsWith("data:")) {
+    return value
   }
 
-  const message = await findInboxMessage(job.tenantSlug, job.conversationId, job.baseMessageId)
+  return `${getPublicAppBaseUrl()}${value.startsWith("/") ? value : `/${value}`}`
+}
 
-  if (!message) {
-    throw new Error("Mensagem base da composicao nao foi encontrada.")
-  }
-
-  if (message.contentType !== "image") {
-    throw new Error("Mensagem base da composicao nao e uma imagem.")
-  }
-
-  const media = await resolveWhatsAppMedia(message)
-  const metadata = await sharp(media.bytes).metadata()
+async function buildBaseImage(bytes: Buffer, mimeType: string): Promise<BaseImage> {
+  const metadata = await sharp(bytes).metadata()
 
   if (!metadata.width || !metadata.height) {
     throw new Error("Nao foi possivel identificar as dimensoes da imagem base.")
   }
 
   return {
-    dataUrl: `data:${media.mimeType};base64,${media.bytes.toString("base64")}`,
-    bytes: media.bytes,
-    mimeType: media.mimeType,
+    dataUrl: `data:${mimeType};base64,${bytes.toString("base64")}`,
+    bytes,
+    mimeType,
     width: metadata.width,
     height: metadata.height,
   }
 }
 
-function getImageUrlFromPayload(payload: OpenRouterImageResponse | null) {
-  const message = payload?.choices?.[0]?.message
-  const image = message?.images?.[0]
-  const directUrl = image?.image_url?.url || image?.imageUrl?.url || image?.url
+async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
+  if (job.baseMessageId) {
+    const message = await findInboxMessage(job.tenantSlug, job.conversationId, job.baseMessageId)
 
-  if (directUrl) {
-    return directUrl
+    if (!message) {
+      throw new Error("Mensagem base da composicao nao foi encontrada.")
+    }
+
+    if (message.contentType !== "image") {
+      throw new Error("Mensagem base da composicao nao e uma imagem.")
+    }
+
+    const media = await resolveWhatsAppMedia(message)
+
+    return buildBaseImage(media.bytes, media.mimeType)
   }
 
-  const content = message?.content || ""
-  const markdownImageMatch = content.match(/!\[[^\]]*]\(([^)]+)\)/)
-  if (markdownImageMatch?.[1]) {
-    return markdownImageMatch[1]
+  if (job.baseImageUrl) {
+    const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.baseImageUrl))
+
+    return buildBaseImage(image.bytes, image.mimeType)
   }
 
-  const dataUrlMatch = content.match(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/)
+  throw new Error("Job nao possui imagem base vinculada.")
+}
+
+function getImageUrlFromString(value: string): string | null {
+  const dataUrlMatch = value.match(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/)
   if (dataUrlMatch?.[0]) {
     return dataUrlMatch[0]
   }
 
-  const plainUrlMatch = content.match(/https?:\/\/\S+/)
-  return plainUrlMatch?.[0]
+  const markdownImageMatch = value.match(/!\[[^\]]*]\(([^)]+)\)/)
+  if (markdownImageMatch?.[1]) {
+    return markdownImageMatch[1]
+  }
+
+  const plainUrlMatch = value.match(/https?:\/\/[^\s)]+/)
+  return plainUrlMatch?.[0] ?? null
+}
+
+function getImageUrlFromUnknown(value: unknown): string | null {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value === "string") {
+    return getImageUrlFromString(value)
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = getImageUrlFromUnknown(item)
+      if (found) return found
+    }
+
+    return null
+  }
+
+  if (typeof value !== "object") {
+    return null
+  }
+
+  const record = value as Record<string, unknown>
+  const directUrl = typeof record.url === "string" ? record.url : null
+
+  if (directUrl && (directUrl.startsWith("data:image/") || /^https?:\/\//i.test(directUrl))) {
+    return directUrl
+  }
+
+  const knownNestedUrl =
+    getImageUrlFromUnknown(record.image_url) ||
+    getImageUrlFromUnknown(record.imageUrl) ||
+    getImageUrlFromUnknown(record.source)
+
+  if (knownNestedUrl) {
+    return knownNestedUrl
+  }
+
+  for (const item of Object.values(record)) {
+    const found = getImageUrlFromUnknown(item)
+    if (found) return found
+  }
+
+  return null
+}
+
+function collectPayloadText(value: unknown, parts: string[] = []) {
+  if (!value) {
+    return parts
+  }
+
+  if (typeof value === "string") {
+    if (!value.startsWith("data:image/") && !/^https?:\/\//i.test(value)) {
+      parts.push(value)
+    }
+    return parts
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectPayloadText(item, parts)
+    }
+    return parts
+  }
+
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>
+    if (typeof record.text === "string") {
+      parts.push(record.text)
+    }
+
+    for (const [key, item] of Object.entries(record)) {
+      if (["image_url", "imageUrl", "source", "url", "text"].includes(key)) {
+        continue
+      }
+      collectPayloadText(item, parts)
+    }
+  }
+
+  return parts
+}
+
+function getPayloadTextPreview(payload: OpenRouterImageResponse | null) {
+  const message = payload?.choices?.[0]?.message
+  const text = collectPayloadText(message?.content)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  return text ? text.slice(0, 280) : ""
+}
+
+function getImageUrlFromPayload(payload: OpenRouterImageResponse | null) {
+  if (!payload) {
+    return null
+  }
+
+  for (const choice of payload.choices ?? []) {
+    const message = choice.message
+    const imageUrl = getImageUrlFromUnknown(message?.images) || getImageUrlFromUnknown(message?.content)
+
+    if (imageUrl) {
+      return imageUrl
+    }
+  }
+
+  return getImageUrlFromUnknown(payload)
+}
+
+function getPayloadNoImageDiagnostic(payload: OpenRouterImageResponse | null) {
+  if (!payload) {
+    return "payload=null"
+  }
+
+  const choices = payload.choices ?? []
+  const choiceSummary = choices.slice(0, 3).map((choice, index) => {
+    const message = choice.message
+    const images = Array.isArray(message?.images) ? message.images.length : 0
+    const contentType = Array.isArray(message?.content) ? `array:${message.content.length}` : typeof message?.content
+    const keys = message ? Object.keys(message).join(",") : "sem-message"
+
+    return [
+      `choice${index}=finish:${String(choice.finish_reason ?? "-")}`,
+      `native:${String(choice.native_finish_reason ?? "-")}`,
+      `content:${contentType}`,
+      `images:${images}`,
+      `keys:${keys}`,
+    ].join("/")
+  }).join(" | ")
+
+  const error = typeof payload.error === "string"
+    ? payload.error
+    : payload.error?.message
+
+  return [
+    `id=${payload.id ?? "-"}`,
+    `model=${payload.model ?? "-"}`,
+    `choices=${choices.length}`,
+    choiceSummary,
+    error ? `error=${error.slice(0, 220)}` : "",
+  ].filter(Boolean).join("; ")
 }
 
 async function bytesFromImageUrl(imageUrl: string) {
@@ -1307,39 +1646,41 @@ async function normalizeResultToBaseDimensions(bytes: Buffer, mimeType: string, 
 async function saveImageResult(job: CompositionJob, bytes: Buffer, mimeType: string, baseImage: BaseImage) {
   await mkdir(outputDir, { recursive: true })
   const normalized = await normalizeResultToBaseDimensions(bytes, mimeType, baseImage)
+  const watermarkedBytes = await applyTenantWatermark(job, normalized.bytes)
   const fileName = getFileName(job, normalized.mimeType)
 
-  await writeFile(path.join(outputDir, fileName), normalized.bytes)
+  await writeFile(path.join(outputDir, fileName), watermarkedBytes)
 
   return `/generated/compositions/${fileName}`
 }
 
-async function generateImageWithOpenRouter(provider: AiProvider, job: CompositionJob, baseImage: BaseImage, prompt: string) {
-  const profile = await getAiModelProfile("image_generation")
-  const model = profile?.modelId || "google/gemini-3-pro-image-preview"
-  const fallbackModelIds = profile?.fallbackModelIds ?? []
-  const catalogImageUrl = await getCatalogMaterialImage(job)
-  const referenceImageUrl = isSupportedOpenRouterReferenceImage(catalogImageUrl) ? catalogImageUrl : null
-  const content = [
-    {
-      type: "text",
-      text: [
-        prompt,
-        getReferenceImageInstruction(referenceImageUrl),
-      ].filter(Boolean).join("\n"),
-    },
-    { type: "image_url", image_url: { url: baseImage.dataUrl, detail: "high" } },
-    ...(referenceImageUrl ? [
-      { type: "image_url", image_url: { url: referenceImageUrl, detail: "high" } },
-    ] : []),
-  ]
+function getImageGenerationModels(primaryModel: string, fallbackModelIds: string[]) {
+  const models = [primaryModel, ...fallbackModelIds]
+
+  if (fallbackModelIds.length === 0 && primaryModel !== defaultImageFallbackModel) {
+    models.push(defaultImageFallbackModel)
+  }
+
+  return [...new Set(models.filter(Boolean))]
+}
+
+function normalizeOpenRouterError(error: unknown) {
+  return error instanceof Error ? error.message : "Falha desconhecida ao gerar imagem."
+}
+
+async function requestOpenRouterImage(
+  provider: AiProvider,
+  model: string,
+  job: CompositionJob,
+  baseImage: BaseImage,
+  content: Array<Record<string, unknown>>,
+  profile: Awaited<ReturnType<typeof getAiModelProfile>>
+) {
   const response = await fetch(appendPath(provider.baseUrl, "/chat/completions"), {
     method: "POST",
     headers: getOpenRouterHeaders(provider),
     body: JSON.stringify({
       model,
-      models: fallbackModelIds.length > 0 ? fallbackModelIds : undefined,
-      route: fallbackModelIds.length > 0 ? "fallback" : undefined,
       messages: [
         {
           role: "user",
@@ -1348,20 +1689,29 @@ async function generateImageWithOpenRouter(provider: AiProvider, job: Compositio
       ],
       modalities: ["image", "text"],
       image_config: getOpenRouterImageConfig(baseImage),
+      stream: false,
+      temperature: profile?.temperature,
+      max_tokens: profile?.maxTokens,
       user: job.tenantSlug,
     }),
     signal: AbortSignal.timeout(180000),
   })
   const payload = await response.json().catch(() => null) as OpenRouterImageResponse | null
 
-  if (!response.ok) {
+  if (!response.ok || payload?.error) {
     throw new Error(getOpenRouterError(response.status, payload))
   }
 
   const imageUrl = getImageUrlFromPayload(payload)
 
   if (!imageUrl) {
-    throw new Error("OpenRouter nao retornou imagem no payload.")
+    const textPreview = getPayloadTextPreview(payload)
+    const diagnostic = getPayloadNoImageDiagnostic(payload)
+    throw new Error(
+      textPreview
+        ? `OpenRouter nao retornou imagem no payload para o modelo ${payload?.model || model}. Diagnostico: ${diagnostic}. Resposta do modelo: ${textPreview}`
+        : `OpenRouter nao retornou imagem no payload para o modelo ${payload?.model || model}. Diagnostico: ${diagnostic}.`
+    )
   }
 
   const image = await bytesFromImageUrl(imageUrl)
@@ -1370,6 +1720,36 @@ async function generateImageWithOpenRouter(provider: AiProvider, job: Compositio
     ...image,
     model: payload?.model || model,
   } satisfies GeneratedImage
+}
+
+async function generateImageWithOpenRouter(provider: AiProvider, job: CompositionJob, baseImage: BaseImage, prompt: string) {
+  const profile = await getAiModelProfile("image_generation")
+  const model = profile?.modelId || "google/gemini-3-pro-image-preview"
+  const fallbackModelIds = profile?.fallbackModelIds ?? []
+  const referenceImageUrls = await getCatalogMaterialImages(job)
+  const content = [
+    {
+      type: "text",
+      text: [
+        prompt,
+        getReferenceImageInstruction(referenceImageUrls.length),
+      ].filter(Boolean).join("\n"),
+    },
+    { type: "image_url", image_url: { url: baseImage.dataUrl, detail: "high" } },
+    ...referenceImageUrls.map((imageUrl) => ({ type: "image_url", image_url: { url: imageUrl, detail: "high" } })),
+  ]
+  const models = getImageGenerationModels(model, fallbackModelIds)
+  const failures: string[] = []
+
+  for (const candidateModel of models) {
+    try {
+      return await requestOpenRouterImage(provider, candidateModel, job, baseImage, content, profile)
+    } catch (error) {
+      failures.push(`${candidateModel}: ${normalizeOpenRouterError(error)}`)
+    }
+  }
+
+  throw new Error(`OpenRouter falhou em todos os modelos de imagem. ${failures.join(" | ")}`)
 }
 
 export async function processCompositionWithOpenRouter(job: CompositionJob) {

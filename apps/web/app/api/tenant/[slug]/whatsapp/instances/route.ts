@@ -5,6 +5,7 @@ import {
   readProviders,
   selectWhatsappProvider,
 } from "@/lib/server/channel-providers-store"
+import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import {
   type StoredTenantChannelInstance,
   readTenantInstances,
@@ -52,7 +53,13 @@ function toInstanceStatus(uazapiStatus: unknown, connected: boolean) {
 }
 
 function getPublicWebhookUrl() {
-  const publicBaseUrl = process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL
+  const publicBaseUrl = (
+    process.env.APP_PUBLIC_URL ||
+    process.env.PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    process.env.AUTH_URL
+  )
 
   if (!publicBaseUrl || publicBaseUrl.includes("localhost") || publicBaseUrl.includes("127.0.0.1")) {
     return null
@@ -74,6 +81,14 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function POST(request: Request, context: RouteContext) {
   const { slug } = await context.params
+  const settings = await getTenantSettings(slug)
+
+  if (!settings.channels.whatsappEnabled) {
+    return NextResponse.json({
+      error: "O canal WhatsApp deste tenant esta desabilitado nas configuracoes.",
+    }, { status: 409 })
+  }
+
   const payload = await request.json() as CreateInstancePayload
   const name = asTrimmedString(payload.name)
 
@@ -159,11 +174,11 @@ export async function POST(request: Request, context: RouteContext) {
         paircode: connectedInstance.paircode,
         profileName: connectedInstance.profileName,
         profilePicUrl: connectedInstance.profilePicUrl,
-      phoneNumber: connectionState.phoneNumber,
-      syncStartedAt: new Date().toISOString(),
-      lastSyncedAt: undefined,
-      lastError: undefined,
-      updatedAt: new Date().toISOString(),
+        phoneNumber: connectionState.phoneNumber,
+        syncStartedAt: new Date().toISOString(),
+        lastSyncedAt: undefined,
+        lastError: undefined,
+        updatedAt: new Date().toISOString(),
       }))
 
       return NextResponse.json(sanitizeTenantInstance(connectedStoredInstance ?? storedInstance), { status: 201 })

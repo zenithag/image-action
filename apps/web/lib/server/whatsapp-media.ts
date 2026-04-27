@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { InboxMessage, InboxMessageContentType } from "@/lib/inbox-types"
-import { getRuntimeDataDir } from "@/lib/server/runtime-paths"
+import { getRuntimeDataDir, getRuntimePublicDir } from "@/lib/server/runtime-paths"
 
 type RawMediaPayload = {
   URL?: unknown
@@ -121,6 +121,39 @@ function getMediaUrl(payload: RawMediaPayload, message: InboxMessage) {
   )
 }
 
+function getDataUrlMedia(value: string) {
+  const match = value.match(/^data:([^;,]+);base64,(.+)$/i)
+
+  if (!match) {
+    return null
+  }
+
+  return {
+    mimeType: match[1],
+    bytes: Buffer.from(match[2], "base64"),
+  }
+}
+
+function getPublicFilePathFromMediaUrl(mediaUrl: string) {
+  if (!mediaUrl) {
+    return null
+  }
+
+  try {
+    const url = /^https?:\/\//i.test(mediaUrl) ? new URL(mediaUrl) : null
+    const pathname = url ? url.pathname : mediaUrl
+    const isLocalhost = url ? ["localhost", "127.0.0.1", "::1"].includes(url.hostname) : true
+
+    if (!isLocalhost || !pathname.startsWith("/generated/")) {
+      return null
+    }
+
+    return path.join(getRuntimePublicDir(), pathname.replace(/^\/+/, ""))
+  } catch {
+    return null
+  }
+}
+
 function buildMediaKeys(mediaKey: string, contentType: InboxMessageContentType) {
   const expandedKey = Buffer.from(
     hkdfSync(
@@ -201,6 +234,25 @@ export async function resolveWhatsAppMedia(message: InboxMessage): Promise<Resol
 
   if (!mediaUrl) {
     throw new Error("Payload da midia nao contem URL de download.")
+  }
+
+  const dataUrlMedia = getDataUrlMedia(mediaUrl)
+
+  if (dataUrlMedia) {
+    await writeCachedMedia(cacheKey, dataUrlMedia.bytes)
+    return {
+      bytes: dataUrlMedia.bytes,
+      mimeType: dataUrlMedia.mimeType || mimeType,
+      fileName,
+    }
+  }
+
+  const publicFilePath = getPublicFilePathFromMediaUrl(mediaUrl)
+
+  if (publicFilePath) {
+    const bytes = await readFile(publicFilePath)
+    await writeCachedMedia(cacheKey, bytes)
+    return { bytes, mimeType, fileName }
   }
 
   const response = await fetch(mediaUrl, {

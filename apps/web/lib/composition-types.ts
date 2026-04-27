@@ -2,6 +2,17 @@ export type CompositionMode = "interior" | "product" | "print" | "fashion"
 export type CompositionJobStatus = "queued" | "processing" | "done" | "failed"
 export type CompositionJobSource = "ai" | "operator"
 
+export type CompositionJobReference = {
+  source: "inbox" | "catalog" | "url"
+  messageId?: string
+  imageUrl?: string
+  catalogItemId?: string
+  catalogItemName?: string
+  catalogSku?: string
+  catalogCategory?: string
+  catalogDescription?: string
+}
+
 export type CompositionJob = {
   id: string
   tenantSlug: string
@@ -15,11 +26,17 @@ export type CompositionJob = {
   sourceMessageId?: string
   baseMessageId?: string
   baseImageUrl?: string
+  referenceMessageId?: string
+  referenceImageUrl?: string
   catalogItemId?: string
   catalogItemName?: string
   catalogColorReference?: string
+  references?: CompositionJobReference[]
+  changeStrength?: number
   prompt: string
   resultImageUrl?: string
+  shareToken?: string
+  shareEnabledAt?: string
   errorMessage?: string
   processingAttempts: number
   processorProvider?: "openrouter"
@@ -40,8 +57,12 @@ export type CompositionJobInput = {
   sourceMessageId?: string
   baseMessageId?: string
   baseImageUrl?: string
+  referenceMessageId?: string
+  referenceImageUrl?: string
   catalogItemId?: string
   catalogItemName?: string
   catalogColorReference?: string
+  references?: CompositionJobReference[]
+  changeStrength?: number
   prompt?: string
 }

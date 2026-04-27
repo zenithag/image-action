@@ -32,6 +32,25 @@ export default async function middleware(req: NextRequest) {
     typeof token.tenantSlug === "string" && token.tenantSlug
       ? token.tenantSlug
       : null
+  const sessionTimeoutMinutes =
+    typeof token.sessionTimeoutMinutes === "number" && Number.isFinite(token.sessionTimeoutMinutes)
+      ? token.sessionTimeoutMinutes
+      : null
+  const issuedAt =
+    typeof token.iat === "number" && Number.isFinite(token.iat)
+      ? token.iat
+      : null
+
+  if (tenantSlug && sessionTimeoutMinutes && issuedAt) {
+    const expiresAt = issuedAt + sessionTimeoutMinutes * 60
+
+    if (Math.floor(Date.now() / 1000) > expiresAt) {
+      const loginUrl = new URL("/", req.url)
+      loginUrl.searchParams.set("sessionExpired", "1")
+
+      return NextResponse.redirect(loginUrl)
+    }
+  }
 
   if (req.nextUrl.pathname.startsWith("/superadmin") && !isSuperadmin(roles)) {
     return NextResponse.redirect(new URL(getTenantHomePath(tenantSlug), req.url))

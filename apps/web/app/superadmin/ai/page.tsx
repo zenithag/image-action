@@ -12,10 +12,12 @@ import {
   RefreshCcw,
   Save,
   ShieldCheck,
+  Sparkles,
   Trash2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import type { AiGuardrailRecord } from "@/lib/ai-guardrail-types"
 import type {
   AiModelProfile,
   AiModelProfilePurpose,
@@ -87,6 +89,7 @@ export default function SuperadminAiPage() {
   const [providers, setProviders] = useState<SafeAiProvider[]>([])
   const [profiles, setProfiles] = useState<AiModelProfile[]>([])
   const [models, setModels] = useState<OpenRouterModelSummary[]>([])
+  const [guardrails, setGuardrails] = useState<AiGuardrailRecord[]>([])
   const [newProvider, setNewProvider] = useState(defaultProviderForm)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreatingProvider, setIsCreatingProvider] = useState(false)
@@ -94,6 +97,7 @@ export default function SuperadminAiPage() {
   const [deletingProviderId, setDeletingProviderId] = useState<string | null>(null)
   const [syncingModels, setSyncingModels] = useState(false)
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null)
+  const [savingGuardrailId, setSavingGuardrailId] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, AiProviderTestResult>>({})
   const [error, setError] = useState<string | null>(null)
 
@@ -106,13 +110,15 @@ export default function SuperadminAiPage() {
     setError(null)
 
     try {
-      const [providersData, profilesData] = await Promise.all([
+      const [providersData, profilesData, guardrailsData] = await Promise.all([
         requestJson<SafeAiProvider[]>("/api/superadmin/ai/providers", { cache: "no-store" }),
         requestJson<AiModelProfile[]>("/api/superadmin/ai/profiles", { cache: "no-store" }),
+        requestJson<AiGuardrailRecord[]>("/api/superadmin/ai/guardrails", { cache: "no-store" }),
       ])
 
       setProviders(providersData)
       setProfiles(profilesData)
+      setGuardrails(guardrailsData)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Erro ao carregar IA.")
     } finally {
@@ -123,6 +129,14 @@ export default function SuperadminAiPage() {
   useEffect(() => {
     void loadData()
   }, [])
+
+  useEffect(() => {
+    if (!activeProvider || models.length > 0 || syncingModels) {
+      return
+    }
+
+    void syncModels()
+  }, [activeProvider?.id])
 
   async function createProvider() {
     if (isCreatingProvider) return
@@ -237,22 +251,43 @@ export default function SuperadminAiPage() {
     setProfiles((current) => current.map((profile) => profile.id === id ? { ...profile, ...updates } : profile))
   }
 
+  async function toggleGuardrail(guardrail: AiGuardrailRecord, enabled: boolean) {
+    setSavingGuardrailId(guardrail.id)
+    setError(null)
+
+    try {
+      const updated = await requestJson<AiGuardrailRecord>(`/api/superadmin/ai/guardrails/${guardrail.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
+      })
+
+      setGuardrails((current) => current.map((item) => item.id === updated.id ? updated : item))
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Erro ao atualizar guardrail.")
+    } finally {
+      setSavingGuardrailId(null)
+    }
+  }
+
+  const compositionProfiles = useMemo(
+    () => profiles.filter((profile) => profile.purpose === "image_generation" || profile.purpose === "image_prompt" || profile.purpose === "vision"),
+    [profiles]
+  )
+
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="relative z-10 flex items-center justify-between border-b border-border bg-background py-4 pl-6 pr-10">
-        <div>
-          <h1 className="text-xl font-bold text-foreground font-display">IA & Modelos</h1>
-          <p className="text-sm text-muted-foreground font-sans">
-            Configure o OpenRouter global e escolha modelos por finalidade.
-          </p>
+      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+        <div className="flex flex-col">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Núcleo</p>
+          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">IA & Modelos</h1>
         </div>
-        <Button className="rounded-[5px] font-sans" onClick={() => void syncModels()} disabled={syncingModels}>
+        <Button size="sm" onClick={() => void syncModels()} disabled={syncingModels}>
           {syncingModels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
           Sincronizar modelos
         </Button>
       </div>
 
-      <section className="grid grid-cols-4 gap-4 border-b border-border bg-card/20 px-6 py-5">
+      <section className="grid grid-cols-4 gap-3 px-7 py-4">
         <MetricCard label="Providers" value={providers.length} icon={Bot} tone="text-primary" />
         <MetricCard label="Provider ativo" value={activeProvider ? "Sim" : "Nao"} icon={ShieldCheck} tone={activeProvider ? "text-primary" : "text-amber-500"} />
         <MetricCard label="Perfis" value={profiles.length} icon={Brain} tone="text-foreground" />
@@ -265,9 +300,10 @@ export default function SuperadminAiPage() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[0.85fr_1.15fr] gap-6 overflow-y-auto p-6 scrollbar-hide">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+      <div className="grid grid-cols-[0.85fr_1.15fr] gap-4 px-7 py-6">
         <section className="space-y-6">
-          <div className="rounded-[5px] border border-border bg-card p-5">
+          <div className="rounded-[10px] border border-border bg-card p-5">
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-bold text-foreground font-display">Provider OpenRouter</h2>
@@ -283,7 +319,7 @@ export default function SuperadminAiPage() {
                 <input
                   value={newProvider.name}
                   onChange={(event) => setNewProvider((current) => ({ ...current, name: event.target.value }))}
-                  className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </Field>
               <Field label="API key">
@@ -292,14 +328,14 @@ export default function SuperadminAiPage() {
                   onChange={(event) => setNewProvider((current) => ({ ...current, apiKey: event.target.value }))}
                   type="password"
                   placeholder="sk-or-..."
-                  className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </Field>
               <Field label="Base URL">
                 <input
                   value={newProvider.baseUrl}
                   onChange={(event) => setNewProvider((current) => ({ ...current, baseUrl: event.target.value }))}
-                  className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </Field>
               <Field label="Orcamento mensal em centavos de dolar (USD)">
@@ -308,20 +344,20 @@ export default function SuperadminAiPage() {
                   onChange={(event) => setNewProvider((current) => ({ ...current, monthlyBudgetCents: event.target.value }))}
                   inputMode="numeric"
                   placeholder="Ex: 5000 = US$ 50.00"
-                  className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </Field>
               <Field label="Observacoes">
                 <textarea
                   value={newProvider.notes}
                   onChange={(event) => setNewProvider((current) => ({ ...current, notes: event.target.value }))}
-                  className="h-20 w-full resize-none rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="h-20 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </Field>
             </div>
 
             <Button
-              className="mt-4 w-full rounded-[5px]"
+              className="mt-4 w-full rounded-[10px]"
               onClick={() => void createProvider()}
               disabled={isCreatingProvider || !newProvider.name.trim() || !newProvider.apiKey.trim()}
             >
@@ -347,10 +383,57 @@ export default function SuperadminAiPage() {
               <EmptyState title="Nenhum provider de IA" description="Cadastre o OpenRouter para habilitar chamadas reais de modelo." />
             )}
           </div>
+
+          <div className="rounded-[10px] border border-border bg-card p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-foreground font-display">Modelos de composição</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Perfis reais usados no pipeline de visão, prompt e geração de imagem.</p>
+              </div>
+              <Sparkles className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-2.5">
+              {compositionProfiles.length > 0 ? compositionProfiles.map((profile) => {
+                const model = modelsById.get(profile.modelId)
+                const purpose = purposeLabel[profile.purpose]
+
+                return (
+                  <div key={profile.id} className="rounded-lg border border-border bg-background p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/10">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{model?.name || profile.modelId}</p>
+                          <p className="text-xs text-muted-foreground">{purpose} · {profile.name}</p>
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "rounded-full px-2.5 py-1 text-[11px] font-medium uppercase",
+                        profile.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                      )}>
+                        {profile.enabled ? "ativo" : "inativo"}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+                      <p>Modelo: <span className="font-medium text-foreground">{profile.modelId}</span></p>
+                      <p>Fallbacks: <span className="font-medium text-foreground">{profile.fallbackModelIds.length > 0 ? profile.fallbackModelIds.join(", ") : "nenhum"}</span></p>
+                      {model && (
+                        <p>Modalidades: <span className="font-medium text-foreground">{model.inputModalities.join(", ") || "n/d"} → {model.outputModalities.join(", ") || "n/d"}</span></p>
+                      )}
+                    </div>
+                  </div>
+                )
+              }) : (
+                <EmptyState title="Sem perfis de composição" description="Crie ou habilite perfis de visão, prompt e geração para o pipeline." />
+              )}
+            </div>
+          </div>
         </section>
 
         <section className="space-y-4">
-          <div className="rounded-[5px] border border-border bg-card p-5">
+          <div className="rounded-[10px] border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-bold text-foreground font-display">Perfis de modelo</h2>
@@ -368,15 +451,15 @@ export default function SuperadminAiPage() {
             const model = modelsById.get(profile.modelId)
 
             return (
-              <article key={profile.id} className="rounded-[5px] border border-border bg-card p-5">
+              <article key={profile.id} className="rounded-[10px] border border-border bg-card p-5">
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-bold text-foreground font-display">{profile.name}</h3>
-                      <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold uppercase text-muted-foreground">
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium uppercase text-muted-foreground">
                         {purposeLabel[profile.purpose]}
                       </span>
-                      <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold uppercase", profile.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                      <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium uppercase", profile.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
                         {profile.enabled ? "Ativo" : "Inativo"}
                       </span>
                     </div>
@@ -385,7 +468,7 @@ export default function SuperadminAiPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-[5px]"
+                    className="rounded-[10px]"
                     onClick={() => void saveProfile(profile)}
                     disabled={savingProfileId === profile.id}
                   >
@@ -400,7 +483,7 @@ export default function SuperadminAiPage() {
                       list="openrouter-models"
                       value={profile.modelId}
                       onChange={(event) => updateProfile(profile.id, { modelId: event.target.value })}
-                      className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Fallbacks (um por linha ou virgula)">
@@ -409,7 +492,7 @@ export default function SuperadminAiPage() {
                       onChange={(event) => updateProfile(profile.id, {
                         fallbackModelIds: event.target.value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean),
                       })}
-                      className="h-20 w-full resize-none rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      className="h-20 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Temperatura">
@@ -420,7 +503,7 @@ export default function SuperadminAiPage() {
                       step="0.1"
                       value={profile.temperature}
                       onChange={(event) => updateProfile(profile.id, { temperature: Number(event.target.value) })}
-                      className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Max tokens">
@@ -429,7 +512,7 @@ export default function SuperadminAiPage() {
                       min="1"
                       value={profile.maxTokens}
                       onChange={(event) => updateProfile(profile.id, { maxTokens: Number(event.target.value) })}
-                      className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                 </div>
@@ -445,7 +528,7 @@ export default function SuperadminAiPage() {
                 </label>
 
                 {model && (
-                  <div className="mt-4 rounded-[5px] border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  <div className="mt-4 rounded-[10px] border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
                     <p className="font-bold text-foreground">{model.name}</p>
                     <p className="mt-1">
                       Contexto: {model.contextLength || "n/d"} | Entrada: {model.inputModalities.join(", ") || "n/d"} | Saida: {model.outputModalities.join(", ") || "n/d"}
@@ -459,6 +542,33 @@ export default function SuperadminAiPage() {
             )
           })}
         </section>
+      </div>
+
+      <section className="border-t border-border px-7 py-6">
+        <div className="mb-5">
+          <h2 className="font-bold text-foreground font-display text-lg">Guardrails</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Regras de segurança aplicadas a todas as chamadas de IA da plataforma.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {guardrails.map((guardrail) => (
+            <button
+              key={guardrail.id}
+              type="button"
+              onClick={() => void toggleGuardrail(guardrail, !guardrail.enabled)}
+              disabled={savingGuardrailId === guardrail.id}
+              className="flex items-start justify-between gap-4 rounded-[10px] border border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <div>
+                <p className="text-sm font-medium text-foreground">{guardrail.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{guardrail.description}</p>
+              </div>
+              <span className={cn("relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors", guardrail.enabled ? "bg-primary" : "bg-muted")}>
+                <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white transition-transform", guardrail.enabled ? "translate-x-6" : "translate-x-1")} />
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
       </div>
 
       <datalist id="openrouter-models">
@@ -482,13 +592,13 @@ function MetricCard({
   tone: string
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-[5px] border border-border bg-card p-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-muted">
-        <Icon className={cn("h-5 w-5", tone)} />
+    <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-4">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+        <Icon className={cn("h-4 w-4", tone)} />
       </div>
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-        <p className="mt-0.5 text-2xl font-bold text-foreground font-display">{value}</p>
+        <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+        <p className="font-mono text-lg font-medium leading-tight text-foreground">{value}</p>
       </div>
     </div>
   )
@@ -497,7 +607,7 @@ function MetricCard({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+      <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
       {children}
     </label>
   )
@@ -519,13 +629,13 @@ function ProviderCard({
   onDelete: () => void
 }) {
   return (
-    <article className="rounded-[5px] border border-border bg-card p-5">
+    <article className="rounded-[10px] border border-border bg-card p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold text-foreground font-display">{provider.name}</h3>
-            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase text-primary">OpenRouter</span>
-            <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold uppercase", provider.health === "ok" ? "bg-primary/10 text-primary" : provider.health === "error" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600")}>
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium uppercase text-primary">OpenRouter</span>
+            <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium uppercase", provider.health === "ok" ? "bg-primary/10 text-primary" : provider.health === "error" ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600")}>
               {provider.health}
             </span>
           </div>
@@ -545,11 +655,11 @@ function ProviderCard({
           {provider.notes && <p className="mt-3 text-sm text-muted-foreground">{provider.notes}</p>}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="rounded-[5px]" onClick={onTest} disabled={isTesting}>
+          <Button variant="outline" size="sm" className="rounded-[10px]" onClick={onTest} disabled={isTesting}>
             {isTesting ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="mr-2 h-3.5 w-3.5" />}
             Testar
           </Button>
-          <Button variant="outline" size="sm" className="rounded-[5px] text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onDelete} disabled={isDeleting}>
+          <Button variant="outline" size="sm" className="rounded-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onDelete} disabled={isDeleting}>
             {isDeleting ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-2 h-3.5 w-3.5" />}
             Excluir
           </Button>
@@ -558,7 +668,7 @@ function ProviderCard({
 
       {testResult && (
         <div className={cn(
-          "mt-4 rounded-[5px] border p-3 text-sm",
+          "mt-4 rounded-[10px] border p-3 text-sm",
           testResult.creditStatus === "unavailable"
             ? "border-amber-500/20 bg-amber-500/10 text-amber-700"
             : testResult.ok
@@ -606,7 +716,7 @@ function CreditBox({ label, value }: { label: string; value: string }) {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-[5px] border border-dashed border-border bg-card/50 p-8 text-center">
+    <div className="rounded-[10px] border border-dashed border-border bg-card/50 p-8 text-center">
       <Bot className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
       <h3 className="font-bold text-foreground font-display">{title}</h3>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>

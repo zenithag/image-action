@@ -44,6 +44,29 @@ function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function normalizeReferences(value: CompositionJobInput["references"]) {
+  if (!Array.isArray(value)) return undefined
+
+  const references = value
+    .map((reference) => ({
+      source: reference.source,
+      messageId: normalizeText(reference.messageId) || undefined,
+      imageUrl: normalizeText(reference.imageUrl) || undefined,
+      catalogItemId: normalizeText(reference.catalogItemId) || undefined,
+      catalogItemName: normalizeText(reference.catalogItemName) || undefined,
+      catalogSku: normalizeText(reference.catalogSku) || undefined,
+      catalogCategory: normalizeText(reference.catalogCategory) || undefined,
+      catalogDescription: normalizeText(reference.catalogDescription) || undefined,
+    }))
+    .filter((reference) =>
+      reference.source === "inbox"
+        ? Boolean(reference.messageId || reference.imageUrl)
+        : Boolean(reference.catalogItemId || reference.catalogItemName || reference.imageUrl)
+    )
+
+  return references.length > 0 ? references : undefined
+}
+
 export async function listCompositionJobs(tenantSlug: string) {
   const data = await readCompositionJobsData()
 
@@ -82,9 +105,15 @@ export async function createCompositionJob(tenantSlug: string, input: Compositio
       sourceMessageId: input.sourceMessageId,
       baseMessageId: input.baseMessageId,
       baseImageUrl: input.baseImageUrl,
+      referenceMessageId: input.referenceMessageId,
+      referenceImageUrl: input.referenceImageUrl,
       catalogItemId: input.catalogItemId,
       catalogItemName: input.catalogItemName,
       catalogColorReference: input.catalogColorReference,
+      references: normalizeReferences(input.references),
+      changeStrength: typeof input.changeStrength === "number"
+        ? Math.max(0, Math.min(100, Math.round(input.changeStrength)))
+        : undefined,
       prompt,
       processingAttempts: 0,
       createdAt: now,
@@ -104,9 +133,9 @@ export async function updateCompositionJob(
   jobId: string,
   updates: Partial<Pick<
     CompositionJob,
-    "status" | "resultImageUrl" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
+    "status" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
   >>
-) {
+): Promise<CompositionJob | null> {
   return withCompositionJobsMutation(async () => {
     const data = await readCompositionJobsData()
     let updatedJob: CompositionJob | null = null
@@ -135,6 +164,48 @@ export async function updateCompositionJob(
 
     return updatedJob
   })
+}
+
+export async function ensureCompositionJobShareToken(tenantSlug: string, jobId: string): Promise<CompositionJob | null> {
+  return withCompositionJobsMutation(async () => {
+    const data = await readCompositionJobsData()
+    let updatedJob: CompositionJob | null = null
+    const now = new Date().toISOString()
+
+    const jobs = data.jobs.map((job) => {
+      if (job.tenantSlug !== tenantSlug || job.id !== jobId) {
+        return job
+      }
+
+      if (job.shareToken) {
+        updatedJob = job
+        return job
+      }
+
+      updatedJob = {
+        ...job,
+        shareToken: crypto.randomUUID(),
+        shareEnabledAt: now,
+        updatedAt: now,
+      }
+
+      return updatedJob
+    })
+
+    if (!updatedJob) {
+      return null
+    }
+
+    await writeCompositionJobsData({ jobs })
+
+    return updatedJob
+  })
+}
+
+export async function findCompositionJobByShareToken(shareToken: string) {
+  const data = await readCompositionJobsData()
+
+  return data.jobs.find((job) => job.shareToken === shareToken) ?? null
 }
 
 export async function retryCompositionJob(tenantSlug: string, jobId: string) {

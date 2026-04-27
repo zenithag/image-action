@@ -6,6 +6,7 @@
     "dev:web": "pnpm --dir apps/web dev",
     "build:web": "pnpm --dir apps/web build",
     "seed:superadmin": "pnpm --dir apps/web seed:superadmin",
+    "test:ai-regression": "node apps/web/scripts/ai-regression.mjs",
     "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit -p tsconfig.typecheck.json",
     "dev:api": "cd services/api-server && uvicorn app.main:app --reload --port 8000",
     "dev:segmentation": "cd services/segmentation-service && uvicorn app.main:app --reload --port 8010",

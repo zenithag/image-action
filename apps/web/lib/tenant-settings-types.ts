@@ -1,5 +1,8 @@
+import type { TenantBusinessVertical } from "@/lib/tenant-types"
+
 export type TenantSettingsTeamMemberStatus = "active" | "invited" | "disabled"
 export type TenantSettingsTeamMemberRole = "admin" | "operator" | "viewer"
+export type TenantSegmentationProfile = TenantBusinessVertical
 
 export type TenantSettingsTeamMember = {
   id: string
@@ -7,6 +10,8 @@ export type TenantSettingsTeamMember = {
   email: string
   role: TenantSettingsTeamMemberRole
   status: TenantSettingsTeamMemberStatus
+  password?: string
+  lastLoginAt?: string
 }
 
 export type TenantSettings = {
@@ -21,18 +26,25 @@ export type TenantSettings = {
     primaryColor: string
     logoUrl: string
     brandVoice: string
+    watermarkEnabled: boolean
+    watermarkText: string
+    watermarkPosition: "center" | "bottom-right"
   }
   channels: {
     whatsappEnabled: boolean
     instagramEnabled: boolean
     telegramEnabled: boolean
     handoffMode: "manual" | "auto"
+    autoSendCompositionsToWhatsapp: boolean
   }
   assistant: {
     enabled: boolean
+    assistantName: string
+    welcomeMessage: string
     modelProfileId: string
     systemPrompt: string
     humanHandoffKeywords: string[]
+    catalogCategories: string[]
   }
   team: {
     members: TenantSettingsTeamMember[]
@@ -48,6 +60,13 @@ export type TenantSettings = {
     allowedDomains: string[]
     sessionTimeoutMinutes: number
   }
+  segmentation: {
+    profile: TenantSegmentationProfile
+    editableTargets: string[]
+    protectedTargets: string[]
+    promptHints: string[]
+    tenantCanManage: boolean
+  }
   createdAt: string
   updatedAt: string
 }
@@ -60,4 +79,5 @@ export type TenantSettingsInput = Partial<{
   team: Partial<TenantSettings["team"]>
   notifications: Partial<TenantSettings["notifications"]>
   security: Partial<TenantSettings["security"]>
+  segmentation: Partial<TenantSettings["segmentation"]>
 }>

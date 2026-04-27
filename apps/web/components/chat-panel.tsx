@@ -1,14 +1,19 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxMessage } from "@/lib/inbox-types"
+import type { StudioDraft, StudioImageSlot } from "@/lib/studio-draft"
+import { getStudioDraftStorageKey } from "@/lib/studio-draft"
 import {
   Bot,
   CheckCheck,
   Download,
+  Eraser,
   FileText,
   Image as ImageIcon,
+  ArrowLeft,
   Loader2,
   Mic,
   MoreVertical,
@@ -20,10 +25,12 @@ import {
   Video,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SafeImage } from "@/components/safe-image"
 
 interface ChatPanelProps {
   tenantSlug: string
   conversationId?: string | null
+  onBackToList?: () => void
 }
 
 function formatMessageTime(value: string) {
@@ -63,19 +70,67 @@ function formatMediaSize(size?: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`
 }
 
-function MediaMessage({ message, tenantSlug }: { message: InboxMessage; tenantSlug: string }) {
-  const mediaUrl = `/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(message.conversationId)}/messages/${encodeURIComponent(message.id)}/media`
+function getInboxMessageMediaUrl(tenantSlug: string, message: InboxMessage) {
+  return `/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(message.conversationId)}/messages/${encodeURIComponent(message.id)}/media`
+}
+
+function addStudioReference(draft: StudioDraft, artifact: StudioDraft["baseImage"]) {
+  if (!artifact) return draft.references ?? []
+
+  const currentReferences = draft.references ?? (draft.referenceImage ? [draft.referenceImage] : [])
+  const key = artifact.messageId ? `inbox:${artifact.messageId}` : artifact.mediaUrl
+  const exists = currentReferences.some((reference) => {
+    const referenceKey = reference.messageId ? `inbox:${reference.messageId}` : reference.mediaUrl
+    return referenceKey === key
+  })
+
+  return exists ? currentReferences : [...currentReferences, artifact]
+}
+
+function MediaMessage({
+  message,
+  tenantSlug,
+  onSendToStudio,
+}: {
+  message: InboxMessage
+  tenantSlug: string
+  onSendToStudio?: (message: InboxMessage, slot: StudioImageSlot) => void
+}) {
+  const mediaUrl = getInboxMessageMediaUrl(tenantSlug, message)
   const caption = shouldShowMediaCaption(message) ? message.content : ""
 
   if (message.contentType === "image") {
     return (
       <div className="space-y-2">
-        <img
+        <SafeImage
           src={mediaUrl}
           alt={caption || "Imagem enviada"}
+          loading="lazy"
+          decoding="async"
           className="h-auto max-h-[360px] max-w-full rounded-lg border-0 object-contain outline-none"
+          fallbackClassName="min-h-44 w-72 max-w-full"
+          fallbackLabel="Imagem indisponível"
+          fallbackHint="A mídia pode ter expirado no WhatsApp."
         />
         {caption && <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{caption}</p>}
+        {onSendToStudio && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => onSendToStudio(message, "base")}
+              className="rounded-full border border-current/15 bg-background/75 px-2.5 py-1 text-[11px] font-semibold text-foreground/80 transition-colors hover:bg-background"
+            >
+              Usar como cena
+            </button>
+            <button
+              type="button"
+              onClick={() => onSendToStudio(message, "reference")}
+              className="rounded-full border border-current/15 bg-background/75 px-2.5 py-1 text-[11px] font-semibold text-foreground/80 transition-colors hover:bg-background"
+            >
+              Usar como referência
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -131,7 +186,8 @@ function MediaMessage({ message, tenantSlug }: { message: InboxMessage; tenantSl
   return <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{message.content}</p>
 }
 
-export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
+export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPanelProps) {
+  const router = useRouter()
   const [conversation, setConversation] = useState<InboxConversationSummary | null>(null)
   const [messages, setMessages] = useState<InboxMessage[]>([])
   const [message, setMessage] = useState("")
@@ -139,6 +195,7 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
   const [isSending, setIsSending] = useState(false)
   const [isTakingOver, setIsTakingOver] = useState(false)
   const [isReturningToAi, setIsReturningToAi] = useState(false)
+  const [isResettingContext, setIsResettingContext] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -165,26 +222,18 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
     }
 
     try {
-      await fetch(`/api/tenant/${tenantSlug}/inbox/sync`, {
-        method: "POST",
-      }).catch(() => null)
-      await fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}/read`, {
-        method: "POST",
-      }).catch(() => null)
-      window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
-
-      const [conversationsResponse, messagesResponse] = await Promise.all([
-        fetch(`/api/tenant/${tenantSlug}/inbox/conversations`, { cache: "no-store" }),
+      const [conversationResponse, messagesResponse] = await Promise.all([
+        fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}`, { cache: "no-store" }),
         fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}/messages`, { cache: "no-store" }),
       ])
 
-      if (!conversationsResponse.ok || !messagesResponse.ok) {
+      if (!conversationResponse.ok || !messagesResponse.ok) {
         throw new Error("Nao foi possivel carregar a conversa.")
       }
 
-      const conversations = await conversationsResponse.json() as InboxConversationSummary[]
+      const nextConversation = await conversationResponse.json() as InboxConversationSummary
       const nextMessages = await messagesResponse.json() as InboxMessage[]
-      setConversation(conversations.find((item) => item.id === conversationId) ?? null)
+      setConversation(nextConversation)
       setMessages(nextMessages)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Erro ao carregar conversa.")
@@ -204,7 +253,7 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
 
     const intervalId = window.setInterval(() => {
       void loadConversation({ silent: true })
-    }, 3000)
+    }, 6000)
 
     return () => window.clearInterval(intervalId)
   }, [tenantSlug, conversationId])
@@ -306,6 +355,67 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
     }
   }
 
+  async function resetConversationContext() {
+    if (!conversationId || isResettingContext) return
+
+    setIsResettingContext(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}/context/reset`, {
+        method: "POST",
+      })
+      const payload = await response.json().catch(() => null) as InboxConversationSummary | { error?: string } | null
+
+      if (!response.ok) {
+        throw new Error(payload && "error" in payload && payload.error ? payload.error : "Nao foi possivel limpar o contexto da IA.")
+      }
+
+      if (payload && "id" in payload) {
+        setConversation(payload)
+      }
+      void loadConversation({ silent: true })
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : "Erro ao limpar contexto.")
+    } finally {
+      setIsResettingContext(false)
+    }
+  }
+
+  function sendImageToStudio(selectedMessage: InboxMessage, slot: StudioImageSlot) {
+    if (selectedMessage.contentType !== "image") return
+
+    try {
+      const storageKey = getStudioDraftStorageKey(tenantSlug)
+      const storedDraft = window.localStorage.getItem(storageKey)
+      const currentDraft = storedDraft ? JSON.parse(storedDraft) as StudioDraft : {}
+      const artifact = {
+        source: "inbox" as const,
+        conversationId: selectedMessage.conversationId,
+        channelInstanceId: selectedMessage.channelInstanceId,
+        messageId: selectedMessage.id,
+        mediaUrl: getInboxMessageMediaUrl(tenantSlug, selectedMessage),
+        caption: shouldShowMediaCaption(selectedMessage) ? selectedMessage.content : undefined,
+        contactName: conversation?.contact.name ?? currentContactName,
+        contactPhone: currentPhone || undefined,
+        createdAt: selectedMessage.createdAt,
+      }
+      const nextDraft: StudioDraft = {
+        ...currentDraft,
+        ...(slot === "base" ? { baseImage: artifact } : {
+          referenceImage: artifact,
+          references: addStudioReference(currentDraft, artifact),
+        }),
+        updatedAt: new Date().toISOString(),
+      }
+
+      window.localStorage.setItem(storageKey, JSON.stringify(nextDraft))
+      router.push(`/tenant/${tenantSlug}/editor`)
+    } catch {
+      setError("Nao foi possivel enviar a imagem para o Estudio.")
+    }
+  }
+
   if (!hasConversation) {
     return (
       <div className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center overflow-hidden bg-background p-8">
@@ -322,8 +432,20 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          {onBackToList && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 lg:hidden"
+              onClick={onBackToList}
+              aria-label="Voltar para conversas"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-900 border border-border/50">
             {getInitials(currentContactName)}
           </div>
@@ -349,31 +471,51 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {conversation?.handledBy === "operator" ? (
             <Button
               variant="outline"
               size="sm"
-              className="shrink-0 text-xs font-sans"
+              className="h-9 shrink-0 px-2 text-xs font-sans sm:px-3"
               onClick={returnConversationToAi}
               disabled={isReturningToAi || isTakingOver || !conversation}
+              title="Devolver para IA"
             >
-              {isReturningToAi ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Bot className="mr-1.5 h-3.5 w-3.5" />}
-              Devolver para IA
+              {isReturningToAi ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" /> : <Bot className="h-3.5 w-3.5 sm:mr-1.5" />}
+              <span className="hidden sm:inline">Devolver para IA</span>
             </Button>
           ) : (
             <Button
               variant="outline"
               size="sm"
-              className="shrink-0 text-xs font-sans"
+              className="h-9 shrink-0 px-2 text-xs font-sans sm:px-3"
               onClick={takeoverConversation}
               disabled={isTakingOver || isReturningToAi || !conversation}
+              title="Assumir conversa"
             >
-              {isTakingOver ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <User className="mr-1.5 h-3.5 w-3.5" />}
-              Assumir conversa
+              {isTakingOver ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" /> : <User className="h-3.5 w-3.5 sm:mr-1.5" />}
+              <span className="hidden sm:inline">Assumir conversa</span>
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => loadConversation()}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0 px-2 text-xs font-sans sm:px-3"
+            onClick={resetConversationContext}
+            disabled={isResettingContext || !conversation}
+            title="Mantem as mensagens visiveis, mas faz a IA ignorar o historico anterior."
+          >
+            {isResettingContext ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" /> : <Eraser className="h-3.5 w-3.5 sm:mr-1.5" />}
+            <span className="hidden sm:inline">Limpar contexto</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => loadConversation()}
+            title="Atualizar conversa"
+            aria-label="Atualizar conversa"
+          >
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -405,7 +547,7 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
                 key={msg.id}
                 className={cn(
                   "flex",
-                  msg.direction === "inbound" ? "justify-end" : "justify-start",
+                  msg.direction === "inbound" ? "justify-start" : "justify-end",
                   msg.role === "system" && "justify-center"
                 )}
               >
@@ -417,15 +559,15 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
                 ) : (
                   <div
                     className={cn(
-                      "relative max-w-[85%] px-3 py-1.5 shadow-sm text-[#111b21] dark:text-foreground",
+                      "relative max-w-[85%] px-3 py-1.5 shadow-sm",
                       msg.direction === "inbound"
-                        ? "bg-[var(--chat-bubble-out)] rounded-l-xl rounded-br-xl"
-                        : "bg-[var(--chat-bubble-in)] rounded-r-xl rounded-bl-xl"
+                        ? "bg-[var(--chat-bubble-in)] text-[#111b21] dark:text-foreground rounded-r-xl rounded-bl-xl"
+                        : "bg-[var(--chat-bubble-out)] text-[var(--chat-bubble-out-foreground)] rounded-l-xl rounded-br-xl"
                     )}
-                    style={{ borderRadius: msg.direction === "inbound" ? "10px 0 10px 10px" : "0 10px 10px 10px" }}
+                    style={{ borderRadius: msg.direction === "inbound" ? "0 10px 10px 10px" : "10px 0 10px 10px" }}
                   >
                     {msg.direction === "outbound" && (
-                      <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-bold text-primary/80 font-sans">
+                      <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-bold text-current/80 font-sans">
                         {msg.role === "assistant" ? (
                           <>
                             <Bot className="h-3 w-3" />
@@ -439,10 +581,23 @@ export function ChatPanel({ tenantSlug, conversationId }: ChatPanelProps) {
                         )}
                       </div>
                     )}
+                    {msg.direction === "inbound" && (
+                      <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground font-sans">
+                        <User className="h-3 w-3" />
+                        <span>Cliente</span>
+                      </div>
+                    )}
 
                     <div className="flex flex-col">
-                      <MediaMessage message={msg} tenantSlug={tenantSlug} />
-                      <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                      <MediaMessage
+                        message={msg}
+                        tenantSlug={tenantSlug}
+                        onSendToStudio={msg.contentType === "image" ? sendImageToStudio : undefined}
+                      />
+                      <div className={cn(
+                        "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
+                        msg.direction === "outbound" ? "text-current/70" : "text-muted-foreground"
+                      )}>
                         <span>{formatMessageTime(msg.createdAt)}</span>
                         {msg.direction === "outbound" && msg.status === "read" && (
                           <CheckCheck className="h-3.5 w-3.5 text-sky-500" />

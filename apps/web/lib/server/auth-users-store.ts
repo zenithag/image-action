@@ -42,6 +42,15 @@ type CreateAuthUserInput = BootstrapUserInput & {
   status?: AuthUserStatus
 }
 
+type TenantTeamSyncMember = {
+  id?: string
+  name: string
+  email: string
+  role: "admin" | "operator" | "viewer"
+  status: "active" | "invited" | "disabled"
+  password?: string
+}
+
 let mutationQueue = Promise.resolve()
 
 function normalizeText(value: unknown) {
@@ -50,6 +59,10 @@ function normalizeText(value: unknown) {
 
 function normalizeEmail(value: unknown) {
   return normalizeText(value).toLowerCase()
+}
+
+function getEmailDomain(email: string) {
+  return email.includes("@") ? email.split("@").at(-1)?.toLowerCase() ?? "" : ""
 }
 
 function parseRoles(value: unknown, fallback: string[]) {
@@ -61,6 +74,18 @@ function parseRoles(value: unknown, fallback: string[]) {
     .split(",")
     .map((role) => role.trim())
     .filter(Boolean)
+}
+
+function buildTenantRoles(role: TenantTeamSyncMember["role"]) {
+  if (role === "admin") return ["tenant", "tenant_admin"]
+  if (role === "viewer") return ["tenant", "tenant_viewer"]
+  return ["tenant", "tenant_operator"]
+}
+
+function getTenantRoleFromRoles(roles: string[]): TenantTeamSyncMember["role"] {
+  if (roles.includes("tenant_admin")) return "admin"
+  if (roles.includes("tenant_viewer")) return "viewer"
+  return "operator"
 }
 
 async function withAuthUsersMutation<T>(mutation: () => Promise<T>) {
@@ -95,6 +120,10 @@ async function hashPassword(password: string) {
     passwordHash: derivedKey.toString("base64url"),
     passwordSalt,
   }
+}
+
+function isTenantScopedUser(user: StoredAuthUser, tenantSlug: string) {
+  return user.tenantSlug === tenantSlug && user.roles.includes("tenant")
 }
 
 async function verifyPassword(password: string, user: StoredAuthUser) {
@@ -222,26 +251,146 @@ export async function createStoredAuthUser(input: CreateAuthUserInput) {
   })
 }
 
-async function ensureBootstrapUsers() {
+export async function listStoredAuthUsersForTenant(tenantSlug: string) {
+  const data = await ensureBootstrapUsers()
+
+  return data.users.filter((user) => isTenantScopedUser(user, tenantSlug))
+}
+
+export async function syncStoredTenantUsers(input: {
+  tenantId: string
+  tenantSlug: string
+  members: TenantTeamSyncMember[]
+  allowedDomains?: string[]
+}) {
   return withAuthUsersMutation(async () => {
-    const data = await readAuthUsersData()
-    const bootstrapUsers = readBootstrapUsers()
-    const existingEmails = new Set(data.users.map((user) => user.email.toLowerCase()))
-    const missingBootstrapUsers = bootstrapUsers.filter((user) => !existingEmails.has(user.email))
+    const data = await ensureBootstrapUsersUnlocked()
+    const tenantUsers = data.users.filter((user) => isTenantScopedUser(user, input.tenantSlug))
+    const globalByEmail = new Map(data.users.map((user) => [user.email.toLowerCase(), user] as const))
+    const nextUsers = [...data.users]
+    const retainedIds = new Set<string>()
+    const syncedUsers: StoredAuthUser[] = []
+    const allowedDomains = (input.allowedDomains ?? [])
+      .map((domain) => normalizeText(domain).replace(/^@/, "").toLowerCase())
+      .filter(Boolean)
 
-    if (missingBootstrapUsers.length === 0) {
-      return data
+    for (const rawMember of input.members) {
+      const name = normalizeText(rawMember.name)
+      const email = normalizeEmail(rawMember.email)
+      const password = normalizeText(rawMember.password)
+
+      if (!name || !email) {
+        continue
+      }
+
+      const emailDomain = getEmailDomain(email)
+
+      if (allowedDomains.length > 0 && !allowedDomains.includes(emailDomain)) {
+        throw new Error(`O email ${email} nao pertence a um dominio permitido para este tenant.`)
+      }
+
+      const existing = tenantUsers.find((user) => user.id === rawMember.id) ?? tenantUsers.find((user) => user.email === email)
+      const conflicting = globalByEmail.get(email)
+
+      if (conflicting && conflicting.id !== existing?.id && !isTenantScopedUser(conflicting, input.tenantSlug)) {
+        throw new Error(`Ja existe um usuario com o email ${email}.`)
+      }
+
+      const roles = buildTenantRoles(rawMember.role)
+      const status: AuthUserStatus = rawMember.status === "disabled" ? "disabled" : "active"
+
+      if (existing) {
+        const index = nextUsers.findIndex((user) => user.id === existing.id)
+        if (index === -1) continue
+
+        let passwordFields: Partial<Pick<StoredAuthUser, "passwordHash" | "passwordSalt">> = {}
+        if (password) {
+          validateStrongPassword(password)
+          passwordFields = await hashPassword(password)
+        }
+
+        const updatedUser: StoredAuthUser = {
+          ...nextUsers[index],
+          ...passwordFields,
+          name,
+          email,
+          tenantId: input.tenantId,
+          tenantSlug: input.tenantSlug,
+          roles,
+          status,
+          updatedAt: new Date().toISOString(),
+        }
+
+        nextUsers[index] = updatedUser
+        retainedIds.add(updatedUser.id)
+        syncedUsers.push(updatedUser)
+        globalByEmail.set(email, updatedUser)
+        continue
+      }
+
+      if (!password) {
+        throw new Error(`Defina uma senha inicial para ${email}.`)
+      }
+
+      validateStrongPassword(password)
+
+      const createdUser = await buildAuthUser({
+        name,
+        email,
+        password,
+        tenantId: input.tenantId,
+        tenantSlug: input.tenantSlug,
+        roles,
+        status,
+      })
+
+      nextUsers.push(createdUser)
+      retainedIds.add(createdUser.id)
+      syncedUsers.push(createdUser)
+      globalByEmail.set(email, createdUser)
     }
 
-    const createdUsers = await Promise.all(missingBootstrapUsers.map(buildAuthUser))
-    const nextData = {
-      users: [...data.users, ...createdUsers],
+    for (const user of tenantUsers) {
+      if (retainedIds.has(user.id)) continue
+
+      const index = nextUsers.findIndex((item) => item.id === user.id)
+      if (index === -1) continue
+
+      nextUsers[index] = {
+        ...nextUsers[index],
+        status: "disabled",
+        updatedAt: new Date().toISOString(),
+      }
     }
 
-    await writeAuthUsersData(nextData)
+    await writeAuthUsersData({ users: nextUsers })
 
-    return nextData
+    return syncedUsers
   })
+}
+
+async function ensureBootstrapUsersUnlocked() {
+  const data = await readAuthUsersData()
+  const bootstrapUsers = readBootstrapUsers()
+  const existingEmails = new Set(data.users.map((user) => user.email.toLowerCase()))
+  const missingBootstrapUsers = bootstrapUsers.filter((user) => !existingEmails.has(user.email))
+
+  if (missingBootstrapUsers.length === 0) {
+    return data
+  }
+
+  const createdUsers = await Promise.all(missingBootstrapUsers.map(buildAuthUser))
+  const nextData = {
+    users: [...data.users, ...createdUsers],
+  }
+
+  await writeAuthUsersData(nextData)
+
+  return nextData
+}
+
+async function ensureBootstrapUsers() {
+  return withAuthUsersMutation(async () => ensureBootstrapUsersUnlocked())
 }
 
 export async function authenticateStoredUser(emailInput: unknown, passwordInput: unknown) {

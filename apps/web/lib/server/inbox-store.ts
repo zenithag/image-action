@@ -1,4 +1,13 @@
-import type { InboxConversationSummary, InboxMessage, InboxMessageContentType } from "@/lib/inbox-types"
+import type {
+  InboxCompositionSession,
+  InboxCompositionSessionChange,
+  InboxCompositionSessionImage,
+  InboxCompositionSessionProduct,
+  InboxCompositionSessionStep,
+  InboxConversationSummary,
+  InboxMessage,
+  InboxMessageContentType,
+} from "@/lib/inbox-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
@@ -75,6 +84,16 @@ async function readInboxData(): Promise<InboxData> {
   })
 }
 
+export async function listAllInboxConversations() {
+  const data = await readInboxData()
+  return sortConversations(data.conversations)
+}
+
+export async function listAllInboxMessages() {
+  const data = await readInboxData()
+  return [...data.messages].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
+}
+
 async function writeInboxData(data: InboxData) {
   await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: { conversations: [], messages: [] } }, data)
 }
@@ -87,6 +106,123 @@ function sortConversations(conversations: InboxConversationSummary[]) {
   return [...conversations].sort((left, right) =>
     new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
   )
+}
+
+export function createEmptyInboxCompositionSession(now = new Date().toISOString()): InboxCompositionSession {
+  return {
+    step: "idle",
+    selectedProducts: [],
+    changes: [],
+    updatedAt: now,
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function normalizeSessionStep(value: unknown): InboxCompositionSessionStep {
+  if (
+    value === "idle" ||
+    value === "browsing_catalog" ||
+    value === "product_selected" ||
+    value === "awaiting_base_image" ||
+    value === "awaiting_base_choice" ||
+    value === "composing" ||
+    value === "completed"
+  ) {
+    return value
+  }
+
+  return "idle"
+}
+
+function normalizeSessionImage(value: unknown): InboxCompositionSessionImage | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const kind = value.kind === "result" ? "result" : value.kind === "base" ? "base" : undefined
+  const createdAt = typeof value.createdAt === "string" ? value.createdAt : undefined
+
+  if (!kind || !createdAt) {
+    return undefined
+  }
+
+  return {
+    kind,
+    messageId: typeof value.messageId === "string" ? value.messageId : undefined,
+    jobId: typeof value.jobId === "string" ? value.jobId : undefined,
+    imageUrl: typeof value.imageUrl === "string" ? value.imageUrl : undefined,
+    label: typeof value.label === "string" ? value.label : undefined,
+    createdAt,
+  }
+}
+
+function normalizeSessionProduct(value: unknown): InboxCompositionSessionProduct | null {
+  if (!isRecord(value) || typeof value.name !== "string" || !value.name.trim()) {
+    return null
+  }
+
+  return {
+    id: typeof value.id === "string" ? value.id : undefined,
+    sku: typeof value.sku === "string" ? value.sku : undefined,
+    name: value.name.trim(),
+    category: typeof value.category === "string" ? value.category : undefined,
+    color: typeof value.color === "string" ? value.color : undefined,
+  }
+}
+
+function normalizeSessionChange(value: unknown): InboxCompositionSessionChange | null {
+  if (!isRecord(value) || typeof value.prompt !== "string" || typeof value.createdAt !== "string") {
+    return null
+  }
+
+  const base = value.base === "original" || value.base === "result" || value.base === "new_upload"
+    ? value.base
+    : "unspecified"
+  const status = value.status === "queued" || value.status === "done" || value.status === "failed"
+    ? value.status
+    : "pending"
+
+  return {
+    id: typeof value.id === "string" ? value.id : crypto.randomUUID(),
+    prompt: value.prompt,
+    product: normalizeSessionProduct(value.product) ?? undefined,
+    base,
+    jobId: typeof value.jobId === "string" ? value.jobId : undefined,
+    status,
+    createdAt: value.createdAt,
+    completedAt: typeof value.completedAt === "string" ? value.completedAt : undefined,
+  }
+}
+
+export function normalizeInboxCompositionSession(value: unknown): InboxCompositionSession {
+  if (!isRecord(value)) {
+    return createEmptyInboxCompositionSession()
+  }
+
+  const selectedProducts = Array.isArray(value.selectedProducts)
+    ? value.selectedProducts
+      .map(normalizeSessionProduct)
+      .filter((item): item is InboxCompositionSessionProduct => Boolean(item))
+    : []
+  const changes = Array.isArray(value.changes)
+    ? value.changes
+      .map(normalizeSessionChange)
+      .filter((item): item is InboxCompositionSessionChange => Boolean(item))
+    : []
+
+  return {
+    step: normalizeSessionStep(value.step),
+    baseImage: normalizeSessionImage(value.baseImage),
+    workingImage: normalizeSessionImage(value.workingImage),
+    selectedProducts,
+    pendingPrompt: typeof value.pendingPrompt === "string" ? value.pendingPrompt : undefined,
+    pendingBaseChoice: value.pendingBaseChoice === true,
+    changes,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString(),
+  }
 }
 
 function getMediaLabel(contentType: InboxMessageContentType) {
@@ -170,6 +306,8 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
       handledBy: existingConversation?.handledBy ?? "ai",
       unreadCount: (existingConversation?.unreadCount ?? 0) + (messageExists ? 0 : 1),
       state: existingConversation?.state ?? "idle",
+      contextResetAt: existingConversation?.contextResetAt,
+      compositionSession: existingConversation?.compositionSession,
       createdAt: existingConversation?.createdAt ?? now,
       updatedAt: now,
     }
@@ -272,6 +410,8 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
       handledBy: existingConversation?.handledBy ?? (input.fromMe ? "operator" : "ai"),
       unreadCount: input.fromMe ? previousUnread : previousUnread + 1,
       state: existingConversation?.state ?? "idle",
+      contextResetAt: existingConversation?.contextResetAt,
+      compositionSession: existingConversation?.compositionSession,
       createdAt: existingConversation?.createdAt ?? input.createdAt,
       updatedAt: new Date().toISOString(),
     }
@@ -398,6 +538,71 @@ export async function appendAssistantInboxMessage(input: {
   })
 }
 
+export async function appendAssistantInboxMediaMessage(input: {
+  tenantSlug: string
+  conversationId: string
+  content?: string
+  contentType: InboxMessageContentType
+  mediaUrl: string
+  mediaMimeType?: string
+  mediaFileName?: string
+  providerMessageId?: string
+  state?: InboxConversationSummary["state"]
+  handledBy?: InboxConversationSummary["handledBy"]
+}) {
+  return withInboxMutation(async () => {
+    const data = await readInboxData()
+    const conversation = data.conversations.find((item) =>
+      item.tenantSlug === input.tenantSlug && item.id === input.conversationId
+    )
+
+    if (!conversation) {
+      return null
+    }
+
+    const now = new Date().toISOString()
+    const content = input.content?.trim() || getMediaLabel(input.contentType)
+    const message: InboxMessage = {
+      id: crypto.randomUUID(),
+      tenantSlug: input.tenantSlug,
+      conversationId: conversation.id,
+      channelInstanceId: conversation.channelInstanceId,
+      externalContactId: conversation.externalContactId,
+      direction: "outbound",
+      role: "assistant",
+      content,
+      contentType: input.contentType,
+      imageUrl: input.contentType === "image" ? input.mediaUrl : undefined,
+      mediaUrl: input.mediaUrl,
+      mediaMimeType: input.mediaMimeType,
+      mediaFileName: input.mediaFileName,
+      providerMessageId: input.providerMessageId,
+      status: "sent",
+      createdAt: now,
+    }
+    const handledBy = input.handledBy ?? conversation.handledBy
+    const nextConversation: InboxConversationSummary = {
+      ...conversation,
+      lastMessage: content,
+      lastMessageAt: now,
+      status: handledBy === "operator" ? "waiting_operator" : "waiting_customer",
+      handledBy,
+      unreadCount: 0,
+      state: input.state ?? conversation.state,
+      updatedAt: now,
+    }
+
+    await writeInboxData({
+      conversations: sortConversations(
+        data.conversations.map((item) => item.id === conversation.id ? nextConversation : item)
+      ),
+      messages: [...data.messages, message],
+    })
+
+    return { conversation: nextConversation, message }
+  })
+}
+
 export async function updateInboxConversation(tenantSlug: string, conversationId: string, updates: Partial<InboxConversationSummary>) {
   return withInboxMutation(async () => {
     const data = await readInboxData()
@@ -426,8 +631,94 @@ export async function updateInboxConversation(tenantSlug: string, conversationId
   })
 }
 
+export async function updateInboxMessage(
+  tenantSlug: string,
+  conversationId: string,
+  messageId: string,
+  updates: Partial<Pick<InboxMessage, "providerMessageId" | "status" | "mediaUrl" | "imageUrl" | "content">>,
+) {
+  return withInboxMutation(async () => {
+    const data = await readInboxData()
+    let updatedMessage: InboxMessage | null = null
+
+    const messages = data.messages.map((message) => {
+      if (
+        message.tenantSlug !== tenantSlug ||
+        message.conversationId !== conversationId ||
+        message.id !== messageId
+      ) {
+        return message
+      }
+
+      updatedMessage = {
+        ...message,
+        ...updates,
+      }
+
+      return updatedMessage
+    })
+
+    if (!updatedMessage) {
+      return null
+    }
+
+    await writeInboxData({ ...data, messages })
+    return updatedMessage
+  })
+}
+
+export async function updateInboxConversationCompositionSession(
+  tenantSlug: string,
+  conversationId: string,
+  updater: (session: InboxCompositionSession, conversation: InboxConversationSummary) => InboxCompositionSession
+) {
+  return withInboxMutation(async () => {
+    const data = await readInboxData()
+    let updatedConversation: InboxConversationSummary | null = null
+
+    const conversations = data.conversations.map((conversation) => {
+      if (conversation.tenantSlug !== tenantSlug || conversation.id !== conversationId) {
+        return conversation
+      }
+
+      const nextSession = updater(
+        normalizeInboxCompositionSession(conversation.compositionSession),
+        conversation,
+      )
+
+      updatedConversation = {
+        ...conversation,
+        compositionSession: {
+          ...nextSession,
+          updatedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      }
+
+      return updatedConversation
+    })
+
+    if (!updatedConversation) {
+      return null
+    }
+
+    await writeInboxData({ ...data, conversations: sortConversations(conversations) })
+    return updatedConversation
+  })
+}
+
 export async function markInboxConversationRead(tenantSlug: string, conversationId: string) {
   return updateInboxConversation(tenantSlug, conversationId, {
+    unreadCount: 0,
+  })
+}
+
+export async function resetInboxConversationContext(tenantSlug: string, conversationId: string) {
+  return updateInboxConversation(tenantSlug, conversationId, {
+    contextResetAt: new Date().toISOString(),
+    compositionSession: createEmptyInboxCompositionSession(),
+    state: "idle",
+    status: "open",
     unreadCount: 0,
   })
 }

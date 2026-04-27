@@ -1,6 +1,13 @@
-import type { TenantSettings, TenantSettingsInput, TenantSettingsTeamMember } from "@/lib/tenant-settings-types"
+import type {
+  TenantSegmentationProfile,
+  TenantSettings,
+  TenantSettingsInput,
+  TenantSettingsTeamMember,
+} from "@/lib/tenant-settings-types"
+import { listStoredAuthUsersForTenant, syncStoredTenantUsers } from "@/lib/server/auth-users-store"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+import { findTenant } from "@/lib/server/tenants-store"
 
 type SettingsData = {
   settings: TenantSettings[]
@@ -60,6 +67,10 @@ function normalizeList(value: unknown) {
     .filter(Boolean)
 }
 
+function normalizeUniqueList(value: unknown) {
+  return [...new Set(normalizeList(value))]
+}
+
 function normalizeColor(value: unknown, fallback: string) {
   const color = normalizeText(value)
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback
@@ -70,8 +81,8 @@ function normalizeTeamMembers(value: unknown): TenantSettingsTeamMember[] {
     return []
   }
 
-  return value
-    .map((member) => {
+  const members = value
+    .map((member): TenantSettingsTeamMember | null => {
       const item = member as Partial<TenantSettingsTeamMember>
       const name = normalizeText(item.name)
       const email = normalizeText(item.email).toLowerCase()
@@ -86,13 +97,89 @@ function normalizeTeamMembers(value: unknown): TenantSettingsTeamMember[] {
         email,
         role: item.role === "admin" || item.role === "viewer" ? item.role : "operator",
         status: item.status === "invited" || item.status === "disabled" ? item.status : "active",
+        lastLoginAt: normalizeText(item.lastLoginAt) || undefined,
       } satisfies TenantSettingsTeamMember
     })
-    .filter((member): member is TenantSettingsTeamMember => Boolean(member))
+
+  return members.filter((member): member is TenantSettingsTeamMember => member !== null)
+}
+
+async function hydrateTeamMembersFromAuth(tenantSlug: string, currentMembers: TenantSettingsTeamMember[]) {
+  const users = await listStoredAuthUsersForTenant(tenantSlug)
+  const currentByEmail = new Map(currentMembers.map((member) => [member.email.toLowerCase(), member] as const))
+
+  if (users.length === 0) {
+    return currentMembers
+  }
+
+  return users.map((user) => {
+    const existing = currentByEmail.get(user.email.toLowerCase())
+    const role = user.roles.includes("tenant_admin")
+      ? "admin"
+      : user.roles.includes("tenant_viewer")
+        ? "viewer"
+        : "operator"
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role,
+      status: user.status === "disabled" ? "disabled" : user.lastLoginAt ? "active" : existing?.status === "invited" ? "invited" : "active",
+      lastLoginAt: user.lastLoginAt,
+    } satisfies TenantSettingsTeamMember
+  })
+}
+
+function normalizeSegmentationProfile(value: unknown): TenantSegmentationProfile {
+  return value === "decor" || value === "fashion" || value === "automotive" || value === "furniture"
+    ? value
+    : "generic"
+}
+
+function defaultSegmentationByProfile(profile: TenantSegmentationProfile) {
+  if (profile === "decor") {
+    return {
+      editableTargets: ["painted_wall", "wall_finish", "floor", "ceiling", "furniture"],
+      protectedTargets: ["window", "door", "baseboard", "fixed_structure"],
+      promptHints: ["all visible walls", "right wall only", "floor only", "ceiling only"],
+    }
+  }
+
+  if (profile === "fashion") {
+    return {
+      editableTargets: ["dress", "shirt", "pants", "shoes", "bag", "accessory"],
+      protectedTargets: ["face", "hair", "skin", "hands", "background"],
+      promptHints: ["only the dress", "preserve skin and hair", "change fabric only"],
+    }
+  }
+
+  if (profile === "automotive") {
+    return {
+      editableTargets: ["car_body", "hood", "door_panel", "roof", "wheel", "rim", "bumper"],
+      protectedTargets: ["glass", "license_plate", "background"],
+      promptHints: ["paintable body panels only", "exclude windows and plate", "change wheels only"],
+    }
+  }
+
+  if (profile === "furniture") {
+    return {
+      editableTargets: ["sofa", "table", "chair", "cabinet", "shelf", "panel"],
+      protectedTargets: ["background", "floor", "wall"],
+      promptHints: ["only the sofa fabric", "replace shelf finish", "change cabinet color"],
+    }
+  }
+
+  return {
+    editableTargets: [],
+    protectedTargets: ["background"],
+    promptHints: [],
+  }
 }
 
 function defaultTenantSettings(tenantSlug: string): TenantSettings {
   const now = new Date().toISOString()
+  const segmentationDefaults = defaultSegmentationByProfile("generic")
 
   return {
     tenantSlug,
@@ -106,18 +193,25 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
       primaryColor: "#31c48d",
       logoUrl: "",
       brandVoice: "",
+      watermarkEnabled: true,
+      watermarkText: "",
+      watermarkPosition: "center",
     },
     channels: {
       whatsappEnabled: true,
       instagramEnabled: false,
       telegramEnabled: false,
       handoffMode: "manual",
+      autoSendCompositionsToWhatsapp: false,
     },
     assistant: {
       enabled: true,
+      assistantName: "Yá",
+      welcomeMessage: "",
       modelProfileId: "conversation.default",
       systemPrompt: "",
       humanHandoffKeywords: [],
+      catalogCategories: [],
     },
     team: {
       members: [],
@@ -132,6 +226,13 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
       twoFactorRequired: false,
       allowedDomains: [],
       sessionTimeoutMinutes: 480,
+    },
+    segmentation: {
+      profile: "generic",
+      editableTargets: segmentationDefaults.editableTargets,
+      protectedTargets: segmentationDefaults.protectedTargets,
+      promptHints: segmentationDefaults.promptHints,
+      tenantCanManage: false,
     },
     createdAt: now,
     updatedAt: now,
@@ -169,8 +270,15 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
       ...existing.security,
       ...input.security,
     },
+    segmentation: {
+      ...existing.segmentation,
+      ...input.segmentation,
+    },
     updatedAt: new Date().toISOString(),
   }
+
+  const segmentationProfile = normalizeSegmentationProfile(next.segmentation.profile)
+  const segmentationDefaults = defaultSegmentationByProfile(segmentationProfile)
 
   return {
     ...next,
@@ -184,18 +292,28 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
       primaryColor: normalizeColor(next.branding.primaryColor, existing.branding.primaryColor || "#31c48d"),
       logoUrl: normalizeText(next.branding.logoUrl),
       brandVoice: normalizeText(next.branding.brandVoice),
+      watermarkEnabled: normalizeBoolean(next.branding.watermarkEnabled, existing.branding.watermarkEnabled),
+      watermarkText: normalizeText(next.branding.watermarkText),
+      watermarkPosition: next.branding.watermarkPosition === "bottom-right" ? "bottom-right" : "center",
     },
     channels: {
       whatsappEnabled: normalizeBoolean(next.channels.whatsappEnabled, existing.channels.whatsappEnabled),
       instagramEnabled: normalizeBoolean(next.channels.instagramEnabled, existing.channels.instagramEnabled),
       telegramEnabled: normalizeBoolean(next.channels.telegramEnabled, existing.channels.telegramEnabled),
       handoffMode: next.channels.handoffMode === "auto" ? "auto" : "manual",
+      autoSendCompositionsToWhatsapp: normalizeBoolean(
+        next.channels.autoSendCompositionsToWhatsapp,
+        existing.channels.autoSendCompositionsToWhatsapp
+      ),
     },
     assistant: {
       enabled: normalizeBoolean(next.assistant.enabled, existing.assistant.enabled),
+      assistantName: normalizeText(next.assistant.assistantName) || "Yá",
+      welcomeMessage: normalizeText(next.assistant.welcomeMessage),
       modelProfileId: normalizeText(next.assistant.modelProfileId) || "conversation.default",
       systemPrompt: normalizeText(next.assistant.systemPrompt),
-      humanHandoffKeywords: normalizeList(next.assistant.humanHandoffKeywords),
+      humanHandoffKeywords: normalizeUniqueList(next.assistant.humanHandoffKeywords),
+      catalogCategories: normalizeUniqueList(next.assistant.catalogCategories),
     },
     team: {
       members: normalizeTeamMembers(next.team.members),
@@ -211,21 +329,107 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
       allowedDomains: normalizeList(next.security.allowedDomains),
       sessionTimeoutMinutes: normalizeNumber(next.security.sessionTimeoutMinutes, existing.security.sessionTimeoutMinutes, 15, 10080),
     },
+    segmentation: {
+      profile: segmentationProfile,
+      editableTargets: normalizeList(next.segmentation.editableTargets).length > 0
+        ? normalizeList(next.segmentation.editableTargets)
+        : segmentationDefaults.editableTargets,
+      protectedTargets: normalizeList(next.segmentation.protectedTargets).length > 0
+        ? normalizeList(next.segmentation.protectedTargets)
+        : segmentationDefaults.protectedTargets,
+      promptHints: normalizeList(next.segmentation.promptHints).length > 0
+        ? normalizeList(next.segmentation.promptHints)
+        : segmentationDefaults.promptHints,
+      tenantCanManage: normalizeBoolean(next.segmentation.tenantCanManage, existing.segmentation.tenantCanManage),
+    },
   }
 }
 
 export async function getTenantSettings(tenantSlug: string) {
   const data = await readSettingsData()
   const existing = data.settings.find((settings) => settings.tenantSlug === tenantSlug)
+  const baseSettings = existing
+    ? mergeTenantSettings(defaultTenantSettings(tenantSlug), existing)
+    : defaultTenantSettings(tenantSlug)
 
-  return existing ?? defaultTenantSettings(tenantSlug)
+  return {
+    ...baseSettings,
+    team: {
+      members: await hydrateTeamMembersFromAuth(tenantSlug, baseSettings.team.members),
+    },
+  }
 }
 
 export async function updateTenantSettings(tenantSlug: string, input: TenantSettingsInput) {
   return withSettingsMutation(async () => {
     const data = await readSettingsData()
     const existing = data.settings.find((settings) => settings.tenantSlug === tenantSlug) ?? defaultTenantSettings(tenantSlug)
-    const updated = mergeTenantSettings(existing, input)
+    const tenant = await findTenant(tenantSlug)
+
+    if (!tenant) {
+      throw new Error("Tenant nao encontrado.")
+    }
+
+    let updated = mergeTenantSettings(existing, input)
+
+    if (input.team?.members) {
+      const syncMembers = input.team.members
+        .map((member): {
+          id?: string
+          name: string
+          email: string
+          role: "admin" | "operator" | "viewer"
+          status: "active" | "invited" | "disabled"
+          password?: string
+        } | null => {
+          const item = member as Partial<TenantSettingsTeamMember>
+          const name = normalizeText(item.name)
+          const email = normalizeText(item.email).toLowerCase()
+
+          if (!name || !email) {
+            return null
+          }
+
+          return {
+            id: normalizeText(item.id) || undefined,
+            name,
+            email,
+            role: item.role === "admin" || item.role === "viewer" ? item.role : "operator",
+            status: item.status === "disabled" ? "disabled" : item.status === "invited" ? "invited" : "active",
+            password: normalizeText(item.password) || undefined,
+          }
+        })
+        .filter((member): member is {
+          id?: string
+          name: string
+          email: string
+          role: "admin" | "operator" | "viewer"
+          status: "active" | "invited" | "disabled"
+          password?: string
+        } => member !== null)
+
+      const syncedUsers = await syncStoredTenantUsers({
+        tenantId: tenant.id,
+        tenantSlug: tenant.slug,
+        members: syncMembers,
+        allowedDomains: updated.security.allowedDomains,
+      })
+
+      updated = {
+        ...updated,
+        team: {
+          members: syncedUsers.map((user) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.roles.includes("tenant_admin") ? "admin" : user.roles.includes("tenant_viewer") ? "viewer" : "operator",
+            status: user.status === "disabled" ? "disabled" : user.lastLoginAt ? "active" : "invited",
+            lastLoginAt: user.lastLoginAt,
+          })),
+        },
+      }
+    }
+
     const exists = data.settings.some((settings) => settings.tenantSlug === tenantSlug)
 
     await writeSettingsData({
@@ -234,6 +438,11 @@ export async function updateTenantSettings(tenantSlug: string, input: TenantSett
         : [updated, ...data.settings],
     })
 
-    return updated
+    return {
+      ...updated,
+      team: {
+        members: await hydrateTeamMembersFromAuth(tenantSlug, updated.team.members),
+      },
+    }
   })
 }

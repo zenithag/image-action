@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react"
 
+import { SafeImage } from "@/components/safe-image"
 import { Button } from "@/components/ui/button"
 import type { CatalogItem, CatalogItemInput, CatalogItemStatus } from "@/lib/catalog-types"
 import { cn } from "@/lib/utils"
@@ -29,13 +30,46 @@ type ProductFormValues = {
   description: string
   category: string
   sku: string
+  productType: string
+  usageMode: string
   tagsText: string
   imageUrl: string
+}
+
+type CatalogImportPreview = {
+  summary: {
+    totalRows: number
+    validRows: number
+    invalidRows: number
+  }
+  rows: Array<{
+    rowNumber: number
+    raw: Record<string, string>
+    normalized: CatalogItemInput | null
+    errors: string[]
+  }>
 }
 
 interface CatalogBrowserProps {
   tenantSlug: string
 }
+
+const RESERVED_CATALOG_TAG_KEYS = ["product_type", "usage_mode"] as const
+
+const PRODUCT_TYPE_OPTIONS = [
+  { value: "tinta", label: "Tinta" },
+  { value: "revestimento", label: "Revestimento" },
+  { value: "movel", label: "Móvel" },
+  { value: "roupa", label: "Roupa" },
+  { value: "automotivo", label: "Automotivo" },
+  { value: "decoracao", label: "Decoração" },
+  { value: "outro", label: "Outro" },
+] as const
+
+const USAGE_MODE_OPTIONS = [
+  { value: "catalogo", label: "Produto de catálogo" },
+  { value: "referencia", label: "Imagem de referência" },
+] as const
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
@@ -58,6 +92,10 @@ async function readImageAsDataUrl(file: File) {
   })
 }
 
+async function readFileAsText(file: File) {
+  return file.text()
+}
+
 function parseTags(value: string) {
   return Object.fromEntries(
     value
@@ -74,6 +112,7 @@ function parseTags(value: string) {
 
 function formatTags(tags: Record<string, string>) {
   return Object.entries(tags)
+    .filter(([key]) => !RESERVED_CATALOG_TAG_KEYS.includes(key as typeof RESERVED_CATALOG_TAG_KEYS[number]))
     .map(([key, value]) => `${key}: ${value}`)
     .join("\n")
 }
@@ -84,20 +123,36 @@ function productToFormValues(item?: CatalogItem): ProductFormValues {
     description: item?.description ?? "",
     category: item?.category ?? "Tintas",
     sku: item?.sku ?? "",
+    productType: item?.tags.product_type ?? "outro",
+    usageMode: item?.tags.usage_mode ?? "catalogo",
     tagsText: item ? formatTags(item.tags) : "",
     imageUrl: item?.imageUrl ?? "",
   }
 }
 
 function formValuesToPayload(values: ProductFormValues): CatalogItemInput {
+  const tags = {
+    ...parseTags(values.tagsText),
+    product_type: values.productType,
+    usage_mode: values.usageMode,
+  }
+
   return {
     name: values.name,
     description: values.description,
     category: values.category,
     sku: values.sku,
-    tags: parseTags(values.tagsText),
+    tags,
     imageUrl: values.imageUrl,
   }
+}
+
+function getProductTypeLabel(value?: string) {
+  return PRODUCT_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? "Outro"
+}
+
+function getUsageModeLabel(value?: string) {
+  return USAGE_MODE_OPTIONS.find((option) => option.value === value)?.label ?? "Produto de catálogo"
 }
 
 async function requestJson<T>(url: string, init?: RequestInit) {
@@ -127,9 +182,15 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isMutating, setIsMutating] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [importPreview, setImportPreview] = useState<CatalogImportPreview | null>(null)
+  const [importFileName, setImportFileName] = useState("")
+  const [importCsvText, setImportCsvText] = useState("")
   const [activeFilters, setActiveFilters] = useState({
     status: [] as CatalogItemStatus[],
     tags: {} as Record<string, string[]>,
@@ -261,32 +322,142 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
     }
   }
 
+  async function exportCsv() {
+    setIsExporting(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/catalog/items/export`, {
+        cache: "no-store",
+      })
+
+      if (!response.ok) {
+        throw new Error("Nao foi possivel exportar o CSV.")
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = objectUrl
+      link.download = `${tenantSlug}-catalogo.csv`
+      document.body.append(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (exportError) {
+      setError(getErrorMessage(exportError, "Erro ao exportar o catálogo."))
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  async function previewImport(csvText: string, fileName: string) {
+    setIsImporting(true)
+    setError(null)
+
+    try {
+      const preview = await requestJson<CatalogImportPreview>(`/api/tenant/${tenantSlug}/catalog/items/import`, {
+        method: "POST",
+        body: JSON.stringify({ csvText, mode: "preview" }),
+      })
+      setImportCsvText(csvText)
+      setImportFileName(fileName)
+      setImportPreview(preview)
+      setImportOpen(true)
+    } catch (importError) {
+      setError(getErrorMessage(importError, "Erro ao analisar o CSV."))
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  async function applyImport() {
+    if (!importCsvText) return
+
+    setIsImporting(true)
+    setError(null)
+
+    try {
+      await requestJson<{ importedItems: CatalogItem[] }>(`/api/tenant/${tenantSlug}/catalog/items/import`, {
+        method: "POST",
+        body: JSON.stringify({ csvText: importCsvText, mode: "import" }),
+      })
+      setImportOpen(false)
+      setImportPreview(null)
+      setImportCsvText("")
+      setImportFileName("")
+      await loadItems()
+    } catch (importError) {
+      setError(getErrorMessage(importError, "Erro ao importar o CSV."))
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-border bg-background py-4 pl-6 pr-10">
-        <div>
-          <h1 className="text-xl font-bold text-foreground font-display">Catálogo de Produtos</h1>
-          <p className="text-sm text-muted-foreground font-sans">Gerencie os itens para composição visual</p>
+      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+        <div className="flex flex-col">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Biblioteca do tenant</p>
+          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Catálogo</h1>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="font-sans" disabled={isLoading}>
-          <Plus className="mr-2 h-4 w-4" /> Novo Item
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => void exportCsv()} disabled={isLoading || isExporting}>
+            {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Exportar CSV
+          </Button>
+          <label className={cn(
+            "inline-flex cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs transition-[color,box-shadow] hover:bg-accent hover:text-accent-foreground",
+            (isLoading || isImporting) && "pointer-events-none opacity-50",
+          )}>
+            {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Importar CSV
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (!file) return
+
+                void readFileAsText(file).then((csvText) => previewImport(csvText, file.name))
+                event.currentTarget.value = ""
+              }}
+            />
+          </label>
+          <Button size="sm" onClick={() => setCreateOpen(true)} disabled={isLoading}>
+            <Plus className="mr-2 h-4 w-4" /> Novo item
+          </Button>
+        </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-4 border-b border-border px-6 py-3">
-        <div className="relative max-w-md flex-1">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-7 py-3">
+        <div className="relative flex-1" style={{ maxWidth: 380 }}>
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Buscar por nome, SKU, categoria..."
+            placeholder="Buscar por nome ou SKU"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            className="w-full rounded-[5px] border border-input bg-card px-4 py-2 pl-10 text-sm font-sans"
+            className="w-full rounded-[10px] border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
-        <Button variant="outline" size="sm" onClick={() => setFiltersOpen((current) => !current)} className="ml-auto font-sans">
-          <Filter className="mr-2 h-4 w-4" /> Filtros
-        </Button>
+        {categories.map((category) => (
+          <button
+            key={category.id}
+            type="button"
+            onClick={() => setSelectedCategory(category.id)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              selectedCategory === category.id
+                ? "border-transparent bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+            )}
+          >
+            {category.name}
+          </button>
+        ))}
+        <span className="ml-auto text-xs text-muted-foreground">{filteredItems.length} itens</span>
       </div>
 
       {error && (
@@ -304,7 +475,7 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
             </div>
             <div className="flex-1 space-y-8 overflow-y-auto p-6">
               <div className="space-y-3">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</h4>
+                <h4 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</h4>
                 <div className="flex flex-wrap gap-2">
                   {(["active", "inactive"] as CatalogItemStatus[]).map((status) => (
                     <button
@@ -316,7 +487,7 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
                           : [...current.status, status],
                       }))}
                       className={cn(
-                        "rounded-[5px] border px-3 py-1 text-xs font-sans",
+                        "rounded-[10px] border px-3 py-1 text-xs font-sans",
                         activeFilters.status.includes(status)
                           ? "bg-primary text-white"
                           : "text-muted-foreground hover:border-primary/50"
@@ -330,7 +501,7 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
 
               {Object.entries(tagOptions).map(([key, options]) => (
                 <div key={key} className="space-y-3">
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{key}</h4>
+                  <h4 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{key}</h4>
                   <div className="flex flex-wrap gap-2">
                     {options.map((option) => (
                       <button
@@ -348,7 +519,7 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
                           }))
                         }}
                         className={cn(
-                          "rounded-[5px] border px-3 py-1 text-xs font-sans",
+                          "rounded-[10px] border px-3 py-1 text-xs font-sans",
                           (activeFilters.tags[key] || []).includes(option)
                             ? "border-primary bg-primary/10 text-primary"
                             : "text-muted-foreground"
@@ -384,25 +555,6 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
             <button onClick={() => setSelectedIds([])} className="ml-auto text-xs text-muted-foreground">Cancelar</button>
           </div>
         )}
-
-        <div className="w-60 shrink-0 border-r border-border bg-card/30 p-4">
-          <h3 className="mb-4 px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Categorias</h3>
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
-              className={cn(
-                "mb-1 flex w-full items-center justify-between rounded-[5px] px-3 py-2 text-sm font-sans",
-                selectedCategory === category.id
-                  ? "bg-primary/10 font-bold text-primary"
-                  : "text-muted-foreground hover:bg-primary/5"
-              )}
-            >
-              <span>{category.name}</span>
-              <span className="text-[10px] opacity-60">{category.count}</span>
-            </button>
-          ))}
-        </div>
 
         <div className={cn("flex-1 overflow-y-auto p-8 scrollbar-hide", selectedIds.length > 0 && "pt-16")}>
           <div className="mb-6 flex items-center justify-between border-b pb-4">
@@ -450,6 +602,21 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
             await createItem(payload)
             setCreateOpen(false)
           }}
+        />
+      )}
+
+      {importOpen && importPreview && (
+        <CatalogImportModal
+          fileName={importFileName}
+          preview={importPreview}
+          isImporting={isImporting}
+          onClose={() => {
+            setImportOpen(false)
+            setImportPreview(null)
+            setImportCsvText("")
+            setImportFileName("")
+          }}
+          onConfirm={() => void applyImport()}
         />
       )}
     </div>
@@ -507,16 +674,25 @@ function ProductCard({
 
   return (
     <>
-      <div className={cn("group relative overflow-hidden rounded-[5px] border transition-all duration-300", isSelected ? "border-primary bg-primary/[0.03] ring-1 ring-primary/20" : "border-border bg-card hover:border-primary/40")}>
+      <div className={cn("group relative overflow-hidden rounded-[10px] border transition-all duration-300", isSelected ? "border-primary bg-primary/[0.03] ring-1 ring-primary/20" : "border-border bg-card hover:border-primary/40")}>
         <div onClick={onToggleSelect} className={cn("absolute left-3 top-3 z-30 cursor-pointer rounded-[4px] p-1.5 backdrop-blur-md", isSelected ? "bg-primary text-white" : "bg-black/20 text-white/80 opacity-0 group-hover:opacity-100")}>
           {isSelected ? <CheckCircle className="h-4 w-4" /> : <Square className="h-4 w-4" />}
         </div>
-        <div className="relative aspect-video overflow-hidden bg-muted">
-          <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+        <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "4/3" }}>
+          <SafeImage
+            src={item.imageUrl}
+            alt={item.name}
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            fallbackLabel="Sem imagem"
+            fallbackHint="Adicione uma imagem no cadastro."
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/15 to-transparent" />
+          {item.sku && (
+            <span className="absolute left-2.5 top-2.5 rounded-full bg-white/85 px-2 py-0.5 font-mono text-[11px] text-foreground">{item.sku}</span>
+          )}
         </div>
         <div ref={menuRef} className="absolute right-2 top-2 z-40">
-          <button onClick={() => setMenuOpen((current) => !current)} className="rounded-[5px] bg-background/90 p-2 text-foreground shadow-sm hover:bg-background">
+          <button onClick={() => setMenuOpen((current) => !current)} className="rounded-[10px] bg-background/90 p-2 text-foreground shadow-sm hover:bg-background">
             <MoreVertical className="h-4 w-4" />
           </button>
           {menuOpen && (
@@ -544,18 +720,36 @@ function ProductCard({
               {item.status === "active" ? "Ativo" : "Inativo"}
             </span>
           </div>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <span className="rounded-[4px] bg-muted px-2 py-0.5 text-[9px] font-bold uppercase text-muted-foreground">
+              {getProductTypeLabel(item.tags.product_type)}
+            </span>
+            <span className={cn(
+              "rounded-[4px] px-2 py-0.5 text-[9px] font-bold uppercase",
+              item.tags.usage_mode === "referencia"
+                ? "bg-amber-500/15 text-amber-700"
+                : "bg-emerald-500/15 text-emerald-700",
+            )}>
+              {getUsageModeLabel(item.tags.usage_mode)}
+            </span>
+          </div>
           <p className="mb-3 line-clamp-2 text-xs text-muted-foreground font-sans">{item.description || "Sem descrição."}</p>
           <div className="mb-4 flex flex-wrap gap-2">
-            {Object.entries(item.tags).slice(0, 3).map(([key, value]) => (
+            {Object.entries(item.tags)
+              .filter(([key]) => !RESERVED_CATALOG_TAG_KEYS.includes(key as typeof RESERVED_CATALOG_TAG_KEYS[number]))
+              .slice(0, 3)
+              .map(([key, value]) => (
               <span key={key} className="flex items-center gap-1 rounded-[4px] bg-secondary px-2 py-0.5 text-[9px] font-bold text-secondary-foreground">
                 <Tag className="h-2.5 w-2.5" />{value}
               </span>
             ))}
           </div>
           {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
-          <div className="flex items-center justify-between border-t pt-3">
-            <span className="text-[10px] font-bold opacity-40">SKU: {item.sku || "Sem SKU"}</span>
-            <button onClick={() => setDetailOpen(true)} className="text-xs font-bold text-primary hover:underline">Detalhes</button>
+          <div className="flex items-center justify-between border-t border-border pt-3">
+            <span className="font-mono text-sm font-medium">{item.sku || "—"}</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", item.status === "active" ? "bg-primary/20 text-primary" : "bg-amber-500/20 text-amber-600")}>
+              {item.status === "active" ? "em estoque" : "indisponível"}
+            </span>
           </div>
         </div>
       </div>
@@ -590,20 +784,38 @@ function ProductDetailModal({ item, onClose }: { item: CatalogItem; onClose: () 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="relative w-full max-w-2xl overflow-hidden rounded-[8px] border bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="relative h-64 bg-muted">
-          <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
-          <button onClick={onClose} className="absolute right-4 top-4 rounded-[5px] bg-background/80 p-2"><X className="h-4 w-4" /></button>
+          <SafeImage
+            src={item.imageUrl}
+            alt={item.name}
+            className="h-full w-full object-cover"
+            fallbackLabel="Imagem indisponível"
+            fallbackHint="Edite o produto para trocar a imagem."
+          />
+          <button onClick={onClose} className="absolute right-4 top-4 rounded-[10px] bg-background/80 p-2"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-6">
           <h2 className="text-xl font-bold font-display">{item.name}</h2>
           <p className="mb-4 text-sm text-muted-foreground">{item.category}</p>
           <div className="mb-6">
-            <p className="mb-1 text-[10px] font-bold uppercase opacity-40">Descrição</p>
+            <p className="mb-1 text-[11px] font-medium uppercase opacity-40">Descrição</p>
             <p className="text-sm leading-relaxed">{item.description || "Sem descrição."}</p>
           </div>
+          <div className="mb-6 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[8px] border border-border bg-muted/30 p-4">
+              <p className="mb-1 text-[11px] font-medium uppercase opacity-40">Tipo do item</p>
+              <p className="text-sm font-medium">{getProductTypeLabel(item.tags.product_type)}</p>
+            </div>
+            <div className="rounded-[8px] border border-border bg-muted/30 p-4">
+              <p className="mb-1 text-[11px] font-medium uppercase opacity-40">Modo de uso</p>
+              <p className="text-sm font-medium">{getUsageModeLabel(item.tags.usage_mode)}</p>
+            </div>
+          </div>
           <div className="mb-8">
-            <p className="mb-2 text-[10px] font-bold uppercase opacity-40">Atributos</p>
+            <p className="mb-2 text-[11px] font-medium uppercase opacity-40">Atributos</p>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(item.tags).length > 0 ? Object.entries(item.tags).map(([key, value]) => (
+              {Object.entries(item.tags).filter(([key]) => !RESERVED_CATALOG_TAG_KEYS.includes(key as typeof RESERVED_CATALOG_TAG_KEYS[number])).length > 0 ? Object.entries(item.tags)
+                .filter(([key]) => !RESERVED_CATALOG_TAG_KEYS.includes(key as typeof RESERVED_CATALOG_TAG_KEYS[number]))
+                .map(([key, value]) => (
                 <div key={key} className="flex items-center gap-2 rounded-[4px] bg-secondary px-3 py-1.5">
                   <span className="text-[10px] uppercase opacity-60">{key}:</span>
                   <span className="text-xs font-bold">{value}</span>
@@ -667,6 +879,95 @@ function ProductCreateModal({
   )
 }
 
+function CatalogImportModal({
+  fileName,
+  preview,
+  isImporting,
+  onClose,
+  onConfirm,
+}: {
+  fileName: string
+  preview: CatalogImportPreview
+  isImporting: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  const previewRows = preview.rows.slice(0, 8)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[8px] bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold font-display">Importar Catálogo CSV</h2>
+            <p className="text-sm text-muted-foreground">{fileName || "Arquivo selecionado"}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-[10px] p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-[8px] border border-border p-4">
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Linhas</p>
+            <p className="mt-2 text-2xl font-bold">{preview.summary.totalRows}</p>
+          </div>
+          <div className="rounded-[8px] border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Válidas</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-600">{preview.summary.validRows}</p>
+          </div>
+          <div className="rounded-[8px] border border-destructive/20 bg-destructive/5 p-4">
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Com erro</p>
+            <p className="mt-2 text-2xl font-bold text-destructive">{preview.summary.invalidRows}</p>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-[8px] border border-border">
+          <div className="grid grid-cols-[80px_1.4fr_1fr_1fr_1.2fr] gap-3 border-b border-border bg-muted/40 px-4 py-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            <span>Linha</span>
+            <span>Nome</span>
+            <span>Categoria</span>
+            <span>SKU</span>
+            <span>Status</span>
+          </div>
+          <div className="max-h-[360px] overflow-y-auto">
+            {previewRows.map((row) => (
+              <div key={row.rowNumber} className="border-b border-border px-4 py-3 text-sm last:border-b-0">
+                <div className="grid grid-cols-[80px_1.4fr_1fr_1fr_1.2fr] gap-3">
+                  <span className="font-mono text-muted-foreground">{row.rowNumber}</span>
+                  <span className="font-medium">{row.raw.name || "-"}</span>
+                  <span>{row.raw.category || "-"}</span>
+                  <span className="font-mono">{row.raw.sku || "-"}</span>
+                  <span className={cn(
+                    "font-medium",
+                    row.errors.length > 0 ? "text-destructive" : "text-emerald-600",
+                  )}>
+                    {row.errors.length > 0 ? row.errors.join(" ") : "Pronto para importar"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {preview.rows.length > previewRows.length && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Mostrando {previewRows.length} de {preview.rows.length} linhas analisadas.
+          </p>
+        )}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={onConfirm} disabled={isImporting || preview.summary.invalidRows > 0 || preview.summary.validRows === 0}>
+            {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Importar {preview.summary.validRows} item(ns)
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ProductFormModal({
   title,
   subtitle,
@@ -706,7 +1007,7 @@ function ProductFormModal({
     return () => document.removeEventListener("mousedown", handleOutside)
   }, [])
 
-  async function submitForm(event: React.FormEvent<HTMLFormElement>) {
+  async function submitForm(event: React.FormEvent) {
     event.preventDefault()
     setIsSubmitting(true)
     setError(null)
@@ -739,27 +1040,27 @@ function ProductFormModal({
             <h2 className="text-xl font-bold font-display">{title}</h2>
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[5px] p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+          <button type="button" onClick={onClose} className="rounded-[10px] p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="mb-8 space-y-4">
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase opacity-40">Nome do Produto</label>
+            <label className="mb-1 block text-[11px] font-medium uppercase opacity-40">Nome do Produto</label>
             <input
               autoFocus
               placeholder="Ex: Tinta Coral Rende Muito"
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
-              className="w-full rounded-[5px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none transition-all focus:ring-1 focus:ring-primary"
+              className="w-full rounded-[10px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none transition-all focus:ring-1 focus:ring-primary"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="relative" ref={categoryRef}>
-              <label className="mb-1 block text-[10px] font-bold uppercase opacity-40">Categoria</label>
-              <div className="flex cursor-text items-center rounded-[5px] border border-border bg-muted/30 px-3 py-2 transition-all focus-within:ring-1 focus-within:ring-primary" onClick={() => setCategoryDropdownOpen(true)}>
+              <label className="mb-1 block text-[11px] font-medium uppercase opacity-40">Categoria</label>
+              <div className="flex cursor-text items-center rounded-[10px] border border-border bg-muted/30 px-3 py-2 transition-all focus-within:ring-1 focus-within:ring-primary" onClick={() => setCategoryDropdownOpen(true)}>
                 <input
                   placeholder="Pesquisar categoria..."
                   value={categorySearch}
@@ -775,7 +1076,7 @@ function ProductFormModal({
               </div>
 
               {categoryDropdownOpen && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-[5px] border border-border bg-card shadow-xl animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-[10px] border border-border bg-card shadow-xl animate-in fade-in slide-in-from-top-1 duration-150">
                   {filteredCategories.map((category) => (
                     <button
                       key={category}
@@ -810,35 +1111,63 @@ function ProductFormModal({
               )}
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-bold uppercase opacity-40">SKU (Opcional)</label>
+              <label className="mb-1 block text-[11px] font-medium uppercase opacity-40">SKU (Opcional)</label>
               <input
                 placeholder="Ex: TIN-999"
                 value={form.sku}
                 onChange={(event) => setForm({ ...form, sku: event.target.value })}
-                className="w-full rounded-[5px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none transition-all focus:ring-1 focus:ring-primary"
+                className="w-full rounded-[10px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none transition-all focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase opacity-40">Tipo do item</label>
+              <select
+                value={form.productType}
+                onChange={(event) => setForm({ ...form, productType: event.target.value })}
+                className="w-full rounded-[10px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none transition-all focus:ring-1 focus:ring-primary"
+              >
+                {PRODUCT_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase opacity-40">Modo de uso</label>
+              <select
+                value={form.usageMode}
+                onChange={(event) => setForm({ ...form, usageMode: event.target.value })}
+                className="w-full rounded-[10px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none transition-all focus:ring-1 focus:ring-primary"
+              >
+                {USAGE_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase opacity-40">Descrição</label>
+            <label className="mb-1 block text-[11px] font-medium uppercase opacity-40">Descrição</label>
             <textarea
               placeholder="Descreva as características principais do produto..."
               value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
-              className="h-24 w-full resize-none rounded-[5px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="h-24 w-full resize-none rounded-[10px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase opacity-40">Atributos</label>
+            <label className="mb-1 block text-[11px] font-medium uppercase opacity-40">Atributos</label>
             <textarea
               placeholder={"cor: Azul\nacabamento: Fosco\nmarca: Coral"}
               value={form.tagsText}
               onChange={(event) => setForm({ ...form, tagsText: event.target.value })}
-              className="h-24 w-full resize-none rounded-[5px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="h-24 w-full resize-none rounded-[10px] border border-border bg-muted/30 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
-            <p className="mt-1 text-[10px] text-muted-foreground">Use uma linha por atributo no formato chave: valor.</p>
+            <p className="mt-1 text-[10px] text-muted-foreground">Use uma linha por atributo no formato chave: valor. Tipo e modo de uso ficam nos campos acima.</p>
           </div>
 
           <div>
@@ -855,7 +1184,14 @@ function ProductFormModal({
               className="w-full rounded-[8px] border-2 border-dashed border-border bg-muted/10 p-6 text-center transition-colors hover:bg-muted/20"
             >
               {form.imageUrl ? (
-                <img src={form.imageUrl} alt="Preview do produto" className="mx-auto mb-3 h-32 max-w-full rounded-[6px] object-cover" />
+                <SafeImage
+                  src={form.imageUrl}
+                  alt="Preview do produto"
+                  className="mx-auto mb-3 h-32 max-w-full rounded-[6px] object-cover"
+                  fallbackClassName="w-full"
+                  fallbackLabel="Preview indisponível"
+                  fallbackHint="Troque o arquivo ou use outra imagem."
+                />
               ) : (
                 <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background shadow-sm transition-colors">
                   <Plus className="h-5 w-5 text-muted-foreground" />
@@ -866,14 +1202,14 @@ function ProductFormModal({
             </button>
           </div>
 
-          {error && <p className="rounded-[5px] bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+          {error && <p className="rounded-[10px] bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         </div>
 
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose} className="rounded-[5px] font-sans" disabled={isSubmitting}>
+          <Button type="button" variant="outline" onClick={onClose} className="rounded-[10px] font-sans" disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button type="submit" className="rounded-[5px] px-8 font-sans" disabled={isSubmitting}>
+          <Button type="submit" className="rounded-[10px] px-8 font-sans" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {submitLabel}
           </Button>
@@ -916,7 +1252,7 @@ function ConfirmDeleteModal({
         </div>
         <h2 className="mb-2 text-lg font-bold font-display">Excluir Produto</h2>
         <p className="mb-6 text-sm text-muted-foreground font-sans">Deseja excluir permanentemente <strong>{itemName}</strong>?</p>
-        {error && <p className="mb-4 rounded-[5px] bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {error && <p className="mb-4 rounded-[10px] bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         <div className="flex flex-col gap-2">
           <Button variant="destructive" onClick={() => void confirmDelete()} disabled={isDeleting}>
             {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

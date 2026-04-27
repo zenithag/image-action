@@ -3,6 +3,7 @@ import type { NextAuthConfig } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 
 import { authenticateStoredUser } from "@/lib/server/auth-users-store"
+import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 
 const hasZitadelConfig = Boolean(
   process.env.ZITADEL_ISSUER_URL &&
@@ -19,7 +20,18 @@ const providers: NonNullable<NextAuthConfig["providers"]> = [
       password: { label: "Senha", type: "password" },
     },
     async authorize(credentials) {
-      return authenticateStoredUser(credentials?.email, credentials?.password)
+      const user = await authenticateStoredUser(credentials?.email, credentials?.password)
+
+      if (!user?.tenantSlug) {
+        return user
+      }
+
+      const settings = await getTenantSettings(user.tenantSlug)
+
+      return {
+        ...user,
+        sessionTimeoutMinutes: settings.security.sessionTimeoutMinutes,
+      }
     },
   }),
 ]
@@ -51,6 +63,7 @@ export const authConfig: NextAuthConfig = {
         token.tenantId = (user as { tenantId?: string | null }).tenantId ?? null
         token.tenantSlug = (user as { tenantSlug?: string | null }).tenantSlug ?? null
         token.roles = (user as { roles?: string[] }).roles ?? []
+        token.sessionTimeoutMinutes = (user as { sessionTimeoutMinutes?: number }).sessionTimeoutMinutes
       }
 
       if (account?.provider === "zitadel" && profile) {
@@ -80,6 +93,7 @@ export const authConfig: NextAuthConfig = {
           tenantId: (token.tenantId as string) || null,
           tenantSlug: (token.tenantSlug as string) || null,
           roles: (token.roles as string[]) || [],
+          sessionTimeoutMinutes: typeof token.sessionTimeoutMinutes === "number" ? token.sessionTimeoutMinutes : null,
         },
       }
     },

@@ -80,7 +80,7 @@ export function LoginForm({
         {/* Center content */}
         <div className="relative space-y-8">
           <div className="space-y-4">
-            <p className="text-sm font-semibold uppercase tracking-widest text-primary">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-primary">
               Plataforma Conversacional
             </p>
             <h1 className="text-5xl font-bold leading-tight tracking-tight text-sidebar-foreground">
@@ -239,7 +239,7 @@ export function LoginForm({
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-background px-4 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              <span className="bg-background px-4 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Acesso seguro
               </span>
             </div>

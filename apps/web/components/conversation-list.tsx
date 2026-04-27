@@ -52,20 +52,26 @@ function formatRelativeTime(value: string) {
 
 export function ConversationList({ tenantSlug, selectedId, onSelect }: ConversationListProps) {
   const [conversations, setConversations] = useState<InboxConversationSummary[]>([])
-  const [filter, setFilter] = useState<"all" | InboxHandledBy>("all")
+  const [filter, setFilter] = useState<"all" | InboxHandledBy | "unread">("all")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  async function loadConversations(options?: { silent?: boolean }) {
+  async function triggerInboxSync(options?: { wait?: boolean }) {
+    await fetch(`/api/tenant/${tenantSlug}/inbox/sync${options?.wait ? "?wait=1" : ""}`, {
+      method: "POST",
+    }).catch(() => null)
+  }
+
+  async function loadConversations(options?: { silent?: boolean; sync?: boolean; waitForSync?: boolean }) {
     if (!options?.silent) {
       setIsLoading(true)
       setError(null)
     }
 
     try {
-      await fetch(`/api/tenant/${tenantSlug}/inbox/sync`, {
-        method: "POST",
-      }).catch(() => null)
+      if (options?.sync) {
+        await triggerInboxSync({ wait: options.waitForSync })
+      }
 
       const response = await fetch(`/api/tenant/${tenantSlug}/inbox/conversations`, { cache: "no-store" })
       if (!response.ok) {
@@ -109,19 +115,22 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
   }
 
   useEffect(() => {
+    void triggerInboxSync()
     void loadConversations()
   }, [tenantSlug])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
+      void triggerInboxSync()
       void loadConversations({ silent: true })
-    }, 3000)
+    }, 8000)
 
     return () => window.clearInterval(intervalId)
   }, [tenantSlug, selectedId])
 
   const filteredConversations = useMemo(() => {
     if (filter === "all") return conversations
+    if (filter === "unread") return conversations.filter((c) => c.unreadCount > 0)
     return conversations.filter((conversation) => conversation.handledBy === filter)
   }, [conversations, filter])
 
@@ -133,8 +142,8 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
             <h2 className="text-sm font-semibold text-card-foreground font-display">Conversas</h2>
             <button
               type="button"
-              onClick={() => loadConversations()}
-              className="rounded-[5px] p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={() => loadConversations({ sync: true, waitForSync: true })}
+              className="rounded-[10px] p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               aria-label="Atualizar conversas"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
@@ -146,18 +155,19 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-1 border-b border-border p-2">
+      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2">
         {[
           { id: "all", label: "Todas" },
           { id: "ai", label: "IA" },
           { id: "operator", label: "Operador" },
+          { id: "unread", label: "Não lidas" },
         ].map((item) => (
           <button
             key={item.id}
             type="button"
-            onClick={() => setFilter(item.id as "all" | InboxHandledBy)}
+            onClick={() => setFilter(item.id as "all" | InboxHandledBy | "unread")}
             className={cn(
-              "flex-1 rounded-md px-3 py-1.5 text-xs transition-colors",
+              "min-w-fit flex-1 rounded-md px-3 py-1.5 text-xs transition-colors",
               filter === item.id
                 ? "bg-primary/20 font-bold text-primary"
                 : "font-medium text-muted-foreground hover:bg-primary/5 hover:text-primary"
@@ -190,12 +200,15 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
                 void markConversationAsRead(conversation.id)
               }}
               className={cn(
-                "flex w-full items-start gap-3 border-b border-border p-4 text-left transition-all duration-200",
+                "relative flex w-full items-start gap-3 border-b border-border p-4 text-left transition-all duration-200",
                 selectedId === conversation.id
-                  ? "bg-primary/10 border-l-2 border-l-primary"
+                  ? "bg-primary/10"
                   : "bg-transparent hover:bg-primary/5"
               )}
             >
+              {selectedId === conversation.id && (
+                <span className="absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r bg-primary" />
+              )}
               <div className="relative">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-900 border border-border/50">
                   {getInitials(conversation.contact.name)}
@@ -216,7 +229,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
                   )}>
                     {conversation.contact.name}
                   </span>
-                  <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground font-sans">
+                  <span className="flex max-w-[92px] shrink-0 items-center gap-1 truncate text-xs text-muted-foreground font-sans">
                     <Clock className="h-3 w-3" />
                     {formatRelativeTime(conversation.lastMessageAt)}
                   </span>
@@ -227,13 +240,13 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
                 </p>
 
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
+                  <div className="min-w-0 flex items-center gap-1.5">
                     {conversation.handledBy === "ai" ? (
                       <Bot className="h-3 w-3 text-primary" />
                     ) : (
                       <User className="h-3 w-3 text-blue-500" />
                     )}
-                    <span className="text-xs text-muted-foreground font-sans">
+                    <span className="truncate text-xs text-muted-foreground font-sans">
                       {stateLabels[conversation.state] || conversation.state}
                     </span>
                   </div>

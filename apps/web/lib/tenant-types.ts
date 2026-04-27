@@ -1,5 +1,6 @@
 export type TenantStatus = "draft" | "active" | "suspended" | "archived"
 export type TenantPlanCode = "starter" | "pro" | "enterprise"
+export type TenantBusinessVertical = "generic" | "decor" | "fashion" | "automotive" | "furniture"
 
 export type TenantStats = {
   conversations: number
@@ -13,6 +14,7 @@ export type Tenant = {
   slug: string
   status: TenantStatus
   planCode: TenantPlanCode
+  businessVertical: TenantBusinessVertical
   domain?: string
   contactEmail?: string
   contactName?: string
@@ -28,6 +30,7 @@ export type TenantInput = {
   slug?: string
   status?: TenantStatus
   planCode?: TenantPlanCode
+  businessVertical?: TenantBusinessVertical
   domain?: string
   contactEmail?: string
   contactName?: string

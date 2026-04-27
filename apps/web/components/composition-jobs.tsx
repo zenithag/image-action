@@ -1,17 +1,19 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   CheckCircle2,
   Clock,
-  Eye,
   Image as ImageIcon,
+  Link2,
   Loader2,
   RotateCcw,
   Sparkles,
   XCircle,
 } from "lucide-react"
 
+import { SafeImage } from "@/components/safe-image"
+import { getCompositionBaseImageUrl, imageUrlWithVersion } from "@/lib/composition-image-url"
 import { Button } from "@/components/ui/button"
 import type { CompositionJob, CompositionJobStatus } from "@/lib/composition-types"
 import { cn } from "@/lib/utils"
@@ -37,17 +39,17 @@ const statusConfig = {
   processing: {
     label: "Processando",
     icon: Loader2,
-    className: "bg-primary/20 text-primary",
+    className: "bg-primary text-white shadow-sm",
   },
   done: {
     label: "Concluido",
     icon: CheckCircle2,
-    className: "bg-primary/20 text-primary",
+    className: "bg-primary text-white shadow-sm",
   },
   failed: {
     label: "Falhou",
     icon: XCircle,
-    className: "bg-destructive/20 text-destructive",
+    className: "bg-destructive text-white shadow-sm",
   },
 }
 
@@ -67,14 +69,6 @@ function formatJobTime(value?: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value))
-}
-
-function imageUrlWithVersion(url: string | undefined, version: string | undefined) {
-  if (!url || !version || url.startsWith("data:")) return url
-
-  const separator = url.includes("?") ? "&" : "?"
-
-  return `${url}${separator}v=${encodeURIComponent(version)}`
 }
 
 function getImageExtension(url: string) {
@@ -155,6 +149,38 @@ async function requestJson<T>(url: string, init?: RequestInit) {
   return payload as T
 }
 
+function getJobCardMeta(job: CompositionJob) {
+  if (job.status === "done") {
+    return {
+      label: "Finalizado",
+      value: formatJobTime(job.completedAt ?? job.updatedAt),
+      className: "text-primary",
+    }
+  }
+
+  if (job.status === "processing") {
+    return {
+      label: "Iniciado",
+      value: formatJobTime(job.startedAt ?? job.updatedAt),
+      className: "text-primary",
+    }
+  }
+
+  if (job.status === "failed") {
+    return {
+      label: "Falha",
+      value: job.errorMessage ?? "Erro nao informado",
+      className: "text-destructive",
+    }
+  }
+
+  return {
+    label: "Tentativas",
+    value: String(job.processingAttempts),
+    className: "text-foreground",
+  }
+}
+
 export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   const [jobs, setJobs] = useState<CompositionJob[]>([])
   const [stats, setStats] = useState(emptyStats)
@@ -163,7 +189,14 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   const [isRetrying, setIsRetrying] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
   const [isProcessingQueue, setIsProcessingQueue] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<"all" | "review" | CompositionJobStatus>("all")
   const [error, setError] = useState<string | null>(null)
+
+  const filteredJobs = useMemo(() => {
+    if (statusFilter === "all") return jobs
+    if (statusFilter === "review") return jobs.filter((job) => job.status === "queued")
+    return jobs.filter((job) => job.status === statusFilter)
+  }, [jobs, statusFilter])
 
   async function loadJobs(options?: { silent?: boolean }) {
     if (!options?.silent) {
@@ -241,24 +274,22 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
 
     const intervalId = window.setInterval(() => {
       void loadJobs({ silent: true })
-    }, 5000)
+    }, 10000)
 
     return () => window.clearInterval(intervalId)
   }, [tenantSlug])
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-border bg-background py-4 pl-6 pr-10">
-        <div>
-          <h1 className="text-xl font-bold text-foreground font-display">Jobs de Composicao</h1>
-          <p className="text-sm text-muted-foreground font-sans">
-            Acompanhe os jobs reais criados a partir das conversas do WhatsApp.
-          </p>
+      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+        <div className="flex flex-col">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Pipeline visual</p>
+          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Composições</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            className="rounded-[5px] font-sans"
+            className="rounded-[10px] font-sans"
             onClick={() => processQueue()}
             disabled={isProcessingQueue || stats.queued === 0}
           >
@@ -268,7 +299,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[5px] shadow-none font-sans"
+            className="rounded-[10px] shadow-none font-sans"
             onClick={() => loadJobs()}
             disabled={isLoading}
           >
@@ -278,17 +309,28 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </div>
 
-      <div className="grid shrink-0 grid-cols-2 gap-4 border-b border-border bg-card/30 px-6 py-6 lg:grid-cols-4">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
         {[
-          { label: "Na fila", value: stats.queued, color: "text-warning", bg: "bg-warning/10" },
-          { label: "Processando", value: stats.processing, color: "text-primary", bg: "bg-primary/10" },
-          { label: "Concluidos", value: stats.done, color: "text-primary", bg: "bg-primary/10" },
-          { label: "Falhas", value: stats.failed, color: "text-destructive", bg: "bg-destructive/10" },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-[5px] border border-border bg-card p-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground font-sans">{stat.label}</p>
-            <p className={cn("mt-2 text-3xl font-bold font-display", stat.color)}>{stat.value}</p>
-          </div>
+          { id: "all", label: "Todas", count: stats.queued + stats.processing + stats.done + stats.failed },
+          { id: "review", label: "Revisão", count: stats.queued },
+          { id: "processing", label: "Processando", count: stats.processing },
+          { id: "done", label: "Concluídos", count: stats.done },
+          { id: "failed", label: "Falhas", count: stats.failed },
+        ].map((chip) => (
+          <button
+            key={chip.id}
+            type="button"
+            onClick={() => setStatusFilter(chip.id as typeof statusFilter)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              statusFilter === chip.id
+                ? "border-transparent bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+            )}
+          >
+            {chip.label}
+            <span className="font-mono text-[10px] opacity-60">{chip.count}</span>
+          </button>
         ))}
       </div>
 
@@ -316,146 +358,111 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
               </p>
             </div>
           ) : (
-            jobs.map((job) => {
-              const status = statusConfig[job.status]
-              const StatusIcon = status.icon
-              const baseImageUrl = imageUrlWithVersion(job.baseImageUrl, job.baseMessageId || job.createdAt)
-              const resultImageUrl = imageUrlWithVersion(job.resultImageUrl, job.completedAt || job.updatedAt)
-
-              return (
-                <div
-                  key={job.id}
-                  className="group flex items-center gap-6 rounded-[5px] border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-md"
-                >
-                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[5px] border border-border bg-muted">
-                    {baseImageUrl ? (
-                      <img
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+              {filteredJobs.map((job) => {
+                const status = statusConfig[job.status]
+                const StatusIcon = status.icon
+                const baseImageUrl = imageUrlWithVersion(getCompositionBaseImageUrl(job), job.baseMessageId || job.createdAt)
+                const meta = getJobCardMeta(job)
+                return (
+                  <div
+                    key={job.id}
+                    className="group cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/30 hover:shadow-md"
+                    onClick={() => setViewingJob(job)}
+                  >
+                    <div className="relative aspect-[4/3] bg-muted">
+                      <SafeImage
                         src={baseImageUrl}
-                        alt="Imagem base"
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        alt="Base"
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        fallbackLabel="Preview indisponível"
+                        fallbackHint={job.resultImageUrl ? "Resultado salvo, mas a imagem nao carregou." : "Imagem base nao encontrada."}
                       />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center">
-                        <ImageIcon className="h-7 w-7 text-muted-foreground/50" />
+                      <div className="absolute left-2.5 top-2.5">
+                        <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider", status.className)}>
+                          <StatusIcon className={cn("h-3 w-3", job.status === "processing" && "animate-spin")} />
+                          {status.label}
+                        </span>
                       </div>
-                    )}
-                    <div className="absolute left-1 top-1 rounded bg-black/50 px-1 text-[8px] uppercase text-white">Base</div>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-3">
-                      <h4 className="truncate text-base font-bold text-card-foreground font-display">{job.contactName}</h4>
-                      <span
-                        className={cn(
-                          "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
-                          status.className
-                        )}
-                      >
-                        <StatusIcon className={cn("h-3 w-3", job.status === "processing" && "animate-spin")} />
-                        {status.label}
-                      </span>
-                    </div>
-
-                    <p className="mt-1 truncate text-sm text-foreground font-sans">
-                      <span className="font-semibold text-primary">{job.catalogItemName || "Produto a definir"}</span>
-                      <span className="mx-2 text-muted-foreground">-</span>
-                      <span className="text-muted-foreground">{modeLabels[job.mode]}</span>
-                    </p>
-
-                    <p className="mt-2 line-clamp-2 text-xs text-muted-foreground font-sans">{job.prompt}</p>
-
-                    {job.errorMessage && (
-                      <p className="mt-2 border-l-2 border-destructive pl-2 text-xs font-medium text-destructive">{job.errorMessage}</p>
-                    )}
-
-                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground font-sans">
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Criado: {formatJobTime(job.createdAt)}</span>
-                      <span className="font-mono">ID: {job.id.slice(0, 8)}</span>
-                      {job.completedAt && <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-primary" /> Concluido: {formatJobTime(job.completedAt)}</span>}
-                    </div>
-                  </div>
-
-                  {job.resultImageUrl ? (
-                    <button
-                      type="button"
-                      onClick={() => setViewingJob(job)}
-                      className="relative h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-[5px] border border-border bg-muted group/result"
-                    >
-                      <img src={resultImageUrl} alt="Resultado" className="h-full w-full object-cover" />
-                      <div className="absolute inset-0 flex items-center justify-center bg-primary/20 opacity-0 backdrop-blur-[2px] transition-opacity group-hover/result:opacity-100">
-                        <Eye className="h-6 w-6 text-white drop-shadow-md" />
+                      <div className="absolute right-2.5 top-2.5">
+                        <span className="rounded-full bg-white/90 px-2 py-0.5 font-mono text-[10px] text-foreground">{job.id.slice(0, 8)}</span>
                       </div>
-                      <div className="absolute left-1 top-1 rounded bg-primary/80 px-1 text-[8px] uppercase text-white">Novo</div>
-                    </button>
-                  ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[5px] border-2 border-dashed border-border bg-muted/30">
-                      <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
                     </div>
-                  )}
-
-                  <div className="ml-4 flex shrink-0 items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setViewingJob(job)}
-                      className="rounded-[5px] border-primary/20 text-primary hover:bg-primary/10 font-sans"
-                    >
-                      <Eye className="mr-1.5 h-4 w-4" />
-                      Detalhes
-                    </Button>
-                    {job.status === "failed" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-[5px] border-destructive/20 text-destructive hover:bg-destructive/10 font-sans"
-                        onClick={() => retryJob(job.id)}
-                        disabled={isRetrying === job.id}
-                      >
-                        {isRetrying === job.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1.5 h-4 w-4" />}
-                        Tentar novamente
-                      </Button>
-                    )}
-                    {job.status === "queued" && (
-                      <Button
-                        size="sm"
-                        className="rounded-[5px] font-sans"
-                        onClick={() => processJob(job.id)}
-                        disabled={isProcessing === job.id}
-                      >
-                        {isProcessing === job.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-                        Processar
-                      </Button>
-                    )}
+                    <div className="p-3.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium text-card-foreground">{job.contactName}</span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{job.prompt}</p>
+                      <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className="rounded-full border border-border px-2 py-0.5 text-[10px]">{modeLabels[job.mode]}</span>
+                        <span>· {formatJobTime(job.createdAt)}</span>
+                      </div>
+                      <div className="mt-2.5 flex items-start justify-between gap-3 text-[11px]">
+                        <span className="text-muted-foreground">{meta.label}</span>
+                        <span className={cn("max-w-[65%] truncate text-right font-medium", meta.className)} title={meta.value}>
+                          {meta.value}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )
-            })
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
 
       {viewingJob && (
-        <CompositionViewerModal job={viewingJob} onClose={() => setViewingJob(null)} />
+        <CompositionViewerModal
+          job={viewingJob}
+          onClose={() => setViewingJob(null)}
+          onRetry={retryJob}
+          onProcess={processJob}
+          isRetrying={isRetrying}
+          isProcessing={isProcessing}
+        />
       )}
     </div>
   )
 }
 
-function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose: () => void }) {
+function CompositionViewerModal({
+  job,
+  onClose,
+  onRetry,
+  onProcess,
+  isRetrying,
+  isProcessing,
+}: {
+  job: CompositionJob
+  onClose: () => void
+  onRetry: (jobId: string) => Promise<void>
+  onProcess: (jobId: string) => Promise<void>
+  isRetrying: string | null
+  isProcessing: string | null
+}) {
   const [sliderPos, setSliderPos] = useState(50)
   const [comparisonView, setComparisonView] = useState<"slider" | "side-by-side">("slider")
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingComparison, setIsDownloadingComparison] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
+  const [shareSuccess, setShareSuccess] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const isResizing = useRef(false)
-  const baseImageUrl = imageUrlWithVersion(job.baseImageUrl, job.baseMessageId || job.createdAt)
+  const baseImageUrl = imageUrlWithVersion(getCompositionBaseImageUrl(job), job.baseMessageId || job.createdAt)
   const jobResultImageUrl = imageUrlWithVersion(job.resultImageUrl, job.completedAt || job.updatedAt)
   const resultImageUrl = jobResultImageUrl || baseImageUrl
 
-  const handleMouseDown = () => { isResizing.current = true }
+  const handleMouseDown = (event: React.MouseEvent | React.TouchEvent) => {
+    event.preventDefault()
+    isResizing.current = true
+  }
   const handleMouseUp = () => { isResizing.current = false }
   const handleMouseMove = (event: React.MouseEvent | React.TouchEvent) => {
     if (!isResizing.current || !job.resultImageUrl) return
+    event.preventDefault()
     const container = (event.currentTarget as HTMLElement).getBoundingClientRect()
     const x = "touches" in event ? event.touches[0].clientX : event.clientX
     const position = ((x - container.left) / container.width) * 100
@@ -551,9 +558,41 @@ function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose
     }
   }
 
+  const copyShareLink = async () => {
+    setIsSharing(true)
+    setDownloadError(null)
+    setShareSuccess(null)
+
+    try {
+      const payload = await requestJson<{ sharePath: string }>(
+        `/api/tenant/${job.tenantSlug}/compositions/jobs/${encodeURIComponent(job.id)}/share`,
+        { method: "POST" },
+      )
+
+      const shareUrl = `${window.location.origin}${payload.sharePath}`
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl)
+      } else {
+        const input = document.createElement("input")
+        input.value = shareUrl
+        document.body.appendChild(input)
+        input.select()
+        document.execCommand("copy")
+        input.remove()
+      }
+
+      setShareSuccess("Link público copiado.")
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Nao foi possivel gerar o link publico.")
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}>
-      <div className="relative flex max-h-[92vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-[10px] border border-border bg-card shadow-2xl 2xl:max-w-[1600px]" onClick={(event) => event.stopPropagation()}>
+      <div className="relative flex max-h-[92vh] w-full max-w-[1000px] flex-col overflow-hidden rounded-[10px] border border-border bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-6 py-4">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold font-display">
@@ -562,7 +601,7 @@ function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose
             <p className="text-xs text-muted-foreground">{job.catalogItemName || "Produto a definir"} - {modeLabels[job.mode]}</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex rounded-[5px] border border-border bg-background p-1">
+            <div className="flex rounded-[10px] border border-border bg-background p-1">
               <button
                 type="button"
                 className={cn(
@@ -594,19 +633,31 @@ function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_320px]">
           <div
-            className="relative select-none bg-black"
+            className="relative select-none bg-neutral-950"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onTouchMove={handleMouseMove}
             onTouchEnd={handleMouseUp}
+            onDragStart={(event) => event.preventDefault()}
           >
             {comparisonView === "slider" ? (
-              <div className="relative flex h-[72vh] min-h-[520px] w-full items-center justify-center overflow-hidden">
+              <div className="relative flex h-[72vh] min-h-[520px] w-full touch-none items-center justify-center overflow-hidden bg-neutral-950">
                 {resultImageUrl ? (
-                  <img src={resultImageUrl} className="absolute h-full w-full object-contain" alt={job.resultImageUrl ? "Resultado" : "Imagem base"} />
+                  <div className="absolute inset-0 flex items-center justify-center bg-neutral-950">
+                    <SafeImage
+                      src={resultImageUrl}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-contain"
+                      alt={job.resultImageUrl ? "Resultado" : "Imagem base"}
+                      draggable={false}
+                      fallbackLabel="Imagem indisponível"
+                      fallbackHint="Nao foi possivel carregar este preview."
+                    />
+                  </div>
                 ) : (
                   <ImageIcon className="h-16 w-16 text-white/35" />
                 )}
@@ -614,14 +665,25 @@ function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose
                 {job.resultImageUrl && baseImageUrl && (
                   <>
                     <div
-                      className="pointer-events-none absolute inset-0 z-20 h-full w-full overflow-hidden"
+                      className="pointer-events-none absolute inset-0 z-20 h-full w-full overflow-hidden bg-neutral-950"
                       style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
                     >
-                      <img src={baseImageUrl} className="absolute h-full w-full object-contain" alt="Imagem original" />
-                      <div className="absolute left-4 top-4 rounded-sm bg-black/60 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Original</div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-neutral-950">
+                        <SafeImage
+                          src={baseImageUrl}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-contain"
+                          alt="Imagem original"
+                          draggable={false}
+                          fallbackLabel="Original indisponível"
+                          fallbackHint="Nao foi possivel carregar a imagem base."
+                        />
+                      </div>
+                      <div className="absolute left-4 top-4 rounded-sm bg-black/60 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Original</div>
                     </div>
 
-                    <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Nova imagem</div>
+                    <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Nova imagem</div>
                     <div
                       className="absolute inset-y-0 z-30 cursor-ew-resize group"
                       style={{ left: `${sliderPos}%` }}
@@ -641,19 +703,37 @@ function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose
               </div>
             ) : (
               <div className="grid h-[72vh] min-h-[520px] w-full grid-cols-1 gap-px bg-border md:grid-cols-2">
-                <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-black">
-                  <div className="absolute left-4 top-4 z-10 rounded-sm bg-black/65 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Original</div>
+                <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-neutral-950">
+                  <div className="absolute left-4 top-4 z-10 rounded-sm bg-black/65 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Original</div>
                   {baseImageUrl ? (
-                    <img src={baseImageUrl} className="h-full w-full object-contain" alt="Imagem original" />
+                    <SafeImage
+                      src={baseImageUrl}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-contain"
+                      alt="Imagem original"
+                      draggable={false}
+                      fallbackLabel="Original indisponível"
+                      fallbackHint="Nao foi possivel carregar a imagem base."
+                    />
                   ) : (
                     <ImageIcon className="h-16 w-16 text-white/35" />
                   )}
                 </div>
 
-                <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-black">
-                  <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white">Nova imagem</div>
+                <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-neutral-950">
+                  <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Nova imagem</div>
                   {resultImageUrl ? (
-                    <img src={resultImageUrl} className="h-full w-full object-contain" alt={job.resultImageUrl ? "Nova imagem" : "Imagem base"} />
+                    <SafeImage
+                      src={resultImageUrl}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-contain"
+                      alt={job.resultImageUrl ? "Nova imagem" : "Imagem base"}
+                      draggable={false}
+                      fallbackLabel="Resultado indisponível"
+                      fallbackHint="Nao foi possivel carregar a nova imagem."
+                    />
                   ) : (
                     <ImageIcon className="h-16 w-16 text-white/35" />
                   )}
@@ -662,47 +742,108 @@ function CompositionViewerModal({ job, onClose }: { job: CompositionJob; onClose
             )}
           </div>
 
-          <div className="flex flex-col justify-between border-l border-border bg-card p-6">
-            <div className="space-y-6">
+          <div className="flex flex-col border-l border-border bg-card p-5 overflow-y-auto">
+            <div className="space-y-5 flex-1">
               <div>
-                <h4 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Informacoes</h4>
-                <div className="space-y-3">
+                <h4 className="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Informacoes</h4>
+                <div className="space-y-2.5">
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Cliente</span><span className="font-medium truncate">{job.contactName}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">ID do job</span><span className="font-mono">{job.id.slice(0, 8)}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Status</span><span className="font-bold text-primary">{statusConfig[job.status].label}</span></div>
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Modo</span><span className="rounded-full border border-border px-2 py-0.5 text-[10px]">{modeLabels[job.mode]}</span></div>
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Origem</span><span>{job.source === "ai" ? "IA" : "Operador"}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Criado em</span><span>{formatJobTime(job.createdAt)}</span></div>
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Tentativas</span><span className="font-mono">{job.processingAttempts}</span></div>
+                  {job.processorProvider && (
+                    <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Provider</span><span className="font-mono text-xs truncate max-w-[160px]">{job.processorProvider}</span></div>
+                  )}
+                  {job.processorModel && (
+                    <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Modelo</span><span className="font-mono text-xs truncate max-w-[160px]">{job.processorModel}</span></div>
+                  )}
+                  {job.startedAt && (
+                    <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Iniciado em</span><span>{formatJobTime(job.startedAt)}</span></div>
+                  )}
+                  {job.completedAt && (
+                    <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Finalizado em</span><span>{formatJobTime(job.completedAt)}</span></div>
+                  )}
                 </div>
               </div>
-              <div className="rounded-[5px] border border-primary/10 bg-primary/5 p-4">
+
+              <div className="rounded-[10px] border border-primary/10 bg-primary/5 p-4">
                 <p className="text-xs italic leading-relaxed text-muted-foreground">{job.prompt}</p>
               </div>
+
+              {job.errorMessage && (
+                <div className="rounded-[10px] border border-destructive/20 bg-destructive/10 p-4">
+                  <h4 className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-destructive">Falha registrada</h4>
+                  <p className="text-xs leading-relaxed text-destructive">{job.errorMessage}</p>
+                </div>
+              )}
             </div>
 
-            <div className="mt-8 space-y-3">
-              {downloadError && (
-                <p className="rounded-[5px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {downloadError}
-                </p>
+            <div className="mt-6 space-y-2.5">
+              {(job.status === "queued" || job.status === "failed") && (
+                <Button
+                  className="w-full rounded-[10px] py-5 font-sans"
+                  disabled={isProcessing === job.id}
+                  onClick={() => onProcess(job.id)}
+                >
+                  {isProcessing === job.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  Processar agora
+                </Button>
               )}
               <Button
-                variant="secondary"
-                className="w-full rounded-[5px] py-6 font-sans"
-                disabled={!baseImageUrl || !job.resultImageUrl || isDownloadingComparison}
-                onClick={downloadSideBySideComparison}
+                variant="outline"
+                className="w-full rounded-[10px] py-5 font-sans shadow-none"
+                disabled={isRetrying === job.id || job.status === "processing"}
+                onClick={() => onRetry(job.id)}
               >
-                {isDownloadingComparison ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isDownloadingComparison ? "Gerando..." : "Baixar comparativo lado a lado"}
+                {isRetrying === job.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                Reenfileirar
               </Button>
-              <Button
-                className="w-full rounded-[5px] py-6 font-sans"
-                disabled={!job.resultImageUrl || isDownloading}
-                onClick={downloadResult}
-              >
-                {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isDownloading ? "Baixando..." : "Download Resultado"}
-              </Button>
-              <Button variant="outline" className="w-full rounded-[5px] py-6 font-sans" disabled={!job.resultImageUrl}>
-                Compartilhar via WhatsApp
-              </Button>
+
+              <div className="border-t border-border pt-2.5 mt-2.5 space-y-2.5">
+                {shareSuccess && (
+                  <p className="rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+                    {shareSuccess}
+                  </p>
+                )}
+                {downloadError && (
+                  <p className="rounded-[10px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    {downloadError}
+                  </p>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full rounded-[10px] font-sans"
+                  disabled={!baseImageUrl || !job.resultImageUrl || job.status !== "done" || isSharing}
+                  onClick={copyShareLink}
+                >
+                  {isSharing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
+                  {isSharing ? "Gerando link..." : "Copiar link público"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full rounded-[10px] font-sans"
+                  disabled={!baseImageUrl || !job.resultImageUrl || isDownloadingComparison}
+                  onClick={downloadSideBySideComparison}
+                >
+                  {isDownloadingComparison ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isDownloadingComparison ? "Gerando..." : "Baixar comparativo"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full rounded-[10px] font-sans"
+                  disabled={!job.resultImageUrl || isDownloading}
+                  onClick={downloadResult}
+                >
+                  {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isDownloading ? "Baixando..." : "Download resultado"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -14,10 +14,15 @@ type HomePageProps = {
   searchParams: Promise<{
     callbackUrl?: string
     error?: string
+    sessionExpired?: string
   }>
 }
 
-function getErrorMessage(error?: string) {
+function getErrorMessage(error?: string, sessionExpired?: string) {
+  if (sessionExpired === "1") {
+    return "Sua sessao expirou. Entre novamente para continuar."
+  }
+
   if (!error) {
     return null
   }
@@ -31,17 +36,17 @@ function getErrorMessage(error?: string) {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const session = await auth()
-  const { callbackUrl, error } = await searchParams
+  const { callbackUrl, error, sessionExpired } = await searchParams
   const safeCallbackUrl = getSafeCallbackUrl(callbackUrl, session?.user)
 
-  if (session?.user && safeCallbackUrl !== "/") {
+  if (!sessionExpired && session?.user && safeCallbackUrl !== "/") {
     redirect(safeCallbackUrl)
   }
 
   return (
     <LoginForm
       callbackUrl={safeCallbackUrl}
-      errorMessage={getErrorMessage(error)}
+      errorMessage={getErrorMessage(error, sessionExpired)}
     />
   )
 }

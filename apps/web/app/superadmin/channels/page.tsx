@@ -20,6 +20,8 @@ import {
   Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { ChannelPlanLimit } from "@/lib/channel-plan-types"
+import { defaultChannelPlanLimits } from "@/lib/channel-plan-types"
 import { cn } from "@/lib/utils"
 
 type ProviderStatus = "active" | "maintenance" | "disabled"
@@ -44,12 +46,17 @@ type ProviderAccount = {
 
 type TenantChannelInstance = {
   id: string
+  tenantId?: string
   tenant: string
+  tenantSlug: string
   channel: ChannelKind
   providerAccount: string
   label: string
   plan: "starter" | "pro" | "enterprise"
   status: InstanceStatus
+  phoneNumber?: string
+  connected: boolean
+  loggedIn: boolean
   createdAt: string
 }
 
@@ -73,14 +80,6 @@ type ProviderTestResult = {
   instanceCount?: number
   checkedAt: string
 }
-
-const tenantInstances: TenantChannelInstance[] = []
-
-const planLimits = [
-  { plan: "Starter", whatsapp: 1, instagram: 1, telegram: 1, extra: "Compra avulsa por instancia" },
-  { plan: "Pro", whatsapp: 3, instagram: 2, telegram: 2, extra: "Pacotes de 3 instancias" },
-  { plan: "Enterprise", whatsapp: 10, instagram: 5, telegram: 5, extra: "Limite negociado" },
-]
 
 const channelConfig: Record<ChannelKind, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   whatsapp: { label: "WhatsApp", icon: Smartphone, color: "text-emerald-500", bg: "bg-emerald-500/10" },
@@ -120,7 +119,9 @@ export default function ChannelsPage() {
   const [search, setSearch] = useState("")
   const [activeTab, setActiveTab] = useState<"providers" | "instances" | "plans">("providers")
   const [providers, setProviders] = useState<ProviderAccount[]>([])
+  const [instances, setInstances] = useState<TenantChannelInstance[]>([])
   const [isLoadingProviders, setIsLoadingProviders] = useState(true)
+  const [isLoadingInstances, setIsLoadingInstances] = useState(true)
   const [providerError, setProviderError] = useState<string | null>(null)
   const [isCreatingProvider, setIsCreatingProvider] = useState(false)
   const [testingProviderId, setTestingProviderId] = useState<string | null>(null)
@@ -128,40 +129,59 @@ export default function ChannelsPage() {
   const [testResults, setTestResults] = useState<Record<string, ProviderTestResult>>({})
   const [isNewProviderOpen, setIsNewProviderOpen] = useState(false)
   const [newProvider, setNewProvider] = useState<NewProviderForm>(defaultNewProviderForm)
+  const [planLimits, setPlanLimits] = useState<ChannelPlanLimit[]>([
+    { ...defaultChannelPlanLimits.starter, updatedAt: "" },
+    { ...defaultChannelPlanLimits.pro, updatedAt: "" },
+    { ...defaultChannelPlanLimits.enterprise, updatedAt: "" },
+  ])
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true)
+  const [isSavingPlans, setIsSavingPlans] = useState(false)
+
+  async function loadData() {
+    setIsLoadingProviders(true)
+    setIsLoadingInstances(true)
+    setIsLoadingPlans(true)
+    setProviderError(null)
+
+    try {
+      const [providersResponse, instancesResponse, planLimitsResponse] = await Promise.all([
+        fetch("/api/superadmin/providers", { cache: "no-store" }),
+        fetch("/api/superadmin/channel-instances", { cache: "no-store" }),
+        fetch("/api/superadmin/channel-plan-limits", { cache: "no-store" }),
+      ])
+
+      if (!providersResponse.ok) {
+        throw new Error("Nao foi possivel carregar os providers.")
+      }
+
+      if (!instancesResponse.ok) {
+        throw new Error("Nao foi possivel carregar as instancias dos tenants.")
+      }
+
+      if (!planLimitsResponse.ok) {
+        throw new Error("Nao foi possivel carregar os limites por plano.")
+      }
+
+      const [providersData, instancesData, planLimitsData] = await Promise.all([
+        providersResponse.json() as Promise<ProviderAccount[]>,
+        instancesResponse.json() as Promise<TenantChannelInstance[]>,
+        planLimitsResponse.json() as Promise<ChannelPlanLimit[]>,
+      ])
+
+      setProviders(providersData)
+      setInstances(instancesData)
+      setPlanLimits(planLimitsData)
+    } catch (error) {
+      setProviderError(error instanceof Error ? error.message : "Erro ao carregar canais.")
+    } finally {
+      setIsLoadingProviders(false)
+      setIsLoadingInstances(false)
+      setIsLoadingPlans(false)
+    }
+  }
 
   useEffect(() => {
-    let isMounted = true
-
-    async function loadProviders() {
-      setIsLoadingProviders(true)
-      setProviderError(null)
-
-      try {
-        const response = await fetch("/api/superadmin/providers", { cache: "no-store" })
-        if (!response.ok) {
-          throw new Error("Nao foi possivel carregar os providers.")
-        }
-
-        const data = await response.json() as ProviderAccount[]
-        if (isMounted) {
-          setProviders(data)
-        }
-      } catch (error) {
-        if (isMounted) {
-          setProviderError(error instanceof Error ? error.message : "Erro ao carregar providers.")
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingProviders(false)
-        }
-      }
-    }
-
-    void loadProviders()
-
-    return () => {
-      isMounted = false
-    }
+    void loadData()
   }, [])
 
   const whatsappProviders = providers.filter((account) => account.provider === "uazapi")
@@ -182,13 +202,13 @@ export default function ChannelsPage() {
 
   const filteredInstances = useMemo(() => {
     const value = search.trim().toLowerCase()
-    if (!value) return tenantInstances
-    return tenantInstances.filter((instance) =>
-      [instance.tenant, instance.label, instance.providerAccount, instance.channel, instance.status].some((field) =>
+    if (!value) return instances
+    return instances.filter((instance) =>
+      [instance.tenant, instance.tenantSlug, instance.label, instance.providerAccount, instance.channel, instance.status, instance.phoneNumber || ""].some((field) =>
         field.toLowerCase().includes(value)
       )
     )
-  }, [search])
+  }, [instances, search])
 
   function updateNewProvider<K extends keyof NewProviderForm>(key: K, value: NewProviderForm[K]) {
     if (key === "kind") {
@@ -210,6 +230,16 @@ export default function ChannelsPage() {
     }
 
     setNewProvider((current) => ({ ...current, [key]: value }))
+  }
+
+  function updatePlanLimit<K extends keyof ChannelPlanLimit>(
+    planCode: ChannelPlanLimit["planCode"],
+    key: K,
+    value: ChannelPlanLimit[K]
+  ) {
+    setPlanLimits((current) =>
+      current.map((plan) => (plan.planCode === planCode ? { ...plan, [key]: value } : plan))
+    )
   }
 
   async function createProvider() {
@@ -246,6 +276,7 @@ export default function ChannelsPage() {
       setActiveTab("providers")
       setIsNewProviderOpen(false)
       setNewProvider(defaultNewProviderForm)
+      void loadData()
     } catch (error) {
       setProviderError(error instanceof Error ? error.message : "Erro ao salvar provider.")
     } finally {
@@ -278,6 +309,7 @@ export default function ChannelsPage() {
             : provider
         )
       )
+      void loadData()
     } catch (error) {
       const fallbackResult: ProviderTestResult = {
         ok: false,
@@ -320,6 +352,7 @@ export default function ChannelsPage() {
         const { [provider.id]: _removed, ...nextResults } = current
         return nextResults
       })
+      void loadData()
     } catch (error) {
       setProviderError(error instanceof Error ? error.message : "Erro ao excluir provider.")
     } finally {
@@ -327,47 +360,81 @@ export default function ChannelsPage() {
     }
   }
 
+  async function savePlanLimits() {
+    if (isSavingPlans) return
+
+    setIsSavingPlans(true)
+    setProviderError(null)
+
+    try {
+      const response = await fetch("/api/superadmin/channel-plan-limits", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plans: planLimits.map((plan) => ({
+            planCode: plan.planCode,
+            label: plan.label,
+            whatsapp: plan.whatsapp,
+            instagram: plan.instagram,
+            telegram: plan.telegram,
+            conversationsLimit: plan.conversationsLimit,
+            extra: plan.extra,
+          })),
+        }),
+      })
+      const payload = await response.json().catch(() => null) as ChannelPlanLimit[] | { error?: string } | null
+
+      if (!response.ok) {
+        throw new Error(typeof payload === "object" && payload && "error" in payload ? payload.error || "Nao foi possivel salvar os limites por plano." : "Nao foi possivel salvar os limites por plano.")
+      }
+
+      setPlanLimits(payload as ChannelPlanLimit[])
+    } catch (error) {
+      setProviderError(error instanceof Error ? error.message : "Erro ao salvar os limites por plano.")
+    } finally {
+      setIsSavingPlans(false)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="relative z-10 flex items-center justify-between border-b border-border bg-background py-4 pl-6 pr-10">
-        <div>
-          <h1 className="text-xl font-bold text-foreground font-display">Canais & Provedores</h1>
-          <p className="text-sm text-muted-foreground font-sans">
-            Configure a infraestrutura global e acompanhe as instancias conectadas nos tenants.
-          </p>
+      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+        <div className="flex flex-col">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Canais</p>
+          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Instâncias WhatsApp</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="rounded-[5px] font-sans">
+          <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={isLoadingProviders || isLoadingInstances}>
             <Wrench className="mr-2 h-4 w-4" />
-            Rebalancear
+            Atualizar
           </Button>
-          <Button className="rounded-[5px] font-sans" onClick={() => setIsNewProviderOpen(true)}>
+          <Button size="sm" onClick={() => setIsNewProviderOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Novo Provider
           </Button>
         </div>
       </div>
 
-      <section className="grid grid-cols-4 gap-4 border-b border-border bg-card/20 px-6 py-5">
+      <section className="grid grid-cols-4 gap-3 px-7 py-4">
         {[
           { label: "UAZAPI contratadas", value: totalContracted, icon: Server, tone: "text-foreground" },
           { label: "Instancias em uso", value: totalUsed, icon: Smartphone, tone: "text-primary" },
           { label: "Reserva operacional", value: totalReserved, icon: ShieldCheck, tone: "text-amber-500" },
           { label: "Disponiveis", value: totalAvailable, icon: Zap, tone: totalAvailable > 10 ? "text-primary" : "text-destructive" },
         ].map((metric) => (
-          <div key={metric.label} className="flex items-center gap-4 rounded-[5px] border border-border bg-card p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[5px] bg-muted">
-              <metric.icon className={cn("h-5 w-5", metric.tone)} />
+          <div key={metric.label} className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+              <metric.icon className={cn("h-4 w-4", metric.tone)} />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{metric.label}</p>
-              <p className="mt-0.5 text-2xl font-bold text-foreground font-display">{metric.value}</p>
+              <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{metric.label}</p>
+              <p className="font-mono text-lg font-medium leading-tight text-foreground">{metric.value}</p>
             </div>
           </div>
         ))}
       </section>
 
-      <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
+      <div className="flex items-center justify-between gap-4 border-b border-border px-7 py-3">
         <div className="flex gap-1">
           {[
             { id: "providers", label: "Provedores globais" },
@@ -379,10 +446,10 @@ export default function ChannelsPage() {
               type="button"
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={cn(
-                "rounded-[5px] px-4 py-2 text-sm font-bold transition-colors",
+                "rounded-[10px] px-4 py-2 text-sm font-medium transition-colors",
                 activeTab === tab.id
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
               )}
             >
               {tab.label}
@@ -390,14 +457,14 @@ export default function ChannelsPage() {
           ))}
         </div>
 
-        <div className="relative w-full max-w-md">
+        <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             placeholder="Buscar canal, provider ou tenant..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded-[5px] border border-input bg-card py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-[10px] border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -408,7 +475,7 @@ export default function ChannelsPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-7 py-6 scrollbar-hide">
         {activeTab === "providers" && (
           <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
             <div className="grid gap-4">
@@ -440,7 +507,7 @@ export default function ChannelsPage() {
             </div>
 
             <aside className="space-y-4">
-              <div className="rounded-[5px] border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 <h2 className="font-bold text-foreground font-display">Como alocar WhatsApp</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   O Superadmin cadastra os UAZAPIs e informa manualmente a capacidade contratada. O tenant cria as instancias WhatsApp dentro do proprio ambiente, respeitando o plano. A plataforma escolhe um UAZAPI ativo com capacidade disponivel.
@@ -453,7 +520,7 @@ export default function ChannelsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[5px] border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 <h2 className="font-bold text-foreground font-display">Instagram e Telegram</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   O Superadmin controla o conector global. A autorizacao final fica no tenant, porque a conta Instagram Business/Page e o bot Telegram pertencem ao cliente.
@@ -464,18 +531,24 @@ export default function ChannelsPage() {
         )}
 
         {activeTab === "instances" && (
-          <div className="overflow-hidden rounded-[5px] border border-border bg-card">
-            {filteredInstances.length > 0 ? (
+          <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+            {isLoadingInstances ? (
+              <EmptyState
+                title="Carregando instâncias..."
+                description="Buscando as conexões já criadas pelos tenants."
+              />
+            ) : filteredInstances.length > 0 ? (
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tenant</th>
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Canal</th>
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Instancia</th>
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Provider</th>
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Plano</th>
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</th>
-                    <th className="px-5 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Criada</th>
+                  <tr className="border-b border-border bg-secondary">
+                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Tenant</th>
+                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Canal</th>
+                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Instancia</th>
+                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider</th>
+                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano</th>
+                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Telefone</th>
+                    <th className="px-5 py-3.5 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Criada</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -490,7 +563,7 @@ export default function ChannelsPage() {
                         </td>
                         <td className="px-5 py-4">
                           <span className="flex items-center gap-2 text-sm">
-                            <span className={cn("flex h-8 w-8 items-center justify-center rounded-[5px]", config.bg)}>
+                            <span className={cn("flex h-8 w-8 items-center justify-center rounded-[10px]", config.bg)}>
                               <Icon className={cn("h-4 w-4", config.color)} />
                             </span>
                             {config.label}
@@ -499,13 +572,14 @@ export default function ChannelsPage() {
                         <td className="px-5 py-4 text-sm font-medium text-foreground">{instance.label}</td>
                         <td className="px-5 py-4 text-sm text-muted-foreground">{instance.providerAccount}</td>
                         <td className="px-5 py-4">
-                          <span className="rounded-[4px] bg-muted px-2.5 py-1 text-[10px] font-bold uppercase text-muted-foreground">
+                          <span className="rounded-[4px] bg-muted px-2.5 py-1 text-[11px] font-medium uppercase text-muted-foreground">
                             {instance.plan}
                           </span>
                         </td>
                         <td className="px-5 py-4">
                           <InstanceStatusBadge status={instance.status} />
                         </td>
+                        <td className="px-5 py-4 text-sm text-muted-foreground">{instance.phoneNumber || "—"}</td>
                         <td className="px-5 py-4 text-right text-sm text-muted-foreground">{instance.createdAt}</td>
                       </tr>
                     )
@@ -515,28 +589,80 @@ export default function ChannelsPage() {
             ) : (
               <EmptyState
                 title="Nenhuma instancia de tenant"
-                description="As instancias reais serao listadas aqui quando forem criadas pelos tenants."
-              />
-            )}
-          </div>
+                  description="As instâncias reais aparecem aqui assim que forem criadas pelos tenants."
+                />
+              )}
+            </div>
         )}
 
         {activeTab === "plans" && (
-          <div className="grid gap-4 lg:grid-cols-3">
-            {planLimits.map((plan) => (
-              <div key={plan.plan} className="rounded-[5px] border border-border bg-card p-6">
-                <h2 className="text-lg font-bold text-foreground font-display">{plan.plan}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Limites iniciais de instancias por tenant.</p>
-                <div className="mt-6 space-y-4">
-                  <PlanLimitRow label="WhatsApp" value={plan.whatsapp} icon={Smartphone} />
-                  <PlanLimitRow label="Instagram" value={plan.instagram} icon={MessageCircle} />
-                  <PlanLimitRow label="Telegram" value={plan.telegram} icon={Send} />
-                </div>
-                <div className="mt-6 rounded-[5px] border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
-                  {plan.extra}
-                </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-[10px] border border-border bg-card p-4">
+              <div>
+                <h2 className="font-display text-lg font-bold text-foreground">Limites por plano</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Regras persistidas de canais e faixa de uso por tenant.
+                </p>
               </div>
-            ))}
+              <Button onClick={() => void savePlanLimits()} disabled={isLoadingPlans || isSavingPlans}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                {isSavingPlans ? "Salvando..." : "Salvar limites"}
+              </Button>
+            </div>
+
+            {isLoadingPlans ? (
+              <EmptyState
+                title="Carregando limites..."
+                description="Buscando a configuração persistida dos planos."
+              />
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-3">
+                {planLimits.map((plan) => (
+                  <div key={plan.planCode} className="rounded-[10px] border border-border bg-card p-6">
+                    <h2 className="text-lg font-bold text-foreground font-display">{plan.label}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Capacidade inicial concedida ao tenant neste plano.</p>
+                    <div className="mt-6 space-y-4">
+                      <PlanLimitInput
+                        label="WhatsApp"
+                        value={plan.whatsapp}
+                        icon={Smartphone}
+                        onChange={(value) => updatePlanLimit(plan.planCode, "whatsapp", value)}
+                      />
+                      <PlanLimitInput
+                        label="Instagram"
+                        value={plan.instagram}
+                        icon={MessageCircle}
+                        onChange={(value) => updatePlanLimit(plan.planCode, "instagram", value)}
+                      />
+                      <PlanLimitInput
+                        label="Telegram"
+                        value={plan.telegram}
+                        icon={Send}
+                        onChange={(value) => updatePlanLimit(plan.planCode, "telegram", value)}
+                      />
+                      <PlanLimitInput
+                        label="Conversas"
+                        value={plan.conversationsLimit}
+                        icon={Bot}
+                        onChange={(value) => updatePlanLimit(plan.planCode, "conversationsLimit", value)}
+                      />
+                    </div>
+                    <div className="mt-6 space-y-2">
+                      <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Observação operacional</span>
+                      <textarea
+                        value={plan.extra}
+                        onChange={(event) => updatePlanLimit(plan.planCode, "extra", event.target.value)}
+                        rows={3}
+                        className="w-full rounded-[10px] border border-input bg-secondary px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Atualizado em {plan.updatedAt ? new Date(plan.updatedAt).toLocaleString("pt-BR") : "agora"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -577,10 +703,10 @@ function ProviderCard({
     : null
 
   return (
-    <article className="rounded-[5px] border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md">
+    <article className="rounded-[10px] border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-[5px]", config.bg)}>
+          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px]", config.bg)}>
             <Icon className={cn("h-6 w-6", config.color)} />
           </div>
           <div>
@@ -589,7 +715,7 @@ function ProviderCard({
               <ProviderStatusBadge status={provider.status} />
               <HealthBadge health={provider.health} />
             </div>
-            <p className="mt-1 text-xs uppercase tracking-widest text-muted-foreground">
+            <p className="mt-1 text-xs uppercase tracking-[0.08em] text-muted-foreground">
               {config.label} / {provider.provider}
             </p>
             {provider.baseUrl && (
@@ -611,21 +737,17 @@ function ProviderCard({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[5px]"
+            className="rounded-[10px]"
             onClick={onTest}
             disabled={isTesting}
           >
             <ExternalLink className="mr-2 h-3.5 w-3.5" />
             {isTesting ? "Testando" : "Testar"}
           </Button>
-          <Button variant="outline" size="sm" className="rounded-[5px]">
-            <Edit2 className="mr-2 h-3.5 w-3.5" />
-            Editar
-          </Button>
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[5px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="rounded-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
             disabled={isDeleting}
           >
@@ -640,7 +762,7 @@ function ProviderCard({
       {testResult && (
         <div
           className={cn(
-            "mt-5 rounded-[5px] border p-4 text-sm",
+            "mt-5 rounded-[10px] border p-4 text-sm",
             testResult.ok
               ? "border-primary/20 bg-primary/5 text-primary"
               : "border-destructive/20 bg-destructive/10 text-destructive"
@@ -726,13 +848,13 @@ function NewProviderModal({
       >
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Superadmin</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-primary">Superadmin</p>
             <h2 className="mt-1 text-xl font-bold text-foreground font-display">Novo provider de canal</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Cadastre infraestrutura global. As instancias finais continuam vinculadas aos tenants.
             </p>
           </div>
-          <div className={cn("flex h-12 w-12 items-center justify-center rounded-[5px]", config.bg)}>
+          <div className={cn("flex h-12 w-12 items-center justify-center rounded-[10px]", config.bg)}>
             <Icon className={cn("h-6 w-6", config.color)} />
           </div>
         </div>
@@ -753,13 +875,13 @@ function NewProviderModal({
                   type="button"
                   onClick={() => onChange("kind", option.kind)}
                   className={cn(
-                    "rounded-[5px] border p-4 text-left transition-all",
+                    "rounded-[10px] border p-4 text-left transition-all",
                     form.kind === option.kind
                       ? "border-primary bg-primary/5"
                       : "border-border bg-muted/20 hover:border-primary/30"
                   )}
                 >
-                  <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-[5px]", optionConfig.bg)}>
+                  <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-[10px]", optionConfig.bg)}>
                     <OptionIcon className={cn("h-4 w-4", optionConfig.color)} />
                   </span>
                   <span className="block text-sm font-bold text-foreground">{option.label}</span>
@@ -771,21 +893,21 @@ function NewProviderModal({
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
-              <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Nome interno</span>
+              <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Nome interno</span>
               <input
                 value={form.name}
                 onChange={(event) => onChange("name", event.target.value)}
                 placeholder={isUazapi ? "UAZAPI Sao Paulo 01" : form.kind === "instagram" ? "Meta App Principal" : "Telegram Adapter Principal"}
-                className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
               />
             </label>
 
             <label className="space-y-2">
-              <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Provider tecnico</span>
+              <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider tecnico</span>
               <select
                 value={form.provider}
                 onChange={(event) => onChange("provider", event.target.value as ProviderAccount["provider"])}
-                className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="uazapi">uazapi</option>
                 <option value="meta">meta</option>
@@ -795,50 +917,50 @@ function NewProviderModal({
           </div>
 
           <label className="block space-y-2">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
               {isUazapi ? "Base URL do UAZAPI" : "URL / identificador do conector"}
             </span>
             <input
               value={form.baseUrl}
               onChange={(event) => onChange("baseUrl", event.target.value)}
               placeholder={isUazapi ? "https://api.uazapi.dev/seu-endpoint" : "https://graph.facebook.com/app ou adapter interno"}
-              className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
           {isUazapi && (
             <>
               <label className="block space-y-2">
-                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Admin token</span>
+                <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Admin token</span>
                 <input
                   type="password"
                   value={form.adminToken}
                   onChange={(event) => onChange("adminToken", event.target.value)}
                   placeholder="Cole aqui o admintoken do provider"
                   autoComplete="off"
-                  className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </label>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Capacidade contratada</span>
+                  <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Capacidade contratada</span>
                   <input
                     type="number"
                     min={1}
                     value={form.contractedCapacity}
                     onChange={(event) => onChange("contractedCapacity", event.target.value)}
-                    className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reserva operacional</span>
+                  <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Reserva operacional</span>
                   <input
                     type="number"
                     min={0}
                     value={form.reservedCapacity}
                     onChange={(event) => onChange("reservedCapacity", event.target.value)}
-                    className="w-full rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                   />
                 </label>
               </div>
@@ -846,16 +968,16 @@ function NewProviderModal({
           )}
 
           <label className="block space-y-2">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Observacoes</span>
+            <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Observacoes</span>
             <textarea
               value={form.notes}
               onChange={(event) => onChange("notes", event.target.value)}
               placeholder="Ex: provider dedicado para clientes enterprise, nao receber novas instancias sem aprovacao..."
-              className="h-24 w-full resize-none rounded-[5px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="h-24 w-full resize-none rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
-          <div className="rounded-[5px] border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+          <div className="rounded-[10px] border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
             {isUazapi
               ? "Este provider entra no pool de alocacao WhatsApp. A capacidade disponivel sera calculada como contratada menos instancias em uso menos reserva."
               : "Este provider habilita o conector global. A conta final sera conectada dentro do tenant por OAuth/token."}
@@ -863,10 +985,10 @@ function NewProviderModal({
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button variant="outline" className="rounded-[5px]" onClick={onClose}>
+          <Button variant="outline" className="rounded-[10px]" onClick={onClose}>
             Cancelar
           </Button>
-          <Button className="rounded-[5px]" onClick={onCreate} disabled={!canCreate || isCreating}>
+          <Button className="rounded-[10px]" onClick={onCreate} disabled={!canCreate || isCreating}>
             {isCreating ? "Salvando..." : "Criar provider"}
           </Button>
         </div>
@@ -887,14 +1009,14 @@ function EmptyState({
   onAction?: () => void
 }) {
   return (
-    <div className="rounded-[5px] border border-dashed border-border bg-card p-10 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[5px] bg-muted">
+    <div className="rounded-[10px] border border-dashed border-border bg-card p-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-muted">
         <Server className="h-5 w-5 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-lg font-bold text-foreground font-display">{title}</h2>
       <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
       {actionLabel && onAction && (
-        <Button className="mt-5 rounded-[5px]" onClick={onAction}>
+        <Button className="mt-5 rounded-[10px]" onClick={onAction}>
           <Plus className="mr-2 h-4 w-4" />
           {actionLabel}
         </Button>
@@ -906,7 +1028,7 @@ function EmptyState({
 function CapacityBox({ label, value, tone = "default" }: { label: string; value: number | string; tone?: "default" | "danger" }) {
   return (
     <div className="rounded-[4px] border border-border bg-muted/30 p-3">
-      <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
+      <p className="mb-1 text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
       <p className={cn("text-xl font-bold font-display", tone === "danger" ? "text-destructive" : "text-foreground")}>
         {value}
       </p>
@@ -918,7 +1040,7 @@ function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
+        "rounded-full px-2.5 py-1 text-[11px] font-medium uppercase",
         status === "active" && "bg-primary/10 text-primary",
         status === "maintenance" && "bg-amber-500/10 text-amber-500",
         status === "disabled" && "bg-muted text-muted-foreground"
@@ -935,7 +1057,7 @@ function HealthBadge({ health }: { health: ProviderAccount["health"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium uppercase",
         health === "ok" && "bg-primary/10 text-primary",
         health === "warning" && "bg-amber-500/10 text-amber-500",
         health === "error" && "bg-destructive/10 text-destructive"
@@ -951,7 +1073,7 @@ function InstanceStatusBadge({ status }: { status: InstanceStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium uppercase",
         status === "connected" && "bg-primary/10 text-primary",
         status === "pending" && "bg-amber-500/10 text-amber-500",
         status === "error" && "bg-destructive/10 text-destructive"
@@ -976,14 +1098,30 @@ function RuleItem({ label, text }: { label: string; text: string }) {
   )
 }
 
-function PlanLimitRow({ label, value, icon: Icon }: { label: string; value: number; icon: React.ElementType }) {
+function PlanLimitInput({
+  label,
+  value,
+  icon: Icon,
+  onChange,
+}: {
+  label: string
+  value: number
+  icon: React.ElementType
+  onChange: (value: number) => void
+}) {
   return (
-    <div className="flex items-center justify-between rounded-[5px] border border-border bg-muted/30 px-4 py-3">
+    <div className="flex items-center justify-between rounded-[10px] border border-border bg-muted/30 px-4 py-3">
       <span className="flex items-center gap-2 text-sm text-muted-foreground">
         <Icon className="h-4 w-4 text-primary" />
         {label}
       </span>
-      <span className="text-lg font-bold text-foreground">{value}</span>
+      <input
+        type="number"
+        min={0}
+        value={value}
+        onChange={(event) => onChange(Math.max(0, Number(event.target.value) || 0))}
+        className="h-9 w-24 rounded-[8px] border border-input bg-background px-3 text-right font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+      />
     </div>
   )
 }

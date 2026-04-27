@@ -213,3 +213,9 @@ export async function getAiModelProfile(purpose: AiModelProfilePurpose) {
     profiles.find((profile) => profile.enabled) ||
     null
 }
+
+export async function getAiModelProfileById(profileId: string) {
+  const profiles = await readAiModelProfiles()
+
+  return profiles.find((profile) => profile.id === profileId && profile.enabled) ?? null
+}

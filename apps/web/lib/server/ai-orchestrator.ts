@@ -1,7 +1,9 @@
 import type { ClassificationResponse, Intent, Mode, NextAction } from "@studio/contracts"
 
 import type { AiClassificationResult } from "@/lib/ai-types"
-import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
+import { applyDeterministicClassificationRules } from "@/lib/server/ai-classification-rules"
+import { getAiModelProfile, getAiModelProfileById } from "@/lib/server/ai-model-profiles-store"
+import { recordAiTrace } from "@/lib/server/ai-observability-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { createOpenRouterChatCompletion } from "@/lib/server/openrouter-client"
 
@@ -11,10 +13,14 @@ type ClassificationInput = {
   mediaTypes?: string[]
   conversationState?: string | null
   catalogContext?: string | null
+  artifactContext?: string | null
+  hasBaseImage?: boolean
   recentMessages?: Array<{
     role: "customer" | "assistant" | "operator" | "system"
     content: string
   }>
+  modelProfileId?: string | null
+  systemPrompt?: string | null
 }
 
 const intents = new Set<Intent>(["visual_edit", "commercial_question", "smalltalk", "human_handoff"])
@@ -123,12 +129,68 @@ function heuristicClassification(input: ClassificationInput): AiClassificationRe
   }
 }
 
+async function applyClassificationRulesWithTrace(
+  input: ClassificationInput,
+  result: AiClassificationResult,
+  classificationInputSnapshot: Record<string, unknown>,
+) {
+  const deterministicOverride = applyDeterministicClassificationRules(input, result)
+
+  if (!deterministicOverride) {
+    return result
+  }
+
+  await recordAiTrace({
+    tenantSlug: input.tenantSlug,
+    stage: "classification",
+    status: "warning",
+    event: "classification_overridden_by_rule",
+    details: {
+      rule: deterministicOverride.rule,
+      input: classificationInputSnapshot,
+      previousResult: result,
+      overriddenResult: deterministicOverride.result,
+    },
+  })
+
+  return deterministicOverride.result
+}
+
 export async function classifyInboundMessage(input: ClassificationInput): Promise<AiClassificationResult> {
   const provider = await getActiveOpenRouterProvider()
-  const profile = await getAiModelProfile("classification")
+  const profile = input.modelProfileId
+    ? await getAiModelProfileById(input.modelProfileId) ?? await getAiModelProfile("classification")
+    : await getAiModelProfile("classification")
+
+  const classificationInputSnapshot = {
+    conversationState: input.conversationState || "idle",
+    text: input.text || "",
+    mediaTypes: input.mediaTypes || [],
+    catalogContext: input.catalogContext || "",
+    artifactContext: input.artifactContext || "",
+    recentMessages: input.recentMessages || [],
+    hasBaseImage: Boolean(input.hasBaseImage),
+    modelProfileId: input.modelProfileId || null,
+    resolvedProfileId: profile?.id || null,
+    resolvedProviderId: provider?.id || null,
+  }
 
   if (!provider || !profile) {
-    return heuristicClassification(input)
+    const fallback = heuristicClassification(input)
+    const finalFallback = await applyClassificationRulesWithTrace(input, fallback, classificationInputSnapshot)
+
+    await recordAiTrace({
+      tenantSlug: input.tenantSlug,
+      stage: "classification",
+      status: "warning",
+      event: "classification_fallback_without_provider",
+      details: {
+        input: classificationInputSnapshot,
+        result: finalFallback,
+      },
+    })
+
+    return finalFallback
   }
 
   const recentMessages = (input.recentMessages || [])
@@ -144,7 +206,17 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
     "Intents: visual_edit, commercial_question, smalltalk, human_handoff.",
     "Modes: product, interior, print, fashion ou null.",
     "Next actions: reply_in_chat, ask_for_base_image, ask_for_reference_image, create_composition_job, handoff_to_operator, show_catalog_options.",
-    "Se o cliente pedir cor/tinta/produto e houver catalogContext relevante, prefira show_catalog_options ou create_composition_job se ja houver imagem base.",
+    "Se o cliente pedir cor/tinta/produto e houver catalogContext relevante, prefira show_catalog_options; use create_composition_job somente se tambem houver imagem base e direcao clara de aplicacao.",
+    "Se hasBaseImage=true, considere que ja existe uma imagem anterior utilizavel na conversa; nao peca uma nova imagem base sem necessidade.",
+    "Nunca crie composicao apenas porque existe imagem anterior. Para create_composition_job, precisa haver imagem base, produto/referencia do catalogo e uma direcao clara do que aplicar ou alterar.",
+    "Se faltar produto/referencia do catalogo, peca para o cliente abrir o link do catalogo e escolher o produto. Nao liste produtos no WhatsApp.",
+    "Se faltar direcao de montagem, pergunte o que o cliente quer fazer na imagem e onde aplicar o produto.",
+    "Nao force o cliente a seguir um fluxo linear. Ele pode mudar de assunto, pedir catalogo, enviar SKU, voltar para uma imagem anterior ou pedir outra composicao na mesma conversa.",
+    "Se a mensagem nova tiver uma intencao clara, responda essa intencao em vez de cobrar uma resposta pendente antiga.",
+    "Use artifactContext como memoria da conversa: imagens enviadas, composicoes geradas e produtos selecionados sao conhecimento disponivel para interpretar pedidos naturais.",
+    input.systemPrompt?.trim()
+      ? `Instrucoes especificas do tenant:\n${input.systemPrompt.trim()}`
+      : "",
   ].join("\n")
 
   const userPrompt = JSON.stringify({
@@ -153,6 +225,11 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
     text: input.text || "",
     mediaTypes: input.mediaTypes || [],
     catalogContext: input.catalogContext || "",
+    artifactContext: input.artifactContext || "",
+    hasBaseImage: Boolean(input.hasBaseImage),
+    baseImageContext: input.hasBaseImage
+      ? "A conversa ja tem uma imagem base enviada anteriormente pelo cliente. Use essa imagem como referencia para pedidos subsequentes."
+      : "Ainda nao ha imagem base anterior disponivel na conversa.",
     recentMessages,
   }, null, 2)
 
@@ -167,15 +244,47 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
       ],
     })
     const parsed = firstJsonObject(completion.content)
+    const normalized = normalizeClassification(parsed, "openrouter", completion.model)
+    const finalResult = await applyClassificationRulesWithTrace(input, normalized, classificationInputSnapshot)
 
-    return normalizeClassification(parsed, "openrouter", completion.model)
+    await recordAiTrace({
+      tenantSlug: input.tenantSlug,
+      stage: "classification",
+      status: "success",
+      event: "classification_completed",
+      details: {
+        input: classificationInputSnapshot,
+        systemPrompt,
+        userPrompt,
+        rawResponse: completion.content,
+        result: finalResult,
+      },
+    })
+
+    return finalResult
   } catch (error) {
     const fallback = heuristicClassification(input)
+    const errorMessage = error instanceof Error ? error.message : "erro desconhecido"
+    const finalFallback = await applyClassificationRulesWithTrace(input, fallback, classificationInputSnapshot)
+
+    await recordAiTrace({
+      tenantSlug: input.tenantSlug,
+      stage: "classification",
+      status: "error",
+      event: "classification_failed_with_fallback",
+      errorMessage,
+      details: {
+        input: classificationInputSnapshot,
+        systemPrompt,
+        userPrompt,
+        fallback: finalFallback,
+      },
+    })
 
     return {
-      ...fallback,
+      ...finalFallback,
       needs_human_review: true,
-      rationale: `${fallback.rationale} Falha OpenRouter: ${error instanceof Error ? error.message : "erro desconhecido"}`,
+      rationale: `${finalFallback.rationale} Falha OpenRouter: ${errorMessage}`,
     }
   }
 }
