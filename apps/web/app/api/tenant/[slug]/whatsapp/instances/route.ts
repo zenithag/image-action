@@ -52,7 +52,11 @@ function toInstanceStatus(uazapiStatus: unknown, connected: boolean) {
   return "disconnected" as const
 }
 
-function getPublicWebhookUrl() {
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Nao foi possivel configurar o webhook da UAZAPI."
+}
+
+function getPublicWebhookUrl(channelInstanceId: string) {
   const publicBaseUrl = (
     process.env.APP_PUBLIC_URL ||
     process.env.PUBLIC_APP_URL ||
@@ -65,7 +69,10 @@ function getPublicWebhookUrl() {
     return null
   }
 
-  return `${publicBaseUrl.replace(/\/+$/, "")}/api/webhooks/uazapi`
+  const url = new URL("/api/webhooks/uazapi", publicBaseUrl)
+  url.searchParams.set("channelInstanceId", channelInstanceId)
+
+  return url.toString()
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -157,10 +164,15 @@ export async function POST(request: Request, context: RouteContext) {
       const connected = await connectUazapiInstance(provider, instanceToken)
       const connectedInstance = getUazapiInstance(connected)
       const connectionState = getUazapiConnectionState(connected)
-      const webhookUrl = getPublicWebhookUrl()
+      const webhookUrl = getPublicWebhookUrl(storedInstance.id)
+      let webhookError: string | undefined
 
       if (webhookUrl) {
-        await configureUazapiWebhook(provider, instanceToken, webhookUrl).catch(() => null)
+        try {
+          await configureUazapiWebhook(provider, instanceToken, webhookUrl)
+        } catch (error) {
+          webhookError = getErrorMessage(error)
+        }
       }
 
       const connectedStoredInstance = await updateTenantInstance(slug, storedInstance.id, (instance) => ({
@@ -177,7 +189,7 @@ export async function POST(request: Request, context: RouteContext) {
         phoneNumber: connectionState.phoneNumber,
         syncStartedAt: new Date().toISOString(),
         lastSyncedAt: undefined,
-        lastError: undefined,
+        lastError: webhookError,
         updatedAt: new Date().toISOString(),
       }))
 

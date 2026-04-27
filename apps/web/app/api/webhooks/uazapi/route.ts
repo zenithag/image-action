@@ -9,6 +9,7 @@ import { type UazapiMessage, normalizeUazapiMessageContent } from "@/lib/server/
 export const runtime = "nodejs"
 
 type NormalizedWebhookMessage = {
+  channelInstanceId?: string
   instanceToken?: string
   instanceRef?: string
   externalMessageId?: string
@@ -46,18 +47,50 @@ function getPhoneFromJid(jid: string) {
   return jid.includes("@") ? jid.split("@")[0] : jid
 }
 
-function normalizeWebhookPayload(payload: unknown): NormalizedWebhookMessage {
+function getFirstMessagePayload(value: unknown) {
+  if (Array.isArray(value)) {
+    return asRecord(value.find((item) => Object.keys(asRecord(item)).length > 0))
+  }
+
+  return asRecord(value)
+}
+
+function normalizeWebhookPayload(payload: unknown, requestUrl: string): NormalizedWebhookMessage {
+  const searchParams = new URL(requestUrl).searchParams
   const root = asRecord(payload)
-  const data = asRecord(root.data) && Object.keys(asRecord(root.data)).length > 0 ? asRecord(root.data) : root
+  const rootData = asRecord(root.data)
+  const messagePayload = getFirstMessagePayload(rootData.messages ?? root.messages)
+  const data = Object.keys(messagePayload).length > 0
+    ? messagePayload
+    : Object.keys(rootData).length > 0
+      ? rootData
+      : root
   const message = asRecord(data.message)
   const key = asRecord(data.key ?? message.key ?? root.key)
-  const remoteJid = firstString(key.remoteJid, data.remoteJid, data.from, root.from)
+  const remoteJid = firstString(key.remoteJid, key.senderPn, data.remoteJid, data.from, root.from)
   const externalContactId = remoteJid || firstString(data.chatid, data.chatId, root.chatid, root.chatId)
-  const content = normalizeUazapiMessageContent(data as UazapiMessage)
+  const content = normalizeUazapiMessageContent({
+    ...data,
+    text: firstString(data.text, data.messageBody, data.body, data.content),
+  } as UazapiMessage)
 
   return {
-    instanceToken: firstString(root.token, data.token, root.instanceToken, data.instanceToken),
-    instanceRef: firstString(data.instance, root.instance, data.instanceId, root.instanceId, data.instanceName, root.instanceName),
+    channelInstanceId: firstString(searchParams.get("channelInstanceId"), root.channelInstanceId, data.channelInstanceId),
+    instanceToken: firstString(searchParams.get("instanceToken"), root.token, rootData.token, data.token, root.instanceToken, data.instanceToken),
+    instanceRef: firstString(
+      data.instance,
+      rootData.instance,
+      root.instance,
+      data.instanceId,
+      rootData.instanceId,
+      root.instanceId,
+      data.instanceName,
+      rootData.instanceName,
+      root.instanceName,
+      root.sessionId,
+      rootData.sessionId,
+      data.sessionId
+    ),
     externalMessageId: firstString(key.id, data.id, root.id, data.messageid, root.messageid),
     externalContactId,
     contactName: firstString(data.pushName, root.pushName, data.senderName, root.senderName, data.notifyName, root.notifyName),
@@ -75,7 +108,7 @@ function normalizeWebhookPayload(payload: unknown): NormalizedWebhookMessage {
 
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null) as unknown
-  const normalized = normalizeWebhookPayload(payload)
+  const normalized = normalizeWebhookPayload(payload, request.url)
 
   if (normalized.fromMe) {
     return NextResponse.json({ ok: true, ignored: "from_me" })
@@ -87,6 +120,7 @@ export async function POST(request: Request) {
 
   const instances = await readTenantInstances()
   const instance = instances.find((item) =>
+    (normalized.channelInstanceId && item.id === normalized.channelInstanceId) ||
     (normalized.instanceToken && item.instanceToken === normalized.instanceToken) ||
     (normalized.instanceRef && [item.externalId, item.externalName, item.name].includes(normalized.instanceRef))
   )

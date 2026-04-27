@@ -57,6 +57,7 @@ export type UazapiMessage = {
   fromMe?: boolean
   messageType?: string
   type?: string
+  messageBody?: string
   text?: string
   content?: string
   body?: string
@@ -313,6 +314,7 @@ export function normalizeUazapiMessageContent(message: UazapiMessage): Normalize
   const media = getMediaRecord(message, contentType)
   const text = firstString(
     message.text,
+    message.messageBody,
     message.content,
     message.body,
     message.caption,
@@ -888,7 +890,10 @@ export async function configureUazapiWebhook(provider: StoredProvider, instanceT
       enabled: true,
       url,
       events: ["messages", "history", "connection"],
-      excludeMessages: ["wasSentByApi", "isGroupYes"],
+      excludeMessages: ["wasSentByApi", "fromMeYes", "isGroupYes"],
+      addUrlEvents: false,
+      addUrlTypesMessages: false,
+      action: "add",
     }),
     signal: AbortSignal.timeout(20000),
   })

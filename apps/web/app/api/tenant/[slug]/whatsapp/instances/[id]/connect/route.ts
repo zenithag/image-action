@@ -31,7 +31,11 @@ function toInstanceStatus(uazapiStatus: unknown, connected: boolean) {
   return "disconnected" as const
 }
 
-function getPublicWebhookUrl() {
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Nao foi possivel configurar o webhook da UAZAPI."
+}
+
+function getPublicWebhookUrl(channelInstanceId: string) {
   const publicBaseUrl = (
     process.env.APP_PUBLIC_URL ||
     process.env.PUBLIC_APP_URL ||
@@ -44,7 +48,10 @@ function getPublicWebhookUrl() {
     return null
   }
 
-  return `${publicBaseUrl.replace(/\/+$/, "")}/api/webhooks/uazapi`
+  const url = new URL("/api/webhooks/uazapi", publicBaseUrl)
+  url.searchParams.set("channelInstanceId", channelInstanceId)
+
+  return url.toString()
 }
 
 export async function POST(_request: Request, context: RouteContext) {
@@ -77,10 +84,15 @@ export async function POST(_request: Request, context: RouteContext) {
     const response = await connectUazapiInstance(provider, token)
     const instancePayload = getUazapiInstance(response)
     const connectionState = getUazapiConnectionState(response)
-    const webhookUrl = getPublicWebhookUrl()
+    const webhookUrl = getPublicWebhookUrl(id)
+    let webhookError: string | undefined
 
     if (webhookUrl) {
-      await configureUazapiWebhook(provider, token, webhookUrl).catch(() => null)
+      try {
+        await configureUazapiWebhook(provider, token, webhookUrl)
+      } catch (error) {
+        webhookError = getErrorMessage(error)
+      }
     }
 
     const updatedInstance = await updateTenantInstance(slug, id, (instance) => ({
@@ -95,7 +107,7 @@ export async function POST(_request: Request, context: RouteContext) {
       phoneNumber: connectionState.phoneNumber ?? instance.phoneNumber,
       syncStartedAt: connectionState.connected ? new Date().toISOString() : instance.syncStartedAt,
       lastSyncedAt: connectionState.connected ? undefined : instance.lastSyncedAt,
-      lastError: undefined,
+      lastError: webhookError,
       updatedAt: new Date().toISOString(),
     }))
 
