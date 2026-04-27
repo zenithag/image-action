@@ -38,7 +38,7 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/scripts ./apps/web/scripts
-RUN mkdir -p /app/apps/web/.local /app/apps/web/public/generated
+RUN mkdir -p /app/apps/web/.local /app/apps/web/public/generated/compositions
 VOLUME ["/app/apps/web/.local", "/app/apps/web/public/generated"]
 
 EXPOSE 3000

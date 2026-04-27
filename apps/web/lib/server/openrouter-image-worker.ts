@@ -1640,12 +1640,13 @@ async function normalizeResultToBaseDimensions(bytes: Buffer, mimeType: string, 
 }
 
 async function saveImageResult(job: CompositionJob, bytes: Buffer, mimeType: string, baseImage: BaseImage) {
-  await mkdir(outputDir, { recursive: true })
   const normalized = await normalizeResultToBaseDimensions(bytes, mimeType, baseImage)
   const watermarkedBytes = await applyTenantWatermark(job, normalized.bytes)
   const fileName = getFileName(job, normalized.mimeType)
+  const filePath = path.join(outputDir, fileName)
 
-  await writeFile(path.join(outputDir, fileName), watermarkedBytes)
+  await mkdir(path.dirname(filePath), { recursive: true })
+  await writeFile(filePath, watermarkedBytes)
 
   return `/generated/compositions/${fileName}`
 }
