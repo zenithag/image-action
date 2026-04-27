@@ -20,6 +20,7 @@ import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { findTenantInstance } from "@/lib/server/tenant-channel-instances-store"
 import { recordCompositionTokenDebit } from "@/lib/server/token-ledger-store"
 import { processCompositionWithOpenRouter } from "@/lib/server/openrouter-image-worker"
+import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { sendUazapiImage } from "@/lib/server/uazapi-client"
 
 export type CompositionProcessResult = {
@@ -63,11 +64,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
       }
     )
   })
-}
-
-function getPublicAppBaseUrl() {
-  const baseUrl = process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"
-  return baseUrl.replace(/\/+$/, "")
 }
 
 function getProviderMessageId(payload: unknown) {

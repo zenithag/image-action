@@ -9,6 +9,7 @@ import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
 import { findInboxMessage } from "@/lib/server/inbox-store"
 import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
+import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
@@ -1380,11 +1381,6 @@ function getOpenRouterError(status: number, payload: OpenRouterImageResponse | n
   }
 
   return `OpenRouter respondeu HTTP ${status}.`
-}
-
-function getPublicAppBaseUrl() {
-  const baseUrl = process.env.PUBLIC_APP_URL || process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-  return baseUrl.replace(/\/+$/, "")
 }
 
 function toAbsoluteImageUrl(value: string) {

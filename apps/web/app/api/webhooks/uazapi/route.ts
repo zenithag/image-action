@@ -146,17 +146,20 @@ export async function POST(request: Request) {
     providerMessageId: normalized.externalMessageId,
     rawPayload: payload,
   })
-  const ai = await processInboundMessageWithAi({
+
+  void processInboundMessageWithAi({
     tenantSlug: instance.tenantSlug,
     instance,
     conversationId: result.conversation.id,
     message: result.message,
+  }).catch((error: unknown) => {
+    console.error("UAZAPI webhook AI processing failed", error)
   })
 
   return NextResponse.json({
     ok: true,
     conversationId: result.conversation.id,
     messageId: result.message?.id ?? null,
-    ai,
+    aiQueued: true,
   })
 }

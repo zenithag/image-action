@@ -24,6 +24,7 @@ import {
   updateInboxConversationCompositionSession,
 } from "@/lib/server/inbox-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
+import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import type { StoredTenantChannelInstance } from "@/lib/server/tenant-channel-instances-store"
 import { sendUazapiText } from "@/lib/server/uazapi-client"
@@ -923,11 +924,6 @@ function getAssistantSystemPrompt(settings: Awaited<ReturnType<typeof getTenantS
       : "Categorias permitidas para consulta no WhatsApp: todas as categorias ativas do catalogo.",
     settings.assistant.systemPrompt.trim(),
   ].filter(Boolean).join("\n")
-}
-
-function getPublicAppBaseUrl() {
-  const baseUrl = process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || process.env.AUTH_URL || "http://localhost:3000"
-  return baseUrl.replace(/\/+$/, "")
 }
 
 function getPublicCatalogUrl(tenantSlug: string) {

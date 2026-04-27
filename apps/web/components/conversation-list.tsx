@@ -115,15 +115,21 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
   }
 
   useEffect(() => {
-    void triggerInboxSync()
-    void loadConversations()
+    void loadConversations({ sync: true })
   }, [tenantSlug])
 
   useEffect(() => {
+    let syncTick = 0
+
     const intervalId = window.setInterval(() => {
-      void triggerInboxSync()
+      syncTick += 1
+
+      if (syncTick % 5 === 0) {
+        void triggerInboxSync()
+      }
+
       void loadConversations({ silent: true })
-    }, 8000)
+    }, 3000)
 
     return () => window.clearInterval(intervalId)
   }, [tenantSlug, selectedId])

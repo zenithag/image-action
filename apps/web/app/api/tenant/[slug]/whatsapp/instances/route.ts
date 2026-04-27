@@ -5,6 +5,7 @@ import {
   readProviders,
   selectWhatsappProvider,
 } from "@/lib/server/channel-providers-store"
+import { getPublicWebhookUrl } from "@/lib/server/public-url"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import {
   type StoredTenantChannelInstance,
@@ -54,25 +55,6 @@ function toInstanceStatus(uazapiStatus: unknown, connected: boolean) {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Nao foi possivel configurar o webhook da UAZAPI."
-}
-
-function getPublicWebhookUrl(channelInstanceId: string) {
-  const publicBaseUrl = (
-    process.env.APP_PUBLIC_URL ||
-    process.env.PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXTAUTH_URL ||
-    process.env.AUTH_URL
-  )
-
-  if (!publicBaseUrl || publicBaseUrl.includes("localhost") || publicBaseUrl.includes("127.0.0.1")) {
-    return null
-  }
-
-  const url = new URL("/api/webhooks/uazapi", publicBaseUrl)
-  url.searchParams.set("channelInstanceId", channelInstanceId)
-
-  return url.toString()
 }
 
 export async function GET(_request: Request, context: RouteContext) {
