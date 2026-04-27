@@ -29,6 +29,7 @@ RUN pnpm build
 
 FROM base AS runner
 WORKDIR /app
+RUN apk add --no-cache fontconfig
 ENV NODE_ENV=production
 ENV NODE_OPTIONS=--no-experimental-webstorage
 ENV VISUALFLOW_DATA_DIR=/app/apps/web/.local
