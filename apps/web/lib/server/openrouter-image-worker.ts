@@ -817,7 +817,7 @@ async function normalizeReferenceImageUrl(imageUrl: string) {
     return imageUrl
   }
 
-  const image = await bytesFromImageUrl(toAbsoluteImageUrl(imageUrl))
+  const image = await bytesFromImageUrl(toAbsoluteImageUrl(imageUrl), "imagem de referencia")
   const isNativeImage = /^image\/(?:png|jpe?g|webp)$/i.test(image.mimeType)
 
   if (isNativeImage) {
@@ -884,7 +884,7 @@ async function resolveLegacyMaterialImage(job: CompositionJob) {
 
   if (job.referenceImageUrl) {
     try {
-      const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.referenceImageUrl))
+      const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.referenceImageUrl), "imagem de referencia")
       return `data:${image.mimeType};base64,${image.bytes.toString("base64")}`
     } catch {
       // Reference images are optional. The composition can still use the text prompt.
@@ -962,7 +962,7 @@ function getReferenceImageInstruction(referenceImageCount: number) {
 
 async function bytesFromMaterialUrl(imageUrl: string) {
   if (imageUrl.startsWith("data:")) {
-    return bytesFromImageUrl(imageUrl)
+    return bytesFromImageUrl(imageUrl, "textura do produto")
   }
 
   const response = await fetch(imageUrl, {
@@ -1430,7 +1430,7 @@ async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
 
   if (job.baseImageUrl) {
     try {
-      const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.baseImageUrl))
+      const image = await bytesFromImageUrl(toAbsoluteImageUrl(job.baseImageUrl), "imagem base")
 
       return buildBaseImage(image.bytes, image.mimeType)
     } catch (error) {
@@ -1446,7 +1446,7 @@ async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
 
   throw new Error(
     failedSources.length > 0
-      ? `Nao foi possivel recuperar a imagem base da composicao: ${failedSources.join("; ")}.`
+      ? `Nao foi possivel recuperar a imagem base da composicao: ${failedSources.join("; ")}. Envie ou selecione novamente uma imagem base valida para criar uma nova composicao.`
       : "Job nao possui imagem base vinculada."
   )
 }
@@ -1642,12 +1642,12 @@ function getPayloadNoImageDiagnostic(payload: OpenRouterImageResponse | null) {
   ].filter(Boolean).join("; ")
 }
 
-async function bytesFromImageUrl(imageUrl: string) {
+async function bytesFromImageUrl(imageUrl: string, context = "imagem") {
   if (imageUrl.startsWith("data:")) {
     const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/)
 
     if (!match) {
-      throw new Error("OpenRouter retornou data URL de imagem invalida.")
+      throw new Error(`Data URL invalida para ${context}.`)
     }
 
     return {
@@ -1661,7 +1661,7 @@ async function bytesFromImageUrl(imageUrl: string) {
   })
 
   if (!response.ok) {
-    throw new Error(`Download do resultado OpenRouter falhou com HTTP ${response.status}.`)
+    throw new Error(`Falha ao baixar ${context}: HTTP ${response.status}.`)
   }
 
   const mimeType = response.headers.get("content-type") || "image/png"
@@ -1762,7 +1762,7 @@ async function requestOpenRouterImage(
     )
   }
 
-  const image = await bytesFromImageUrl(imageUrl)
+  const image = await bytesFromImageUrl(imageUrl, "resultado OpenRouter")
 
   return {
     ...image,
