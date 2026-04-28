@@ -108,7 +108,7 @@ export type InboxMessage = {
   mediaSize?: number
   mediaDurationSeconds?: number
   providerMessageId?: string
-  status?: "sent" | "delivered" | "read"
+  status?: "sent" | "delivered" | "read" | "failed"
   rawPayload?: unknown
   createdAt: string
 }

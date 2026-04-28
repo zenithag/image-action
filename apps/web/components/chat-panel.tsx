@@ -7,6 +7,7 @@ import type { InboxConversationSummary, InboxMessage } from "@/lib/inbox-types"
 import type { StudioDraft, StudioImageSlot } from "@/lib/studio-draft"
 import { getStudioDraftStorageKey } from "@/lib/studio-draft"
 import {
+  AlertCircle,
   Bot,
   CheckCheck,
   Download,
@@ -599,6 +600,12 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
                         msg.direction === "outbound" ? "text-current/70" : "text-muted-foreground"
                       )}>
                         <span>{formatMessageTime(msg.createdAt)}</span>
+                        {msg.direction === "outbound" && msg.status === "failed" && (
+                          <span className="inline-flex items-center gap-1 font-medium text-destructive" title="Nao enviado ao WhatsApp">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Nao enviado
+                          </span>
+                        )}
                         {msg.direction === "outbound" && msg.status === "read" && (
                           <CheckCheck className="h-3.5 w-3.5 text-sky-500" />
                         )}

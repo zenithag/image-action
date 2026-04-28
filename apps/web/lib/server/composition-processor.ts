@@ -29,6 +29,12 @@ export type CompositionProcessResult = {
   message: string
 }
 
+type CompositionDeliveryResult = {
+  sent: boolean
+  providerMessageId?: string
+  reason?: string
+}
+
 const tenantProcessingLoops = new Map<string, Promise<void>>()
 
 function getCompositionJobTimeoutMs() {
@@ -77,16 +83,24 @@ function getProviderMessageId(payload: unknown) {
   return typeof id === "string" ? id : undefined
 }
 
-async function maybeAutoSendCompositionToWhatsapp(job: CompositionJob, resultImageUrl: string, caption: string) {
+async function maybeAutoSendCompositionToWhatsapp(
+  job: CompositionJob,
+  resultImageUrl: string,
+  caption: string
+): Promise<CompositionDeliveryResult> {
   const settings = await getTenantSettings(job.tenantSlug)
 
-  if (!settings.channels.whatsappEnabled || !settings.channels.autoSendCompositionsToWhatsapp) {
-    return undefined
+  if (!settings.channels.whatsappEnabled) {
+    return { sent: false, reason: "whatsapp_disabled" }
+  }
+
+  if (!settings.channels.autoSendCompositionsToWhatsapp && job.source !== "operator") {
+    return { sent: false, reason: "auto_send_disabled" }
   }
 
   const instance = await findTenantInstance(job.tenantSlug, job.channelInstanceId)
   if (!instance?.connected || !instance.instanceToken) {
-    return undefined
+    return { sent: false, reason: "whatsapp_instance_not_connected" }
   }
 
   const provider = (await readProviders()).find((item) =>
@@ -97,14 +111,14 @@ async function maybeAutoSendCompositionToWhatsapp(job: CompositionJob, resultIma
   )
 
   if (!provider) {
-    return undefined
+    return { sent: false, reason: "uazapi_provider_not_found" }
   }
 
   const conversation = await findInboxConversation(job.tenantSlug, job.conversationId)
   const phone = job.contactPhone || conversation?.contact.phone || conversation?.externalContactId
 
   if (!phone) {
-    return undefined
+    return { sent: false, reason: "recipient_not_found" }
   }
 
   const payload = await sendUazapiImage(
@@ -116,7 +130,10 @@ async function maybeAutoSendCompositionToWhatsapp(job: CompositionJob, resultIma
     instance.externalName ?? instance.name,
   )
 
-  return getProviderMessageId(payload)
+  return {
+    sent: true,
+    providerMessageId: getProviderMessageId(payload),
+  }
 }
 
 function getCompositionCompletionCaption(job: CompositionJob, comparisonUrl: string | null) {
@@ -167,12 +184,19 @@ async function notifyCompositionCompleted(job: CompositionJob, resultImageUrl: s
     ),
   }))
 
-  let providerMessageId = existingResultMessage?.providerMessageId
+  let deliveryResult: CompositionDeliveryResult = existingResultMessage?.providerMessageId
+    ? { sent: true, providerMessageId: existingResultMessage.providerMessageId }
+    : { sent: false, reason: "not_attempted" }
 
-  if (!providerMessageId) {
+  if (!deliveryResult.providerMessageId) {
     try {
-      providerMessageId = await maybeAutoSendCompositionToWhatsapp(job, resultImageUrl, caption)
+      deliveryResult = await maybeAutoSendCompositionToWhatsapp(job, resultImageUrl, caption)
     } catch (error) {
+      deliveryResult = {
+        sent: false,
+        reason: error instanceof Error ? error.message : "Falha ao enviar composicao para o WhatsApp.",
+      }
+
       await recordAiTrace({
         tenantSlug: job.tenantSlug,
         conversationId: job.conversationId,
@@ -180,9 +204,23 @@ async function notifyCompositionCompleted(job: CompositionJob, resultImageUrl: s
         stage: "composition",
         status: "error",
         event: "composition_delivery_failed",
-        errorMessage: error instanceof Error ? error.message : "Falha ao enviar composicao para o WhatsApp.",
+        errorMessage: deliveryResult.reason,
       })
     }
+  }
+
+  if (!deliveryResult.sent && deliveryResult.reason && deliveryResult.reason !== "not_attempted") {
+    await recordAiTrace({
+      tenantSlug: job.tenantSlug,
+      conversationId: job.conversationId,
+      jobId: job.id,
+      stage: "composition",
+      status: "warning",
+      event: "composition_delivery_not_sent",
+      details: {
+        reason: deliveryResult.reason,
+      },
+    })
   }
 
   if (!existingResultMessage) {
@@ -194,15 +232,23 @@ async function notifyCompositionCompleted(job: CompositionJob, resultImageUrl: s
       mediaUrl: resultImageUrl,
       mediaMimeType: "image/png",
       mediaFileName: `composicao-${job.id.slice(0, 8)}.png`,
-      providerMessageId,
+      providerMessageId: deliveryResult.providerMessageId,
+      status: deliveryResult.sent ? "sent" : "failed",
       state: "completed",
       handledBy: "ai",
     })
   } else {
-    if (providerMessageId && providerMessageId !== existingResultMessage.providerMessageId) {
+    if (deliveryResult.providerMessageId && deliveryResult.providerMessageId !== existingResultMessage.providerMessageId) {
       await updateInboxMessage(job.tenantSlug, job.conversationId, existingResultMessage.id, {
-        providerMessageId,
+        providerMessageId: deliveryResult.providerMessageId,
         status: "sent",
+        content: caption,
+        mediaUrl: resultImageUrl,
+        imageUrl: resultImageUrl,
+      })
+    } else if (!deliveryResult.sent && existingResultMessage.status !== "failed") {
+      await updateInboxMessage(job.tenantSlug, job.conversationId, existingResultMessage.id, {
+        status: "failed",
         content: caption,
         mediaUrl: resultImageUrl,
         imageUrl: resultImageUrl,
@@ -211,7 +257,7 @@ async function notifyCompositionCompleted(job: CompositionJob, resultImageUrl: s
 
     await updateInboxConversation(job.tenantSlug, job.conversationId, {
       state: "completed",
-      status: "waiting_customer",
+      status: deliveryResult.sent ? "waiting_customer" : "waiting_operator",
       lastMessage: caption,
       lastMessageAt: new Date().toISOString(),
     })

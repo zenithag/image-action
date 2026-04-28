@@ -549,6 +549,7 @@ export async function appendAssistantInboxMediaMessage(input: {
   mediaMimeType?: string
   mediaFileName?: string
   providerMessageId?: string
+  status?: InboxMessage["status"]
   state?: InboxConversationSummary["state"]
   handledBy?: InboxConversationSummary["handledBy"]
 }) {
@@ -579,7 +580,7 @@ export async function appendAssistantInboxMediaMessage(input: {
       mediaMimeType: input.mediaMimeType,
       mediaFileName: input.mediaFileName,
       providerMessageId: input.providerMessageId,
-      status: "sent",
+      status: input.status ?? (input.providerMessageId ? "sent" : "failed"),
       createdAt: now,
     }
     const handledBy = input.handledBy ?? conversation.handledBy
