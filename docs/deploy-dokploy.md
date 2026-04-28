@@ -50,6 +50,6 @@ O seed usa `SEED_SUPERADMIN_*` e, se essas variaveis nao existirem, usa `AUTH_BO
 
 ## Observacoes
 
-- O compose atual sobe somente `web` e `segmentation-service`, porque o fluxo ativo de catalogo, inbox, WhatsApp e composicoes roda pelas rotas do Next.js.
+- O compose atual sobe `web`, `app-job-worker` e `segmentation-service`. O `app-job-worker` usa a mesma imagem do web, mas roda em porta interna e drena a fila de jobs sem expor rota publica.
 - O primeiro processamento de segmentacao pode demorar porque os modelos sao baixados para o cache do container.
 - No Dokploy, variaveis da aba Environment sao escritas no `.env` do deploy e precisam estar referenciadas no compose. Este arquivo ja referencia as variaveis necessarias.

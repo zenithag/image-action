@@ -51,6 +51,53 @@ services:
     expose:
       - "3000"
 
+  app-job-worker:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${APP_URL}
+        NEXT_PUBLIC_API_URL: ${APP_URL}
+        NEXT_PUBLIC_WS_URL: ${APP_URL}
+        NEXT_PUBLIC_ENABLE_WS: "false"
+    restart: unless-stopped
+    command: >
+      sh -c "node apps/web/server.js &
+      until wget -q -O /dev/null http://127.0.0.1:3001; do sleep 1; done;
+      while true; do
+        wget -q -O /dev/null
+          --method=POST
+          --header=\"x-app-job-worker-token: $${NEXTAUTH_SECRET}\"
+          http://127.0.0.1:3001/api/internal/app-jobs/process || true;
+        sleep $${APP_JOB_WORKER_INTERVAL_SECONDS:-2};
+      done"
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --no-experimental-webstorage
+      HOSTNAME: 0.0.0.0
+      PORT: 3001
+      APP_JOB_WORKER_INTERVAL_SECONDS: ${APP_JOB_WORKER_INTERVAL_SECONDS:-2}
+      VISUALFLOW_DATA_DIR: /app/apps/web/.local
+      VISUALFLOW_PUBLIC_DIR: /app/apps/web/public
+      DATABASE_URL: ${DATABASE_URL:?Configure DATABASE_URL in Dokploy}
+      NEXTAUTH_URL: ${APP_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
+      AUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
+      AUTH_TRUST_HOST: "true"
+      NEXT_PUBLIC_APP_URL: ${APP_URL}
+      SEGMENTATION_SERVICE_URL: http://segmentation-service:8010
+      OPENROUTER_SITE_URL: ${APP_URL}
+      OPENROUTER_SITE_NAME: ${OPENROUTER_SITE_NAME:-ComoFica}
+      OPENROUTER_IMAGE_QUALITY: ${OPENROUTER_IMAGE_QUALITY:-medium}
+      OPENROUTER_IMAGE_OUTPUT_FORMAT: ${OPENROUTER_IMAGE_OUTPUT_FORMAT:-png}
+      OPENROUTER_MASK_MODEL: ${OPENROUTER_MASK_MODEL:-anthropic/claude-sonnet-4.5}
+    volumes:
+      - web_data:/app/apps/web/.local
+      - web_generated:/app/apps/web/public/generated
+    depends_on:
+      - web
+      - segmentation-service
+
   segmentation-service:
     build:
       context: ./services/segmentation-service
