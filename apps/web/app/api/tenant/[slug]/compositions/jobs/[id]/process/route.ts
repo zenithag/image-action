@@ -13,8 +13,12 @@ export async function POST(_request: Request, context: RouteContext) {
   const result = await processCompositionJob(slug, id)
 
   if (!result.job) {
-    return NextResponse.json(result, { status: 404 })
+    return NextResponse.json({ ...result, error: result.message }, { status: 404 })
   }
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 422 })
+  if (!result.ok) {
+    return NextResponse.json({ ...result, error: result.message }, { status: 422 })
+  }
+
+  return NextResponse.json(result)
 }

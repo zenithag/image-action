@@ -12,5 +12,9 @@ export async function POST(_request: Request, context: RouteContext) {
   const { slug } = await context.params
   const result = await processNextCompositionJob(slug)
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 422 })
+  if (!result.ok) {
+    return NextResponse.json({ ...result, error: result.message }, { status: 422 })
+  }
+
+  return NextResponse.json(result)
 }
