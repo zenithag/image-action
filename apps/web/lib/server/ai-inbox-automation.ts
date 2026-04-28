@@ -107,6 +107,42 @@ function getRecentBaseImageMessages(messages: InboxMessage[], limit = 5) {
     .slice(0, limit)
 }
 
+function hasOutboundReplyAfterMessage(messages: InboxMessage[], message: InboxMessage) {
+  const messageTime = getMessageTime(message.createdAt)
+
+  return messages.some((item) =>
+    item.direction === "outbound" &&
+    (item.role === "assistant" || item.role === "operator") &&
+    getMessageTime(item.createdAt) > messageTime
+  )
+}
+
+function isAlbumNotice(text: string) {
+  return /^album:\s*\d+\s*(image|images|imagem|imagens)/i.test(text.trim())
+}
+
+function shouldDeferAlbumImageReply(messages: InboxMessage[], message: InboxMessage) {
+  if (message.contentType !== "image" || message.content.trim() !== "Imagem recebida") {
+    return false
+  }
+
+  const messageTime = getMessageTime(message.createdAt)
+
+  return [...messages].reverse().some((item) => {
+    if (item.id === message.id || item.direction !== "inbound") {
+      return false
+    }
+
+    const elapsedMs = messageTime - getMessageTime(item.createdAt)
+
+    if (elapsedMs < 0 || elapsedMs > 90_000) {
+      return false
+    }
+
+    return item.contentType === "text" && isAlbumNotice(item.content)
+  })
+}
+
 function isClientReferenceImageInstruction(text: string) {
   const normalized = normalizeSearchText(text)
 
@@ -147,6 +183,23 @@ function getComoFicaTriggerMatch(text: string) {
 
 function isComoFicaAutoStartRequest(text: string) {
   return Boolean(getComoFicaTriggerMatch(text))
+}
+
+function isUseRecentImagesRequest(text: string) {
+  const normalized = normalizeSearchText(text)
+
+  return includesAny(normalized, [
+    "essas imagens",
+    "estas imagens",
+    "as imagens",
+    "duas imagens",
+    "ambas imagens",
+    "ambas as imagens",
+    "quero usar essas",
+    "quero usar elas",
+    "usar essas imagens",
+    "usar as duas",
+  ])
 }
 
 function toSessionProduct(item: CatalogItem, color?: string): InboxCompositionSessionProduct {
@@ -1320,6 +1373,14 @@ export async function processInboundMessageWithAi(input: {
     return { ok: true, skipped: "operator_conversation" }
   }
 
+  if (hasOutboundReplyAfterMessage(messages, inboundMessage)) {
+    return { ok: true, skipped: "inbound_message_already_replied" }
+  }
+
+  if (shouldDeferAlbumImageReply(messages, inboundMessage)) {
+    return { ok: true, skipped: "album_image_reply_deferred" }
+  }
+
   if (!settings.channels.whatsappEnabled) {
     await recordAiTrace({
       tenantSlug: input.tenantSlug,
@@ -1341,8 +1402,10 @@ export async function processInboundMessageWithAi(input: {
     await updateInboxConversation(input.tenantSlug, input.conversationId, {
       handledBy: "ai",
       status: "open",
-      state: "collecting_preferences",
+      state: conversation.state,
     })
+
+    return { ok: true, skipped: "ai_handoff_triggered" }
   }
 
   if (!settings.assistant.enabled) {
@@ -1430,14 +1493,20 @@ export async function processInboundMessageWithAi(input: {
   )
   const recentBaseImageMessages = getRecentBaseImageMessages(messages)
   const latestBaseImageMessage = recentBaseImageMessages[0] ?? getLatestBaseImageMessage(messages)
+  const inferredImagePair = inboundMessage.contentType === "text" &&
+    isUseRecentImagesRequest(inboundMessage.content) &&
+    recentBaseImageMessages.length >= 2
   const currentImageAsClientReference = inboundMessage.contentType === "image" &&
     (
       compositionSession.step === "awaiting_reference_image" ||
       isClientReferenceImageInstruction(inboundMessage.content)
     )
   const clientReferenceImageMessage = currentImageAsClientReference ? inboundMessage : null
+  const inferredReferenceImageMessage = inferredImagePair ? recentBaseImageMessages[1] : null
   const effectiveLatestBaseImageMessage = clientReferenceImageMessage
     ? recentBaseImageMessages.find((message) => message.id !== inboundMessage.id) ?? latestBaseImageMessage
+    : inferredImagePair
+      ? recentBaseImageMessages[0]
     : latestBaseImageMessage
   const sessionReferenceImage = compositionSession.referenceImage
   const compositionJobs = await listCompositionJobs(input.tenantSlug)
@@ -1550,6 +1619,27 @@ export async function processInboundMessageWithAi(input: {
         imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
         label: "imagem de referência enviada pelo cliente",
         createdAt: inboundMessage.createdAt,
+      },
+      pendingBaseChoice: false,
+    }))
+  }
+
+  if (inferredReferenceImageMessage && effectiveLatestBaseImageMessage) {
+    setCompositionSession((session) => ({
+      ...session,
+      baseImage: {
+        kind: "base",
+        messageId: effectiveLatestBaseImageMessage.id,
+        imageUrl: getMessageMediaUrl(input.tenantSlug, effectiveLatestBaseImageMessage),
+        label: "imagem enviada pelo cliente",
+        createdAt: effectiveLatestBaseImageMessage.createdAt,
+      },
+      referenceImage: {
+        kind: "reference",
+        messageId: inferredReferenceImageMessage.id,
+        imageUrl: getMessageMediaUrl(input.tenantSlug, inferredReferenceImageMessage),
+        label: "imagem de referência enviada pelo cliente",
+        createdAt: inferredReferenceImageMessage.createdAt,
       },
       pendingBaseChoice: false,
     }))
@@ -1750,13 +1840,18 @@ export async function processInboundMessageWithAi(input: {
     }))
   }
 
-  const hasVisualReferenceForComposition = Boolean(primaryReference || clientReferenceImageMessage || sessionReferenceImage)
+  const hasVisualReferenceForComposition = Boolean(
+    primaryReference ||
+    clientReferenceImageMessage ||
+    inferredReferenceImageMessage ||
+    sessionReferenceImage
+  )
   const currentMessageHasCatalogProduct = Boolean(
     skuReference ||
     productReferences.length > 0 ||
     colorReferences.length > 0
   )
-  const currentMessageHasVisualReference = Boolean(currentMessageHasCatalogProduct || clientReferenceImageMessage)
+  const currentMessageHasVisualReference = Boolean(currentMessageHasCatalogProduct || clientReferenceImageMessage || inferredReferenceImageMessage)
   const currentMessageHasDirection = hasSpecificCompositionDirection(inboundMessage.content)
   const hasDirectionForComposition = currentMessageHasVisualReference
     ? currentMessageHasDirection
@@ -1856,6 +1951,12 @@ export async function processInboundMessageWithAi(input: {
           imageUrl: getMessageMediaUrl(input.tenantSlug, clientReferenceImageMessage),
           label: "imagem de referência enviada pelo cliente",
         }
+        : inferredReferenceImageMessage
+          ? {
+            messageId: inferredReferenceImageMessage.id,
+            imageUrl: getMessageMediaUrl(input.tenantSlug, inferredReferenceImageMessage),
+            label: "imagem de referência enviada pelo cliente",
+          }
         : sessionReferenceImage
           ? {
             messageId: sessionReferenceImage.messageId,
