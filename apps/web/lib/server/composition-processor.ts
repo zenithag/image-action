@@ -72,7 +72,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   })
 }
 
-function getProviderMessageId(payload: unknown) {
+function getProviderMessageId(payload: unknown): string | undefined {
   if (typeof payload !== "object" || !payload) {
     return undefined
   }
@@ -80,7 +80,21 @@ function getProviderMessageId(payload: unknown) {
   const record = payload as Record<string, unknown>
   const id = record.id ?? record.messageid ?? record.messageId
 
-  return typeof id === "string" ? id : undefined
+  if (typeof id === "string") {
+    return id
+  }
+
+  const nestedPayloads = [record.message, record.data, record.result, record.response]
+
+  for (const nestedPayload of nestedPayloads) {
+    const nestedId: string | undefined = getProviderMessageId(nestedPayload)
+
+    if (nestedId) {
+      return nestedId
+    }
+  }
+
+  return undefined
 }
 
 async function maybeAutoSendCompositionToWhatsapp(
@@ -238,7 +252,10 @@ async function notifyCompositionCompleted(job: CompositionJob, resultImageUrl: s
       handledBy: "ai",
     })
   } else {
-    if (deliveryResult.providerMessageId && deliveryResult.providerMessageId !== existingResultMessage.providerMessageId) {
+    if (deliveryResult.sent && (
+      existingResultMessage.status !== "sent" ||
+      deliveryResult.providerMessageId !== existingResultMessage.providerMessageId
+    )) {
       await updateInboxMessage(job.tenantSlug, job.conversationId, existingResultMessage.id, {
         providerMessageId: deliveryResult.providerMessageId,
         status: "sent",

@@ -4,6 +4,7 @@ import sharp from "sharp"
 
 import type { StoredProvider } from "@/lib/server/channel-providers-store"
 import type { InboxMessageContentType } from "@/lib/inbox-types"
+import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimePublicDir } from "@/lib/server/runtime-paths"
 
 export type UazapiInstancePayload = {
@@ -565,8 +566,12 @@ function getMediaMimeType(imageUrl: string) {
   return getDataUrlMedia(imageUrl)?.mimeType || "image/png"
 }
 
-function getMediaPayload(imageUrl: string) {
-  return getDataUrlMedia(imageUrl)?.base64 || imageUrl
+function getPublicMediaUrl(imageUrl: string) {
+  if (!imageUrl.startsWith("/")) {
+    return imageUrl
+  }
+
+  return new URL(imageUrl, getPublicAppBaseUrl()).toString()
 }
 
 function getPublicFilePathFromMediaUrl(imageUrl: string) {
@@ -714,6 +719,7 @@ export async function sendUazapiImage(
 ) {
   assertUazapiBaseUrl(provider)
   const recipient = normalizeUazapiRecipient(number)
+  const publicImageUrl = getPublicMediaUrl(imageUrl)
   const embeddedMediaBytes = await getMediaBytes(imageUrl)
   const shouldSendAsUpload = Boolean(embeddedMediaBytes)
 
@@ -725,7 +731,7 @@ export async function sendUazapiImage(
       "/send/image",
       {
         number: recipient,
-        url: imageUrl,
+        url: publicImageUrl,
         caption,
         readchat: true,
       },
@@ -748,7 +754,7 @@ export async function sendUazapiImage(
     ? await prepareImageBytesForWhatsapp(embeddedMediaBytes, initialMimeType)
     : null
   const mimeType = preparedEmbeddedMedia?.mimeType ?? initialMimeType
-  const media = preparedEmbeddedMedia ? preparedEmbeddedMedia.bytes.toString("base64") : getMediaPayload(imageUrl)
+  const media = preparedEmbeddedMedia ? preparedEmbeddedMedia.bytes.toString("base64") : null
   const fileName = mimeType.includes("jpeg") || mimeType.includes("jpg")
     ? "imagem.jpg"
     : "imagem.png"
@@ -792,26 +798,26 @@ export async function sendUazapiImage(
     body: Record<string, unknown>
     headers: Record<string, string>
   }> = [
-    {
+    ...(media ? [{
       pathname: "/send/media",
       body: uazapiMediaBody,
       headers: {},
-    },
-    ...endpointInstances.flatMap((endpointInstance) => [
-    {
-      pathname: `/message/sendMedia/${encodeURIComponent(endpointInstance)}`,
-      body: flatMediaBody,
-      headers: { apikey: instanceToken },
-    },
-    {
-      pathname: `/message/sendMedia/${encodeURIComponent(endpointInstance)}`,
-      body: nestedMediaBody,
-      headers: { apikey: instanceToken },
-    },
-  ])]
+    }] : []),
+    ...(media ? endpointInstances.flatMap((endpointInstance) => [
+      {
+        pathname: `/message/sendMedia/${encodeURIComponent(endpointInstance)}`,
+        body: flatMediaBody,
+        headers: { apikey: instanceToken },
+      },
+      {
+        pathname: `/message/sendMedia/${encodeURIComponent(endpointInstance)}`,
+        body: nestedMediaBody,
+        headers: { apikey: instanceToken },
+      },
+    ]) : [])]
 
   fallbackAttempts.push(
-    {
+    ...(media ? [{
       pathname: "/message/sendMedia",
       body: flatMediaBody,
       headers: { apikey: instanceToken },
@@ -820,7 +826,7 @@ export async function sendUazapiImage(
       pathname: "/message/sendMedia",
       body: nestedMediaBody,
       headers: { apikey: instanceToken },
-    },
+    }] : []),
     {
       pathname: "/send/media",
       body: {
@@ -828,9 +834,7 @@ export async function sendUazapiImage(
         type: "image",
         mediaType: "image",
         mimetype: mimeType,
-        url: imageUrl,
-        media,
-        file: media,
+        url: publicImageUrl,
         caption,
         text: caption,
         fileName,
@@ -855,7 +859,7 @@ export async function sendUazapiImage(
 
   const mediaBytes = preparedEmbeddedMedia?.bytes ??
     embeddedMediaBytes ??
-    await getMediaBytes(imageUrl, { allowRemote: true })
+    await getMediaBytes(publicImageUrl, { allowRemote: true })
 
   if (mediaBytes) {
     const multipartAttempts: Array<{ pathname: string; headers: Record<string, string> }> = [
