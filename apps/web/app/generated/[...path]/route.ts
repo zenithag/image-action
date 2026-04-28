@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
+import { readGeneratedAsset } from "@/lib/server/generated-assets-store"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
 
 export const runtime = "nodejs"
@@ -29,6 +30,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const generatedRoot = getRuntimeGeneratedDir()
   const filePath = path.resolve(generatedRoot, ...requestedPath)
   const rootPath = path.resolve(generatedRoot)
+  const generatedPath = `/generated/${requestedPath.join("/")}`
 
   if (!filePath.startsWith(`${rootPath}${path.sep}`)) {
     return NextResponse.json({ error: "Arquivo invalido." }, { status: 400 })
@@ -51,6 +53,18 @@ export async function GET(_request: Request, context: RouteContext) {
       },
     })
   } catch {
-    return NextResponse.json({ error: "Arquivo nao encontrado." }, { status: 404 })
+    const persistedAsset = await readGeneratedAsset(generatedPath)
+
+    if (!persistedAsset) {
+      return NextResponse.json({ error: "Arquivo nao encontrado." }, { status: 404 })
+    }
+
+    return new NextResponse(persistedAsset.bytes, {
+      headers: {
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Length": String(persistedAsset.bytes.byteLength),
+        "Content-Type": persistedAsset.mimeType,
+      },
+    })
   }
 }

@@ -7,6 +7,7 @@ import type { CompositionJob, CompositionJobReference } from "@/lib/composition-
 import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
+import { saveGeneratedAsset } from "@/lib/server/generated-assets-store"
 import { findInboxMessage, listInboxMessages } from "@/lib/server/inbox-store"
 import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
@@ -1699,7 +1700,12 @@ async function saveImageResult(job: CompositionJob, bytes: Buffer, mimeType: str
   await mkdir(path.dirname(filePath), { recursive: true })
   await writeFile(filePath, watermarkedBytes)
 
-  return `/generated/compositions/${fileName}`
+  const resultPath = `/generated/compositions/${fileName}`
+  const watermarkedMimeType = watermarkedBytes === normalized.bytes ? normalized.mimeType : "image/png"
+
+  await saveGeneratedAsset(resultPath, watermarkedBytes, watermarkedMimeType)
+
+  return resultPath
 }
 
 function getImageGenerationModels(primaryModel: string, fallbackModelIds: string[]) {
