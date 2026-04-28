@@ -1408,24 +1408,22 @@ async function buildBaseImage(bytes: Buffer, mimeType: string): Promise<BaseImag
 }
 
 async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
+  const failedSources: string[] = []
+
   if (job.baseMessageId) {
     const message = await findInboxMessage(job.tenantSlug, job.conversationId, job.baseMessageId)
 
     if (!message) {
-      throw new Error("Mensagem base da composicao nao foi encontrada.")
-    }
+      failedSources.push("mensagem base nao encontrada")
+    } else if (message.contentType !== "image") {
+      failedSources.push("mensagem base nao e imagem")
+    } else {
+      try {
+        const media = await resolveWhatsAppMedia(message)
 
-    if (message.contentType !== "image") {
-      throw new Error("Mensagem base da composicao nao e uma imagem.")
-    }
-
-    try {
-      const media = await resolveWhatsAppMedia(message)
-
-      return buildBaseImage(media.bytes, media.mimeType)
-    } catch (error) {
-      if (!isMissingGeneratedMediaError(error)) {
-        throw error
+        return buildBaseImage(media.bytes, media.mimeType)
+      } catch (error) {
+        failedSources.push(error instanceof Error ? error.message : "falha ao carregar midia da mensagem base")
       }
     }
   }
@@ -1436,9 +1434,7 @@ async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
 
       return buildBaseImage(image.bytes, image.mimeType)
     } catch (error) {
-      if (!isMissingGeneratedMediaError(error)) {
-        throw error
-      }
+      failedSources.push(error instanceof Error ? error.message : "falha ao carregar URL da imagem base")
     }
   }
 
@@ -1448,7 +1444,11 @@ async function getBaseImage(job: CompositionJob): Promise<BaseImage> {
     return fallback
   }
 
-  throw new Error("Job nao possui imagem base vinculada.")
+  throw new Error(
+    failedSources.length > 0
+      ? `Nao foi possivel recuperar a imagem base da composicao: ${failedSources.join("; ")}.`
+      : "Job nao possui imagem base vinculada."
+  )
 }
 
 function isMissingGeneratedMediaError(error: unknown) {

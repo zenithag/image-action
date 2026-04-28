@@ -187,10 +187,29 @@ function firstString(...values: unknown[]) {
 
 function normalizeUazapiRecipient(value: string) {
   const contact = value.trim()
-  const withoutJidSuffix = contact.includes("@") ? contact.split("@")[0] : contact
-  const digits = withoutJidSuffix.replace(/\D/g, "")
 
-  return digits || withoutJidSuffix
+  if (!contact) {
+    return contact
+  }
+
+  const jidMatch = contact.match(/^(.+)@([a-z0-9.-]+)$/i)
+
+  if (jidMatch) {
+    const [, user, domain] = jidMatch
+    const normalizedDomain = domain.toLowerCase()
+
+    if (normalizedDomain === "s.whatsapp.net" || normalizedDomain === "c.us") {
+      const digits = user.replace(/\D/g, "")
+
+      return digits || user
+    }
+
+    return contact
+  }
+
+  const digits = contact.replace(/\D/g, "")
+
+  return digits || contact
 }
 
 function asFiniteNumber(value: unknown) {

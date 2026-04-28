@@ -22,6 +22,9 @@
 5. **[2026-04-26] Mídia gerada local não pode ir para UAZAPI como URL localhost**
    Do instead: para `/generated/...`, ler o arquivo do `public`, otimizar para JPEG menor e enviar via `/send/media` com `file` base64 e `text` caption; `localhost` só deve ficar para preview interno, nunca como fonte remota da UAZAPI.
 
+6. **[2026-04-28] UAZAPI diferencia telefone de JID**
+   Do instead: normalizar apenas telefones e JIDs `@s.whatsapp.net`/`@c.us` para dígitos; preservar destinatários `@lid` e `@g.us` completos para não quebrar envio.
+
 ## Shell & Command Reliability
 1. **[2026-04-05] pnpm 10.30.0 é o package manager**
    Do instead: sempre usar `pnpm` (não npm/yarn). Workspace definido em `pnpm-workspace.yaml` com `apps/*` e `packages/*`.
