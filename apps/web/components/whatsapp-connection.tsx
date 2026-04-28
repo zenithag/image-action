@@ -86,7 +86,23 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
     [instances, activeInstanceId]
   )
   const status: ConnectionStatus = activeInstance?.status ?? "disconnected"
-  const qrCode = activeInstance?.qrcode
+  const canReconnectActiveInstance = Boolean(activeInstance && activeInstance.status !== "connected")
+  const qrCode = canReconnectActiveInstance ? activeInstance?.qrcode : undefined
+
+  const applyActiveInstance = (instance: TenantWhatsappInstance) => {
+    setActiveInstanceId(instance.id)
+
+    if (instance.status === "connected") {
+      setConnectionName("")
+      setSavedName("")
+      setStep("name")
+      return
+    }
+
+    setConnectionName("")
+    setSavedName(instance.name)
+    setStep("qrcode")
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -113,9 +129,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
           data[0]
 
         if (preferredInstance) {
-          setActiveInstanceId(preferredInstance.id)
-          setSavedName(preferredInstance.name)
-          setStep("qrcode")
+          applyActiveInstance(preferredInstance)
         }
       } catch (loadError) {
         if (isMounted) {
@@ -161,6 +175,11 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
     const name = savedName.trim()
     if (!name || isLoading) return
 
+    if (activeInstance?.status === "connected") {
+      setError("Essa instância já está conectada. Para adicionar outro número, informe um novo nome de instância.")
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
@@ -189,9 +208,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
 
       const instance = payload as TenantWhatsappInstance
       setInstances((current) => upsertInstance(current, instance))
-      setActiveInstanceId(instance.id)
-      setSavedName(instance.name)
-      setStep("qrcode")
+      applyActiveInstance(instance)
 
       if (!instance.qrcode && !instance.connected && !instance.paircode) {
         setError("Instancia criada, mas a UAZAPI ainda nao retornou QR Code. Clique em Atualizar QR Code.")
@@ -228,7 +245,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
 
       const instance = payload as TenantWhatsappInstance
       setInstances((current) => upsertInstance(current, instance))
-      setActiveInstanceId(instance.id)
+      applyActiveInstance(instance)
     } catch (statusError) {
       if (!options?.silent) {
         setError(statusError instanceof Error ? statusError.message : "Erro ao consultar status.")
@@ -249,9 +266,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
   }
 
   const selectInstance = (instance: TenantWhatsappInstance) => {
-    setActiveInstanceId(instance.id)
-    setSavedName(instance.name)
-    setStep("qrcode")
+    applyActiveInstance(instance)
     setError(null)
   }
 
@@ -283,9 +298,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
           nextInstances[0]
 
         if (nextActiveInstance) {
-          setActiveInstanceId(nextActiveInstance.id)
-          setSavedName(nextActiveInstance.name)
-          setStep("qrcode")
+          applyActiveInstance(nextActiveInstance)
         } else {
           startNewConnection()
         }
@@ -470,16 +483,41 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                 </>
               ) : (
                 <>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-background">
-                    <QrCode className="h-10 w-10 text-muted-foreground" />
-                  </div>
-                  <p className="mt-4 text-center text-sm text-muted-foreground">
-                    {savedName ? "Clique abaixo para gerar o QR Code" : "Informe o nome da instância primeiro"}
-                  </p>
-                  <Button className="mt-4 w-full sm:w-auto" onClick={generateQRCode} disabled={isLoading || !savedName}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
-                    Gerar QR Code
-                  </Button>
+                  {step === "name" && instances.length > 0 ? (
+                    <div className="w-full max-w-sm space-y-4">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-background mx-auto">
+                        <QrCode className="h-10 w-10 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-2 text-left">
+                        <Label htmlFor="new-connection-name" className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                          Nome da nova instância
+                        </Label>
+                        <Input
+                          id="new-connection-name"
+                          placeholder="Ex.: Loja 2"
+                          value={connectionName}
+                          onChange={(event) => setConnectionName(event.target.value)}
+                          onKeyDown={(event) => event.key === "Enter" && handleSaveName()}
+                        />
+                      </div>
+                      <Button className="w-full" onClick={handleSaveName} disabled={!connectionName.trim()}>
+                        Continuar <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-background">
+                        <QrCode className="h-10 w-10 text-muted-foreground" />
+                      </div>
+                      <p className="mt-4 text-center text-sm text-muted-foreground">
+                        {savedName ? "Clique abaixo para gerar o QR Code da nova instância" : "Informe o nome da instância primeiro"}
+                      </p>
+                      <Button className="mt-4 w-full sm:w-auto" onClick={generateQRCode} disabled={isLoading || !savedName}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
+                        Gerar QR Code
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
             </div>
