@@ -52,10 +52,10 @@
    Do instead: tratar imagens enviadas, composições geradas e SKUs/produtos como conhecimento consultável; não prender o cliente em etapas fixas. Depois de uma composição pronta, pedidos como “adicionar mais” usam a imagem gerada; original só quando o cliente pedir. Se uma nova imagem inbound chegou depois do último resultado, ela vira a base padrão.
 
 7. **[2026-04-28] WhatsApp novo começa em atendimento humano**
-   Do instead: conversas recebidas após cadastro/conexão da instância entram com `handledBy: "operator"` e não enviam resposta automática; a IA só envia quando o operador devolver a conversa para IA.
+   Do instead: conversas recebidas após cadastro/conexão da instância entram com `handledBy: "operator"`; a IA só envia quando o operador devolver a conversa para IA ou quando o cliente iniciar com o gatilho `Como Fica`/`comofica` no começo da mensagem.
 
-8. **[2026-04-25] Referências do catálogo só vão quando o cliente pede**
-   Do instead: no WhatsApp, enviar imagens/cards de produtos apenas em pedido explícito de catálogo/referências/mais opções ou quando a ação for `show_catalog_options`; usar produto/cor mencionados internamente na composição sem reenviar cards a cada mensagem.
+8. **[2026-04-25] Referências do catálogo só vão quando o cliente pede; referência visual pode vir do cliente**
+   Do instead: no WhatsApp, enviar imagens/cards de produtos apenas em pedido explícito de catálogo/referências/mais opções ou quando a ação for `show_catalog_options`; para composição aceitar SKU/produto do catálogo ou imagem de referência enviada pelo cliente, sempre com imagem base e direção clara de aplicação.
 
 9. **[2026-04-26] Conversa da IA não pode ficar travada em pergunta antiga**
    Do instead: mensagens claras como SKU, catálogo, imagem ou edição seguem direto, ignorando pendências antigas; `original/nova` é inferência interna, não resposta obrigatória. Se a mensagem atual trouxer SKU/produto sem direção de montagem, perguntar o que fazer em vez de reaproveitar direção antiga.

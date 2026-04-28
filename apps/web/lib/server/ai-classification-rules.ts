@@ -176,9 +176,9 @@ export function applyDeterministicClassificationRules(
         next_action: "ask_for_reference_image",
         confidence: Math.max(current.confidence, 0.88),
         needs_human_review: false,
-        missing_inputs: ["catalog_product", "composition_direction"],
+        missing_inputs: ["visual_reference", "composition_direction"],
         rationale: "Regra deterministica: imagem recebida sem instrucao complementar.",
-        reply: "Recebi sua imagem. Agora preciso que voce escolha no catalogo qual produto quer aplicar e me diga o que deseja fazer na imagem.",
+        reply: "Recebi sua imagem. Agora preciso saber qual referencia voce quer usar e como ela deve ser aplicada na imagem.",
       },
     }
   }
@@ -210,11 +210,11 @@ export function applyDeterministicClassificationRules(
         next_action: hasCatalogContext ? "create_composition_job" : "ask_for_reference_image",
         confidence: Math.max(current.confidence, 0.93),
         needs_human_review: false,
-        missing_inputs: hasCatalogContext ? [] : ["catalog_product"],
+        missing_inputs: hasCatalogContext ? [] : ["visual_reference"],
         rationale: "Regra deterministica: o cliente pediu uma alteracao na imagem enviada anteriormente.",
         reply: hasCatalogContext
           ? "Consigo usar a imagem que voce enviou anteriormente como base. Vou preparar essa edicao visual agora."
-          : "Consigo usar a imagem que voce enviou anteriormente como base. Agora preciso que voce escolha no catalogo qual produto quer aplicar.",
+          : "Consigo usar a imagem que voce enviou anteriormente como base. Agora preciso da referencia visual: pode ser um SKU/produto do catalogo ou uma imagem de referencia.",
       },
     }
   }

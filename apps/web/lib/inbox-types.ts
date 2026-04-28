@@ -24,13 +24,14 @@ export type InboxCompositionSessionStep =
   | "idle"
   | "browsing_catalog"
   | "product_selected"
+  | "awaiting_reference_image"
   | "awaiting_base_image"
   | "awaiting_base_choice"
   | "composing"
   | "completed"
 
 export type InboxCompositionSessionImage = {
-  kind: "base" | "result"
+  kind: "base" | "result" | "reference"
   messageId?: string
   jobId?: string
   imageUrl?: string
@@ -60,6 +61,7 @@ export type InboxCompositionSessionChange = {
 export type InboxCompositionSession = {
   step: InboxCompositionSessionStep
   baseImage?: InboxCompositionSessionImage
+  referenceImage?: InboxCompositionSessionImage
   workingImage?: InboxCompositionSessionImage
   selectedProducts: InboxCompositionSessionProduct[]
   pendingPrompt?: string

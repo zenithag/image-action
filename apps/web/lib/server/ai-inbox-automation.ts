@@ -4,7 +4,7 @@ import path from "node:path"
 import type { NextAction } from "@studio/contracts"
 
 import type { CatalogItem } from "@/lib/catalog-types"
-import type { CompositionMode } from "@/lib/composition-types"
+import type { CompositionJobReference, CompositionMode } from "@/lib/composition-types"
 import type {
   InboxCompositionSession,
   InboxCompositionSessionProduct,
@@ -105,6 +105,48 @@ function getRecentBaseImageMessages(messages: InboxMessage[], limit = 5) {
       Boolean(message.mediaUrl || message.imageUrl)
     )
     .slice(0, limit)
+}
+
+function isClientReferenceImageInstruction(text: string) {
+  const normalized = normalizeSearchText(text)
+
+  return includesAny(normalized, [
+    "referencia",
+    "referências",
+    "referencias",
+    "imagem de referencia",
+    "foto de referencia",
+    "modelo",
+    "inspiracao",
+    "inspiração",
+    "amostra",
+    "padrao",
+    "padrão",
+    "textura",
+    "material",
+    "acabamento",
+    "usar como referencia",
+    "use como referencia",
+    "essa referencia",
+    "esta referencia",
+  ])
+}
+
+function getComoFicaTriggerMatch(text: string) {
+  const normalized = normalizeSearchText(text).trim()
+  const compact = normalized.replace(/[^a-z0-9]+/g, "")
+
+  if (!compact.startsWith("comofica")) {
+    return null
+  }
+
+  return {
+    isOnlyTrigger: compact === "comofica",
+  }
+}
+
+function isComoFicaAutoStartRequest(text: string) {
+  return Boolean(getComoFicaTriggerMatch(text))
 }
 
 function toSessionProduct(item: CatalogItem, color?: string): InboxCompositionSessionProduct {
@@ -555,6 +597,10 @@ function buildArtifactContext(input: {
     lines.push(`Quando o cliente citar "foto que enviei", "imagem original" ou "imagem que mandei", use a mensagem ${input.latestBaseImageMessage.id}.`)
   }
 
+  if (input.session.referenceImage?.messageId || input.session.referenceImage?.imageUrl) {
+    lines.push(`Referência visual do cliente salva: ${input.session.referenceImage.label || "imagem de referência"}${input.session.referenceImage.messageId ? `, mensagem ${input.session.referenceImage.messageId}` : ""}.`)
+  }
+
   if (input.latestCompletedJob?.resultImageUrl) {
     lines.push(`Quando o cliente citar "composição", "resultado", "imagem gerada" ou "imagem pronta", use o job ${input.latestCompletedJob.id.slice(0, 8)}.`)
   }
@@ -601,7 +647,7 @@ function buildCompositionPrompt(message: InboxMessage, messages: InboxMessage[],
     return prompt
   }
 
-  return `${prompt}\nReferencia de catalogo: ${reference}`
+  return `${prompt}\nReferencia visual: ${reference}`
 }
 
 function normalizeSearchText(value: string) {
@@ -988,33 +1034,27 @@ function formatCatalogLinkReply(tenantSlug: string) {
 }
 
 function formatCompositionMissingInputsReply(input: {
-  tenantSlug: string
   hasBaseImage: boolean
-  hasCatalogProduct: boolean
+  hasVisualReference: boolean
   hasDirection: boolean
 }) {
   if (!input.hasBaseImage) {
-    return [
-      "Para criar a composição, primeiro me envie a imagem do ambiente ou produto que você quer transformar.",
-      formatCatalogLinkReply(input.tenantSlug),
-    ].join("\n\n")
+    if (input.hasVisualReference) {
+      return "Já tenho a referência. Agora me envie a imagem do ambiente ou produto em que você quer aplicar essa referência e me diga como ela deve ser aplicada."
+    }
+
+    return "Para criar a composição, primeiro me envie a imagem do ambiente ou produto que você quer transformar."
   }
 
-  if (!input.hasCatalogProduct && !input.hasDirection) {
-    return [
-      "Recebi a imagem. Agora preciso saber qual produto do catálogo você quer aplicar e o que deseja fazer na imagem.",
-      formatCatalogLinkReply(input.tenantSlug),
-    ].join("\n\n")
+  if (!input.hasVisualReference && !input.hasDirection) {
+    return "Recebi a imagem. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada na imagem. Pode me mandar um SKU/produto do catálogo ou enviar uma imagem de referência."
   }
 
-  if (!input.hasCatalogProduct) {
-    return [
-      "Entendi o que você quer fazer na imagem. Agora preciso que você escolha o produto no catálogo.",
-      formatCatalogLinkReply(input.tenantSlug),
-    ].join("\n\n")
+  if (!input.hasVisualReference) {
+    return "Entendi o que você quer fazer na imagem. Agora preciso da referência visual: pode me mandar o SKU/produto do catálogo ou enviar uma imagem de referência."
   }
 
-  return "Perfeito, já tenho o produto. Agora me diga exatamente o que você quer fazer na imagem e onde aplicar esse produto."
+  return "Perfeito, já tenho a referência. Agora me diga exatamente o que você quer fazer na imagem e onde aplicar essa referência."
 }
 
 function isColorEditRequest(text: string) {
@@ -1072,7 +1112,7 @@ function hasOpenStructuredTask(
     pendingBaseChoiceRequest ||
     pendingSessionPrompt ||
     ["awaiting_base_image", "collecting_preferences", "showing_options", "awaiting_selection"].includes(conversationState) ||
-    ["product_selected", "awaiting_base_image"].includes(session.step)
+    ["product_selected", "awaiting_reference_image", "awaiting_base_image"].includes(session.step)
   )
 }
 
@@ -1273,12 +1313,12 @@ export async function processInboundMessageWithAi(input: {
     ? Math.max(0, getMessageTime(inboundMessage.createdAt) - getMessageTime(previousMessage.createdAt))
     : 0
   const isStaleConversationGap = idleMs >= STALE_CONVERSATION_MS
+  const autoStartRequested = isComoFicaAutoStartRequest(inboundMessage.content)
+  const settings = await getTenantSettings(input.tenantSlug)
 
-  if (conversation.handledBy !== "ai") {
+  if (conversation.handledBy !== "ai" && !autoStartRequested) {
     return { ok: true, skipped: "operator_conversation" }
   }
-
-  const settings = await getTenantSettings(input.tenantSlug)
 
   if (!settings.channels.whatsappEnabled) {
     await recordAiTrace({
@@ -1295,6 +1335,14 @@ export async function processInboundMessageWithAi(input: {
     })
 
     return { ok: true, skipped: "whatsapp_disabled" }
+  }
+
+  if (conversation.handledBy !== "ai" && autoStartRequested) {
+    await updateInboxConversation(input.tenantSlug, input.conversationId, {
+      handledBy: "ai",
+      status: "open",
+      state: "collecting_preferences",
+    })
   }
 
   if (!settings.assistant.enabled) {
@@ -1382,6 +1430,16 @@ export async function processInboundMessageWithAi(input: {
   )
   const recentBaseImageMessages = getRecentBaseImageMessages(messages)
   const latestBaseImageMessage = recentBaseImageMessages[0] ?? getLatestBaseImageMessage(messages)
+  const currentImageAsClientReference = inboundMessage.contentType === "image" &&
+    (
+      compositionSession.step === "awaiting_reference_image" ||
+      isClientReferenceImageInstruction(inboundMessage.content)
+    )
+  const clientReferenceImageMessage = currentImageAsClientReference ? inboundMessage : null
+  const effectiveLatestBaseImageMessage = clientReferenceImageMessage
+    ? recentBaseImageMessages.find((message) => message.id !== inboundMessage.id) ?? latestBaseImageMessage
+    : latestBaseImageMessage
+  const sessionReferenceImage = compositionSession.referenceImage
   const compositionJobs = await listCompositionJobs(input.tenantSlug)
   const contextCompositionJobs = contextResetTime > 0
     ? compositionJobs.filter((job) => new Date(job.createdAt).getTime() >= contextResetTime)
@@ -1403,7 +1461,7 @@ export async function processInboundMessageWithAi(input: {
     pendingBaseChoiceRequest &&
     baseChoiceAnswer
   )
-  const hasBaseImage = Boolean(latestBaseImageMessage)
+  const hasBaseImage = Boolean(effectiveLatestBaseImageMessage)
   const hasOpenTask = hasOpenStructuredTask(
     conversation.state,
     compositionSession,
@@ -1435,7 +1493,7 @@ export async function processInboundMessageWithAi(input: {
     : conversation.state
   const artifactContext = buildArtifactContext({
     session: compositionSession,
-    latestBaseImageMessage,
+    latestBaseImageMessage: effectiveLatestBaseImageMessage,
     recentBaseImageMessages,
     latestCompletedJob: latestCompletedCompositionJob,
     recentCompletedJobs: recentCompletedCompositionJobs,
@@ -1457,7 +1515,7 @@ export async function processInboundMessageWithAi(input: {
     hasBaseImage,
     recentMessages: conversationMessages.map((message) => ({
       role: message.role,
-      content: formatMessageForAiContext(message, latestBaseImageMessage?.id),
+      content: formatMessageForAiContext(message, effectiveLatestBaseImageMessage?.id),
     })),
     modelProfileId: settings.assistant.modelProfileId,
     systemPrompt: getAssistantSystemPrompt(settings),
@@ -1483,7 +1541,21 @@ export async function processInboundMessageWithAi(input: {
     shouldPersistCompositionSession = true
   }
 
-  if (inboundMessage.contentType === "image") {
+  if (clientReferenceImageMessage) {
+    setCompositionSession((session) => ({
+      ...session,
+      referenceImage: {
+        kind: "reference",
+        messageId: inboundMessage.id,
+        imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
+        label: "imagem de referência enviada pelo cliente",
+        createdAt: inboundMessage.createdAt,
+      },
+      pendingBaseChoice: false,
+    }))
+  }
+
+  if (inboundMessage.contentType === "image" && !clientReferenceImageMessage) {
     setCompositionSession((session) => ({
       ...session,
       baseImage: {
@@ -1501,6 +1573,18 @@ export async function processInboundMessageWithAi(input: {
   if (handoffRequestedByKeyword) {
     nextAction = "handoff_to_operator"
     reply = "Vou encaminhar seu atendimento para um operador continuar daqui."
+  } else if (clientReferenceImageMessage && !hasBaseImage) {
+    nextAction = "ask_for_base_image"
+    nextStateOverride = "awaiting_base_image"
+    reply = hasSpecificCompositionDirection(inboundMessage.content)
+      ? "Recebi a imagem de referência. Agora me envie a imagem do ambiente ou produto em que você quer aplicar essa referência."
+      : "Recebi a imagem de referência. Agora me envie a imagem do ambiente ou produto em que você quer aplicar essa referência e me diga como ela deve ser aplicada."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "awaiting_base_image",
+      pendingPrompt: hasSpecificCompositionDirection(inboundMessage.content) ? inboundMessage.content : undefined,
+      pendingBaseChoice: false,
+    }))
   } else if (shouldAskToResumeContext) {
     nextAction = "reply_in_chat"
     nextStateOverride = "idle"
@@ -1628,6 +1712,34 @@ export async function processInboundMessageWithAi(input: {
       pendingPrompt: undefined,
       pendingBaseChoice: false,
     }))
+  } else if (clientReferenceImageMessage && hasBaseImage && hasSpecificCompositionDirection(inboundMessage.content)) {
+    nextAction = "create_composition_job"
+    reply = "Recebi a imagem de referência. Vou usar a imagem anterior como base e aplicar essa referência conforme você pediu."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "composing",
+      pendingPrompt: undefined,
+      pendingBaseChoice: false,
+    }))
+  } else if (sessionReferenceImage && !hasBaseImage && hasSpecificCompositionDirection(inboundMessage.content)) {
+    nextAction = "ask_for_base_image"
+    nextStateOverride = "awaiting_base_image"
+    reply = "Entendi como você quer aplicar a referência. Agora me envie a imagem do ambiente ou produto que você quer transformar."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "awaiting_base_image",
+      pendingPrompt: inboundMessage.content,
+      pendingBaseChoice: false,
+    }))
+  } else if (sessionReferenceImage && hasBaseImage && hasSpecificCompositionDirection(inboundMessage.content)) {
+    nextAction = "create_composition_job"
+    reply = "Vou aplicar a referência salva na imagem conforme você pediu."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "composing",
+      pendingPrompt: undefined,
+      pendingBaseChoice: false,
+    }))
   } else if (catalogLinkRequested) {
     nextAction = "show_catalog_options"
     reply = formatCatalogLinkReply(input.tenantSlug)
@@ -1638,14 +1750,15 @@ export async function processInboundMessageWithAi(input: {
     }))
   }
 
-  const hasCatalogProductForComposition = Boolean(primaryReference)
+  const hasVisualReferenceForComposition = Boolean(primaryReference || clientReferenceImageMessage || sessionReferenceImage)
   const currentMessageHasCatalogProduct = Boolean(
     skuReference ||
     productReferences.length > 0 ||
     colorReferences.length > 0
   )
+  const currentMessageHasVisualReference = Boolean(currentMessageHasCatalogProduct || clientReferenceImageMessage)
   const currentMessageHasDirection = hasSpecificCompositionDirection(inboundMessage.content)
-  const hasDirectionForComposition = currentMessageHasCatalogProduct
+  const hasDirectionForComposition = currentMessageHasVisualReference
     ? currentMessageHasDirection
     : hasCompositionDirection([
       compositionPromptOverride,
@@ -1655,6 +1768,7 @@ export async function processInboundMessageWithAi(input: {
     ])
   const shouldAskForCompositionInputs =
     nextAction !== "handoff_to_operator" &&
+    !(clientReferenceImageMessage && !hasBaseImage) &&
     classification.intent === "visual_edit" &&
     (
       nextAction === "create_composition_job" ||
@@ -1662,20 +1776,19 @@ export async function processInboundMessageWithAi(input: {
       nextAction === "ask_for_reference_image" ||
       inboundMessage.contentType === "image"
     ) &&
-    (!hasBaseImage || !hasCatalogProductForComposition || !hasDirectionForComposition)
+    (!hasBaseImage || !hasVisualReferenceForComposition || !hasDirectionForComposition)
 
   if (shouldAskForCompositionInputs) {
     nextAction = !hasBaseImage ? "ask_for_base_image" : "ask_for_reference_image"
     nextStateOverride = mapNextActionToState(nextAction)
     reply = formatCompositionMissingInputsReply({
-      tenantSlug: input.tenantSlug,
       hasBaseImage,
-      hasCatalogProduct: hasCatalogProductForComposition,
+      hasVisualReference: hasVisualReferenceForComposition,
       hasDirection: hasDirectionForComposition,
     })
     setCompositionSession((session) => ({
       ...session,
-      step: !hasBaseImage ? "awaiting_base_image" : hasCatalogProductForComposition ? "product_selected" : "browsing_catalog",
+      step: !hasBaseImage ? "awaiting_base_image" : hasVisualReferenceForComposition ? "product_selected" : "browsing_catalog",
       selectedProducts: primaryReference
         ? upsertSessionProduct(session, toSessionProduct(primaryReference.item, primaryReference.color))
         : session.selectedProducts,
@@ -1694,14 +1807,14 @@ export async function processInboundMessageWithAi(input: {
     nextAction === "create_composition_job" &&
     inboundMessage.contentType === "text" &&
     latestCompletedCompositionJob?.resultImageUrl &&
-    latestBaseImageMessage &&
+    effectiveLatestBaseImageMessage &&
     !compositionBaseChoice &&
     !isPendingBaseChoiceAnswer
   ) {
     compositionBaseChoice = inferCompositionBaseChoice({
       text: inboundMessage.content,
       session: compositionSession,
-      latestBaseImageMessage,
+      latestBaseImageMessage: effectiveLatestBaseImageMessage,
       latestCompletedJob: latestCompletedCompositionJob,
     })
     setCompositionSession((session) => ({
@@ -1715,7 +1828,7 @@ export async function processInboundMessageWithAi(input: {
   if (nextAction === "create_composition_job") {
     const compositionBase = await resolveCompositionBase({
       choice: compositionBaseChoice,
-      latestBaseImageMessage,
+      latestBaseImageMessage: effectiveLatestBaseImageMessage,
       latestResultMessage: latestCompositionResultMessage,
       latestCompletedJob: latestCompletedCompositionJob,
       tenantSlug: input.tenantSlug,
@@ -1737,12 +1850,46 @@ export async function processInboundMessageWithAi(input: {
       const promptMessage = compositionPromptOverride
         ? { ...inboundMessage, content: compositionPromptOverride }
         : inboundMessage
+      const clientReferenceForComposition = clientReferenceImageMessage
+        ? {
+          messageId: clientReferenceImageMessage.id,
+          imageUrl: getMessageMediaUrl(input.tenantSlug, clientReferenceImageMessage),
+          label: "imagem de referência enviada pelo cliente",
+        }
+        : sessionReferenceImage
+          ? {
+            messageId: sessionReferenceImage.messageId,
+            imageUrl: sessionReferenceImage.imageUrl,
+            label: sessionReferenceImage.label || "imagem de referência enviada pelo cliente",
+          }
+          : null
+      const visualReferences: CompositionJobReference[] = [
+        ...(primaryReference ? [{
+          source: "catalog" as const,
+          catalogItemId: primaryReference.item.id,
+          catalogItemName: primaryReference.item.name,
+          catalogSku: primaryReference.item.sku,
+          catalogCategory: primaryReference.item.category,
+          catalogDescription: primaryReference.item.description,
+        }] : []),
+        ...(clientReferenceForComposition ? [{
+          source: "inbox" as const,
+          messageId: clientReferenceForComposition.messageId,
+          imageUrl: clientReferenceForComposition.imageUrl,
+        }] : []),
+      ]
+      const referencePrompt = [
+        primaryReference
+          ? `${primaryReference.item.name}${primaryReference.color ? ` - cor ${primaryReference.color}` : ""}`
+          : "",
+        clientReferenceForComposition
+          ? `${clientReferenceForComposition.label}${clientReferenceForComposition.messageId ? ` na mensagem ${clientReferenceForComposition.messageId}` : ""}`
+          : "",
+      ].filter(Boolean).join("\n")
       const prompt = buildCompositionPrompt(
         promptMessage,
         messages,
-        primaryReference
-          ? `${primaryReference.item.name}${primaryReference.color ? ` - cor ${primaryReference.color}` : ""}`
-          : ""
+        referencePrompt
       )
       const result = await createCompositionJob(input.tenantSlug, {
         conversationId: conversation.id,
@@ -1754,9 +1901,12 @@ export async function processInboundMessageWithAi(input: {
         sourceMessageId: inboundMessage.id,
         baseMessageId: compositionBase.message?.id,
         baseImageUrl: compositionBase.imageUrl,
+        referenceMessageId: clientReferenceForComposition?.messageId,
+        referenceImageUrl: clientReferenceForComposition?.imageUrl,
         catalogItemId: primaryReference?.item.id,
         catalogItemName: primaryReference?.item.name,
         catalogColorReference: primaryReference?.color,
+        references: visualReferences.length > 0 ? visualReferences : undefined,
         prompt,
       })
       compositionJobId = result.job.id

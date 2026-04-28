@@ -126,6 +126,7 @@ function normalizeSessionStep(value: unknown): InboxCompositionSessionStep {
     value === "idle" ||
     value === "browsing_catalog" ||
     value === "product_selected" ||
+    value === "awaiting_reference_image" ||
     value === "awaiting_base_image" ||
     value === "awaiting_base_choice" ||
     value === "composing" ||
@@ -142,7 +143,13 @@ function normalizeSessionImage(value: unknown): InboxCompositionSessionImage | u
     return undefined
   }
 
-  const kind = value.kind === "result" ? "result" : value.kind === "base" ? "base" : undefined
+  const kind = value.kind === "result"
+    ? "result"
+    : value.kind === "reference"
+      ? "reference"
+      : value.kind === "base"
+        ? "base"
+        : undefined
   const createdAt = typeof value.createdAt === "string" ? value.createdAt : undefined
 
   if (!kind || !createdAt) {
@@ -216,6 +223,7 @@ export function normalizeInboxCompositionSession(value: unknown): InboxCompositi
   return {
     step: normalizeSessionStep(value.step),
     baseImage: normalizeSessionImage(value.baseImage),
+    referenceImage: normalizeSessionImage(value.referenceImage),
     workingImage: normalizeSessionImage(value.workingImage),
     selectedProducts,
     pendingPrompt: typeof value.pendingPrompt === "string" ? value.pendingPrompt : undefined,
