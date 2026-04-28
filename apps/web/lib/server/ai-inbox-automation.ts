@@ -15,8 +15,8 @@ import { findCatalogColorReferences, formatCatalogColorReferences, getPrimaryCat
 import { readProviders } from "@/lib/server/channel-providers-store"
 import { classifyInboundMessage } from "@/lib/server/ai-orchestrator"
 import { recordAiTrace } from "@/lib/server/ai-observability-store"
+import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { hasCatalogReferenceImage } from "@/lib/server/catalog-reference-image"
-import { scheduleTenantCompositionProcessing } from "@/lib/server/composition-processor"
 import { createCompositionJob, listCompositionJobs } from "@/lib/server/composition-jobs-store"
 import {
   appendAssistantInboxMessage,
@@ -2048,7 +2048,8 @@ export async function processInboundMessageWithAi(input: {
         }
       })
       if (result.job.status === "queued") {
-        scheduleTenantCompositionProcessing(input.tenantSlug)
+        await enqueueProcessCompositionQueue(input.tenantSlug)
+        scheduleAppJobProcessing()
       }
       reply = result.created
         ? `Criei a composicao usando a ${compositionBase.label} como base e ela entrou na fila. Vou preservar a estrutura do ambiente: angulo, perspectiva, janelas, portas e layout nao serao alterados. ID do job: ${result.job.id.slice(0, 8)}.`

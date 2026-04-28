@@ -9,6 +9,7 @@ import type {
   InboxMessageContentType,
 } from "@/lib/inbox-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { publishInboxRealtime } from "@/lib/server/inbox-realtime"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type InboxData = {
@@ -351,6 +352,16 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
       messages: messageExists ? data.messages : [...data.messages, nextMessage],
     })
 
+    if (!messageExists) {
+      publishInboxRealtime({
+        type: "message_created",
+        tenantSlug: input.tenantSlug,
+        conversationId,
+        conversation: nextConversation,
+        message: nextMessage,
+      })
+    }
+
     return {
       conversation: nextConversation,
       message: messageExists ? null : nextMessage,
@@ -435,6 +446,14 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
       messages: [...data.messages, message],
     })
 
+    publishInboxRealtime({
+      type: "message_created",
+      tenantSlug: input.tenantSlug,
+      conversationId,
+      conversation,
+      message,
+    })
+
     return { conversation, message, created: true }
   })
 }
@@ -486,6 +505,14 @@ export async function appendOperatorInboxMessage(input: {
         data.conversations.map((item) => item.id === conversation.id ? nextConversation : item)
       ),
       messages: [...data.messages, message],
+    })
+
+    publishInboxRealtime({
+      type: "message_created",
+      tenantSlug: input.tenantSlug,
+      conversationId: conversation.id,
+      conversation: nextConversation,
+      message,
     })
 
     return { conversation: nextConversation, message }
@@ -542,6 +569,14 @@ export async function appendAssistantInboxMessage(input: {
         data.conversations.map((item) => item.id === conversation.id ? nextConversation : item)
       ),
       messages: [...data.messages, message],
+    })
+
+    publishInboxRealtime({
+      type: "message_created",
+      tenantSlug: input.tenantSlug,
+      conversationId: conversation.id,
+      conversation: nextConversation,
+      message,
     })
 
     return { conversation: nextConversation, message }
@@ -610,6 +645,14 @@ export async function appendAssistantInboxMediaMessage(input: {
       messages: [...data.messages, message],
     })
 
+    publishInboxRealtime({
+      type: "message_created",
+      tenantSlug: input.tenantSlug,
+      conversationId: conversation.id,
+      conversation: nextConversation,
+      message,
+    })
+
     return { conversation: nextConversation, message }
   })
 }
@@ -638,6 +681,14 @@ export async function updateInboxConversation(tenantSlug: string, conversationId
     }
 
     await writeInboxData({ ...data, conversations: sortConversations(conversations) })
+
+    publishInboxRealtime({
+      type: "conversation_updated",
+      tenantSlug,
+      conversationId,
+      conversation: updatedConversation,
+    })
+
     return updatedConversation
   })
 }
@@ -674,6 +725,14 @@ export async function updateInboxMessage(
     }
 
     await writeInboxData({ ...data, messages })
+
+    publishInboxRealtime({
+      type: "message_updated",
+      tenantSlug,
+      conversationId,
+      message: updatedMessage,
+    })
+
     return updatedMessage
   })
 }

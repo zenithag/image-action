@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxHandledBy } from "@/lib/inbox-types"
+import { useInboxRealtime } from "@/lib/inbox-realtime-client"
 import { Bot, Clock, MessageSquare, RefreshCw, User } from "lucide-react"
 
 const statusColors = {
@@ -50,14 +51,25 @@ function formatRelativeTime(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(new Date(value))
 }
 
+function sortConversationSummaries(conversations: InboxConversationSummary[]) {
+  return [...conversations].sort(
+    (left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
+  )
+}
+
 export function ConversationList({ tenantSlug, selectedId, onSelect }: ConversationListProps) {
   const [conversations, setConversations] = useState<InboxConversationSummary[]>([])
   const [filter, setFilter] = useState<"all" | InboxHandledBy | "unread">("all")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  async function triggerInboxSync(options?: { wait?: boolean }) {
-    await fetch(`/api/tenant/${tenantSlug}/inbox/sync${options?.wait ? "?wait=1" : ""}`, {
+  async function triggerInboxSync(options?: { wait?: boolean; fast?: boolean }) {
+    const params = new URLSearchParams()
+
+    if (options?.wait) params.set("wait", "1")
+    if (options?.fast) params.set("fast", "1")
+
+    await fetch(`/api/tenant/${tenantSlug}/inbox/sync${params.size ? `?${params.toString()}` : ""}`, {
       method: "POST",
     }).catch(() => null)
   }
@@ -70,7 +82,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
 
     try {
       if (options?.sync) {
-        await triggerInboxSync({ wait: options.waitForSync })
+        await triggerInboxSync({ wait: options.waitForSync, fast: true })
       }
 
       const response = await fetch(`/api/tenant/${tenantSlug}/inbox/conversations`, { cache: "no-store" })
@@ -118,14 +130,30 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
     void loadConversations({ sync: true })
   }, [tenantSlug])
 
+  useInboxRealtime(tenantSlug, (event) => {
+    if (!("conversation" in event)) {
+      return
+    }
+
+    setConversations((current) => {
+      const exists = current.some((conversation) => conversation.id === event.conversation.id)
+      const nextConversations = exists
+        ? current.map((conversation) => conversation.id === event.conversation.id ? event.conversation : conversation)
+        : [event.conversation, ...current]
+
+      return sortConversationSummaries(nextConversations)
+    })
+    window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
+
+    if (!selectedId) {
+      onSelect?.(event.conversation.id)
+    }
+  })
+
   useEffect(() => {
-    let syncTick = 0
-
     const intervalId = window.setInterval(() => {
-      syncTick += 1
-
-      if (syncTick % 5 === 0) {
-        void triggerInboxSync()
+      if (document.visibilityState === "visible") {
+        void triggerInboxSync({ fast: true })
       }
 
       void loadConversations({ silent: true })

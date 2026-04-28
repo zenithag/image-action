@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { processInboundMessageWithAi } from "@/lib/server/ai-inbox-automation"
+import { enqueueProcessInboundMessage, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { readProviders } from "@/lib/server/channel-providers-store"
 import { purgeInboxExceptChannelInstances, upsertSyncedInboxMessage } from "@/lib/server/inbox-store"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
@@ -47,6 +47,7 @@ type InboxSyncState = {
 }
 
 const MIN_SYNC_INTERVAL_MS = 15_000
+const MIN_FAST_SYNC_INTERVAL_MS = 3_000
 const syncStateByTenant = new Map<string, InboxSyncState>()
 
 function getEmptySyncPayload(reason: string): InboxSyncPayload {
@@ -165,7 +166,10 @@ function getInstanceSyncStartedAt(instance: { syncStartedAt?: string; createdAt:
 
 export async function POST(_request: Request, context: RouteContext) {
   const { slug } = await context.params
-  const waitForCompletion = new URL(_request.url).searchParams.get("wait") === "1"
+  const searchParams = new URL(_request.url).searchParams
+  const waitForCompletion = searchParams.get("wait") === "1"
+  const fastSync = searchParams.get("fast") === "1"
+  const minSyncInterval = fastSync ? MIN_FAST_SYNC_INTERVAL_MS : MIN_SYNC_INTERVAL_MS
   const now = Date.now()
   const state = syncStateByTenant.get(slug)
 
@@ -191,7 +195,7 @@ export async function POST(_request: Request, context: RouteContext) {
   if (
     state?.lastCompletedAt &&
     state.lastResult &&
-    now - state.lastCompletedAt < MIN_SYNC_INTERVAL_MS
+    now - state.lastCompletedAt < minSyncInterval
   ) {
     return NextResponse.json({
       ...state.lastResult.body,
@@ -320,24 +324,20 @@ async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
             createdMessages += 1
 
             if (result.conversation && result.message?.direction === "inbound") {
-              const aiResult = await processInboundMessageWithAi({
-                tenantSlug: slug,
-                instance,
-                conversationId: result.conversation.id,
-                message: result.message,
-              })
-
-              if (aiResult.ok) {
-                if (aiResult.skipped) {
-                  aiSkippedMessages += 1
-                } else {
-                  aiProcessedMessages += 1
-                }
-              } else {
+              try {
+                await enqueueProcessInboundMessage({
+                  tenantSlug: slug,
+                  channelInstanceId: instance.id,
+                  conversationId: result.conversation.id,
+                  messageId: result.message.id,
+                })
+                scheduleAppJobProcessing()
+                aiProcessedMessages += 1
+              } catch (error) {
                 aiFailedMessages += 1
                 errors.push({
                   instanceId: instance.id,
-                  message: aiResult.error ?? aiResult.skipped ?? "Nao foi possivel processar resposta da IA.",
+                  message: error instanceof Error ? error.message : "Nao foi possivel enfileirar resposta da IA.",
                 })
               }
             }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import type { InboxMessageContentType } from "@/lib/inbox-types"
-import { processInboundMessageWithAi } from "@/lib/server/ai-inbox-automation"
+import { enqueueProcessInboundMessage, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { upsertInboundInboxMessage } from "@/lib/server/inbox-store"
 import { readTenantInstances } from "@/lib/server/tenant-channel-instances-store"
 import { type UazapiMessage, normalizeUazapiMessageContent } from "@/lib/server/uazapi-client"
@@ -147,14 +147,15 @@ export async function POST(request: Request) {
     rawPayload: payload,
   })
 
-  void processInboundMessageWithAi({
-    tenantSlug: instance.tenantSlug,
-    instance,
-    conversationId: result.conversation.id,
-    message: result.message,
-  }).catch((error: unknown) => {
-    console.error("UAZAPI webhook AI processing failed", error)
-  })
+  if (result.message) {
+    await enqueueProcessInboundMessage({
+      tenantSlug: instance.tenantSlug,
+      channelInstanceId: instance.id,
+      conversationId: result.conversation.id,
+      messageId: result.message.id,
+    })
+    scheduleAppJobProcessing()
+  }
 
   return NextResponse.json({
     ok: true,

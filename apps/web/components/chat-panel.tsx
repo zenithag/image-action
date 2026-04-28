@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxMessage } from "@/lib/inbox-types"
+import { useInboxRealtime } from "@/lib/inbox-realtime-client"
 import type { StudioDraft, StudioImageSlot } from "@/lib/studio-draft"
 import { getStudioDraftStorageKey } from "@/lib/studio-draft"
 import {
@@ -62,6 +63,12 @@ function getMediaLabel(contentType: InboxMessage["contentType"]) {
 function shouldShowMediaCaption(message: InboxMessage) {
   const label = getMediaLabel(message.contentType)
   return Boolean(message.content && message.content !== label)
+}
+
+function sortInboxMessages(messages: InboxMessage[]) {
+  return [...messages].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  )
 }
 
 function formatMediaSize(size?: number) {
@@ -248,6 +255,32 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
   useEffect(() => {
     void loadConversation()
   }, [tenantSlug, conversationId])
+
+  useInboxRealtime(tenantSlug, (event) => {
+    if (!conversationId || event.conversationId !== conversationId) {
+      return
+    }
+
+    if ("conversation" in event) {
+      setConversation(event.conversation)
+    }
+
+    if (event.type === "message_created") {
+      setMessages((current) => {
+        if (current.some((item) => item.id === event.message.id)) {
+          return current
+        }
+
+        return sortInboxMessages([...current, event.message])
+      })
+    }
+
+    if (event.type === "message_updated") {
+      setMessages((current) =>
+        current.map((item) => item.id === event.message.id ? event.message : item)
+      )
+    }
+  })
 
   useEffect(() => {
     if (!conversationId) return

@@ -4,6 +4,7 @@ import { use, useEffect, useMemo, useState } from "react"
 import type { InboxConversationSummary, InboxMessage } from "@/lib/inbox-types"
 import { ChatPanel } from "@/components/chat-panel"
 import { ConversationList } from "@/components/conversation-list"
+import { useInboxRealtime } from "@/lib/inbox-realtime-client"
 import { SafeImage } from "@/components/safe-image"
 import { Bot, FileText, Image as ImageIcon, Mic, Phone, User, Video } from "lucide-react"
 
@@ -64,6 +65,12 @@ function statusLabel(value?: InboxConversationSummary["status"]) {
   return "Aberta"
 }
 
+function sortInboxMessages(messages: InboxMessage[]) {
+  return [...messages].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  )
+}
+
 function ContextPanel({
   tenantSlug,
   conversationId,
@@ -100,6 +107,32 @@ function ContextPanel({
   useEffect(() => {
     void loadContext()
   }, [tenantSlug, conversationId])
+
+  useInboxRealtime(tenantSlug, (event) => {
+    if (!conversationId || event.conversationId !== conversationId) {
+      return
+    }
+
+    if ("conversation" in event) {
+      setConversation(event.conversation)
+    }
+
+    if (event.type === "message_created") {
+      setMessages((current) => {
+        if (current.some((item) => item.id === event.message.id)) {
+          return current
+        }
+
+        return sortInboxMessages([...current, event.message])
+      })
+    }
+
+    if (event.type === "message_updated") {
+      setMessages((current) =>
+        current.map((item) => item.id === event.message.id ? event.message : item)
+      )
+    }
+  })
 
   useEffect(() => {
     if (!conversationId) return

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import type { CompositionJobInput } from "@/lib/composition-types"
-import { scheduleTenantCompositionProcessing } from "@/lib/server/composition-processor"
+import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { createCompositionJob, getCompositionJobStats, listCompositionJobs } from "@/lib/server/composition-jobs-store"
 import { canTenantCreateComposition } from "@/lib/server/token-ledger-store"
 
@@ -39,7 +39,8 @@ export async function POST(request: Request, context: RouteContext) {
     const result = await createCompositionJob(slug, payload)
 
     if (result.job.status === "queued") {
-      scheduleTenantCompositionProcessing(slug)
+      await enqueueProcessCompositionQueue(slug)
+      scheduleAppJobProcessing()
     }
 
     return NextResponse.json(result, { status: result.created ? 201 : 200 })
