@@ -34,11 +34,19 @@ function getUnavailableImageResponse() {
   })
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+function acceptsImage(request: Request) {
+  return request.headers.get("accept")?.toLowerCase().includes("image/") === true
+}
+
+export async function GET(request: Request, context: RouteContext) {
   const { slug, id, messageId } = await context.params
   const message = await findInboxMessage(slug, id, messageId)
 
   if (!message) {
+    if (acceptsImage(request)) {
+      return getUnavailableImageResponse()
+    }
+
     return NextResponse.json({ error: "Mensagem nao encontrada." }, { status: 404 })
   }
 

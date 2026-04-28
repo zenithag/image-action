@@ -185,6 +185,14 @@ function firstString(...values: unknown[]) {
   return ""
 }
 
+function normalizeUazapiRecipient(value: string) {
+  const contact = value.trim()
+  const withoutJidSuffix = contact.includes("@") ? contact.split("@")[0] : contact
+  const digits = withoutJidSuffix.replace(/\D/g, "")
+
+  return digits || withoutJidSuffix
+}
+
 function asFiniteNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value
@@ -487,6 +495,7 @@ export async function deleteUazapiInstance(provider: StoredProvider, instanceTok
 
 export async function sendUazapiText(provider: StoredProvider, instanceToken: string, number: string, text: string) {
   assertUazapiBaseUrl(provider)
+  const recipient = normalizeUazapiRecipient(number)
 
   const response = await fetch(appendUazapiPath(provider.baseUrl!, "/send/text"), {
     method: "POST",
@@ -496,7 +505,7 @@ export async function sendUazapiText(provider: StoredProvider, instanceToken: st
       token: instanceToken,
     },
     body: JSON.stringify({
-      number,
+      number: recipient,
       text,
       readchat: true,
     }),
@@ -685,6 +694,7 @@ export async function sendUazapiImage(
   instanceName?: string,
 ) {
   assertUazapiBaseUrl(provider)
+  const recipient = normalizeUazapiRecipient(number)
   const embeddedMediaBytes = await getMediaBytes(imageUrl)
   const shouldSendAsUpload = Boolean(embeddedMediaBytes)
 
@@ -695,7 +705,7 @@ export async function sendUazapiImage(
       instanceToken,
       "/send/image",
       {
-        number,
+        number: recipient,
         url: imageUrl,
         caption,
         readchat: true,
@@ -724,7 +734,7 @@ export async function sendUazapiImage(
     ? "imagem.jpg"
     : "imagem.png"
   const uazapiMediaBody = {
-    number,
+    number: recipient,
     type: "image",
     file: media,
     text: caption,
@@ -732,7 +742,7 @@ export async function sendUazapiImage(
     readchat: true,
   }
   const flatMediaBody = {
-    number,
+    number: recipient,
     mediatype: "image",
     mimetype: mimeType,
     caption,
@@ -741,7 +751,7 @@ export async function sendUazapiImage(
     delay: 200,
   }
   const nestedMediaBody = {
-    number,
+    number: recipient,
     mediaMessage: {
       mediatype: "image",
       mimetype: mimeType,
@@ -795,7 +805,7 @@ export async function sendUazapiImage(
     {
       pathname: "/send/media",
       body: {
-        number,
+        number: recipient,
         type: "image",
         mediaType: "image",
         mimetype: mimeType,
@@ -846,7 +856,7 @@ export async function sendUazapiImage(
 
     for (const attempt of multipartAttempts) {
       const formData = new FormData()
-      formData.append("number", number)
+      formData.append("number", recipient)
       formData.append("caption", caption ?? "")
       formData.append("type", "image")
       formData.append("mediaType", "image")

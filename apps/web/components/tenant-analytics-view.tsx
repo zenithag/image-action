@@ -205,9 +205,9 @@ function DashboardEditorial({ data }: { data: AnalyticsPayload }) {
             <span className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground">{data.meta.label}</span>
           </div>
           <div className="rounded-xl border border-border bg-secondary/50 p-5">
-            <div className="h-[260px]">
+            <div className="h-[260px] min-w-0">
               {hasTimelineData ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <LineChart data={data.conversationData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -405,9 +405,9 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="inline-block h-2 w-2 rounded-full bg-muted-foreground" />Composições</span>
                   </div>
                 </div>
-                <div className="h-[320px]">
+                <div className="h-[320px] min-w-0">
                   {hasTimelineData ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={data.conversationData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -429,9 +429,9 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
                   <h4 className="font-display text-[15px] font-semibold text-foreground">Composições por modo</h4>
                   <p className="text-xs text-muted-foreground">Distribuição do período</p>
                 </div>
-                <div className="h-[320px]">
+                <div className="h-[320px] min-w-0">
                   {hasCompositionModes ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <PieChart>
                         <Pie data={data.compositionModeData} dataKey="value" nameKey="name" innerRadius={72} outerRadius={110} paddingAngle={4}>
                           {data.compositionModeData.map((entry) => (
@@ -455,9 +455,9 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
                     <h4 className="font-display text-[15px] font-semibold text-foreground">Atendimentos por hora</h4>
                     <p className="text-xs text-muted-foreground">IA vs operador humano</p>
                   </div>
-                  <div className="h-[320px]">
+                  <div className="h-[320px] min-w-0">
                     {hasHourlyData ? (
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <BarChart data={data.hourlyData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={12} interval={2} />

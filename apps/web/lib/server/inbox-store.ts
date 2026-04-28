@@ -290,6 +290,7 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
     const mediaUrl = input.mediaUrl ?? input.imageUrl
     const content = getMessageContent(input.text, contentType)
 
+    const handledBy = existingConversation?.handledBy ?? "operator"
     const nextConversation: InboxConversationSummary = {
       id: conversationId,
       tenantSlug: input.tenantSlug,
@@ -302,8 +303,8 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
       },
       lastMessage: content,
       lastMessageAt: now,
-      status: existingConversation?.handledBy === "operator" ? "waiting_operator" : "open",
-      handledBy: existingConversation?.handledBy ?? "ai",
+      status: handledBy === "operator" ? "waiting_operator" : "open",
+      handledBy,
       unreadCount: (existingConversation?.unreadCount ?? 0) + (messageExists ? 0 : 1),
       state: existingConversation?.state ?? "idle",
       contextResetAt: existingConversation?.contextResetAt,
@@ -394,6 +395,7 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
       ? existingConversation.lastMessageAt
       : input.createdAt
     const lastMessage = lastMessageAt === input.createdAt ? content : existingConversation?.lastMessage ?? content
+    const handledBy = existingConversation?.handledBy ?? "operator"
     const conversation: InboxConversationSummary = {
       id: conversationId,
       tenantSlug: input.tenantSlug,
@@ -406,8 +408,8 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
       },
       lastMessage,
       lastMessageAt,
-      status: input.fromMe ? "waiting_customer" : existingConversation?.handledBy === "operator" ? "waiting_operator" : "open",
-      handledBy: existingConversation?.handledBy ?? (input.fromMe ? "operator" : "ai"),
+      status: input.fromMe ? "waiting_customer" : handledBy === "operator" ? "waiting_operator" : "open",
+      handledBy,
       unreadCount: input.fromMe ? previousUnread : previousUnread + 1,
       state: existingConversation?.state ?? "idle",
       contextResetAt: existingConversation?.contextResetAt,
