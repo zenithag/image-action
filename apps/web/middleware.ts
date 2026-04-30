@@ -20,7 +20,7 @@ export default async function middleware(req: NextRequest) {
 
   if (!token) {
     const callbackUrl = `${req.nextUrl.pathname}${req.nextUrl.search}`
-    const loginUrl = new URL("/", req.url)
+    const loginUrl = new URL("/login", req.url)
 
     loginUrl.searchParams.set("callbackUrl", callbackUrl)
 
@@ -45,7 +45,7 @@ export default async function middleware(req: NextRequest) {
     const expiresAt = issuedAt + sessionTimeoutMinutes * 60
 
     if (Math.floor(Date.now() / 1000) > expiresAt) {
-      const loginUrl = new URL("/", req.url)
+      const loginUrl = new URL("/login", req.url)
       loginUrl.searchParams.set("sessionExpired", "1")
 
       return NextResponse.redirect(loginUrl)

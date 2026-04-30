@@ -1,52 +1,25 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
-import { LoginForm } from "@/components/login-form"
+import { LandingPage } from "@/components/landing-page"
 import { auth } from "@/lib/auth"
-import { getSafeCallbackUrl } from "@/lib/auth-routing"
+import { getDefaultDashboardPath } from "@/lib/auth-routing"
 
 export const metadata: Metadata = {
-  title: "Login | ComoFica",
-  description: "Entre na sua conta para acessar a area interna do ComoFica.",
+  title: "Como Fica — Visualize antes de comprar, direto no WhatsApp",
+  description:
+    "Ferramenta de IA que aplica seu produto na foto do ambiente do cliente. Sem app, sem cadastro. O cliente decide na hora, dentro do WhatsApp.",
 }
 
-type HomePageProps = {
-  searchParams: Promise<{
-    callbackUrl?: string
-    error?: string
-    sessionExpired?: string
-  }>
-}
-
-function getErrorMessage(error?: string, sessionExpired?: string) {
-  if (sessionExpired === "1") {
-    return "Sua sessao expirou. Entre novamente para continuar."
-  }
-
-  if (!error) {
-    return null
-  }
-
-  if (error === "CredentialsSignin") {
-    return "Credenciais invalidas. Use o e-mail e a senha do ambiente local."
-  }
-
-  return "Nao foi possivel autenticar agora. Tente novamente."
-}
-
-export default async function HomePage({ searchParams }: HomePageProps) {
+export default async function HomePage() {
   const session = await auth()
-  const { callbackUrl, error, sessionExpired } = await searchParams
-  const safeCallbackUrl = getSafeCallbackUrl(callbackUrl, session?.user)
 
-  if (!sessionExpired && session?.user && safeCallbackUrl !== "/") {
-    redirect(safeCallbackUrl)
+  if (session?.user) {
+    const dashboardPath = getDefaultDashboardPath(session.user)
+    if (dashboardPath !== "/") {
+      redirect(dashboardPath)
+    }
   }
 
-  return (
-    <LoginForm
-      callbackUrl={safeCallbackUrl}
-      errorMessage={getErrorMessage(error, sessionExpired)}
-    />
-  )
+  return <LandingPage />
 }
