@@ -43,7 +43,7 @@ function getCallbackPathname(callbackUrl: string) {
 }
 
 function isAuthCallbackPath(pathname: string) {
-  return pathname === "/" || pathname.startsWith("/auth/")
+  return pathname === "/" || pathname === "/login" || pathname.startsWith("/auth/")
 }
 
 export function getSafeCallbackUrl(
