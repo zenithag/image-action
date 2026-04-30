@@ -339,7 +339,7 @@ export function LandingPage() {
                 <Reveal>
                   <h1>
                     Venda mais. <br />
-                    Mostre como <span className="accent">fica</span> antes de comprar.
+                    Mostre <span className="accent">como fica</span> antes de comprar.
                   </h1>
                 </Reveal>
               </div>
@@ -680,7 +680,7 @@ export function LandingPage() {
             <div className="cf-faq-list">
               {[
                 { q: "O cliente precisa baixar algum app?", a: "Nao. Tudo acontece dentro do WhatsApp que ele ja usa. A foto vai e volta como qualquer outra mensagem, so que agora com o produto da sua loja aplicado." },
-                { q: "Como voces integram com o WhatsApp da minha loja?", a: "Conectamos ao seu numero oficial WhatsApp Business via API. Toda conversa continua sendo da sua loja, com o seu nome, o seu logo, o seu atendente. Como Fica entra como um assistente de imagem no fundo." },
+                { q: "Como voces integram com o WhatsApp da minha loja?", a: "Conectamos ao seu numero oficial do WhatsApp. Toda conversa continua sendo da sua loja, com o seu nome, o seu logo, o seu atendente. Como Fica entra como um assistente de imagem no fundo." },
                 { q: "Como voces carregam meu catalogo?", a: "Aceitamos planilha, integracao com Bling, Tray, Shopify, Nuvemshop, ou XML do seu ERP. Cada produto vira uma opcao que o cliente pode aplicar na foto." },
                 { q: "Quanto tempo leva para colocar no ar?", a: "Lojas com catalogo organizado entram em ate 24 horas. A configuracao e feita por nossa equipe. Voce nao precisa instalar nada." },
                 { q: "E se a foto do cliente estiver ruim?", a: "O sistema avisa automaticamente: \"essa foto esta escura/desfocada/em angulo dificil. Pode mandar outra?\". Voce nao envia resultado de baixa qualidade para o cliente." },
@@ -793,7 +793,7 @@ const landingCSS = `
 .cf-landing ul { list-style: none; margin: 0; padding: 0; }
 .cf-landing .accent { color: var(--cf-accent); }
 
-.cf-wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+.cf-wrap { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
 
 /* ── Reveal ── */
 .cf-reveal { opacity: 0; transform: translateY(18px); transition: opacity .8s ease, transform .8s ease; }
@@ -856,7 +856,7 @@ const landingCSS = `
 
 /* ── Hero ── */
 .cf-hero { padding: 120px 0 56px; position: relative; }
-.cf-hero-top { display: grid; grid-template-columns: 7fr 5fr; gap: 56px; align-items: end; margin-bottom: 64px; }
+.cf-hero-top { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; margin-bottom: 56px; }
 .cf-hero-right { display: flex; flex-direction: column; align-items: flex-end; gap: 24px; padding-bottom: 12px; }
 .cf-hero-right p { text-align: right; font-size: 16px; color: var(--cf-ink-soft); max-width: 36ch; line-height: 1.55; }
 .cf-eyebrow {
@@ -1183,8 +1183,8 @@ const landingCSS = `
 
 /* ── Hero meta strip ── */
 .cf-hero-meta {
-  margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--cf-line);
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;
+  margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--cf-line);
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 40px; text-align: center;
 }
 .cf-stat .cf-n { font-weight: 700; font-size: 36px; line-height: 1.1; letter-spacing: -0.03em; }
 .cf-stat .cf-stat-l {
@@ -1193,12 +1193,12 @@ const landingCSS = `
 }
 
 /* ── Section head ── */
-.cf-section-head { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: end; margin-bottom: 48px; }
+.cf-section-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; margin-bottom: 48px; }
 .cf-tag {
   font-family: var(--cf-mono); font-size: 11px; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--cf-muted); margin-bottom: 16px;
 }
-.cf-section-head h2 { font-weight: 700; font-size: clamp(28px, 3.5vw, 42px); line-height: 1.15; letter-spacing: -0.025em; max-width: 18ch; }
+.cf-section-head h2 { font-weight: 700; font-size: clamp(28px, 3.5vw, 42px); line-height: 1.15; letter-spacing: -0.025em; }
 .cf-lede { font-size: 15px; color: var(--cf-ink-soft); max-width: 48ch; text-wrap: pretty; line-height: 1.6; }
 
 /* ── How ── */
@@ -1208,7 +1208,7 @@ const landingCSS = `
   background: var(--cf-line); border: 1px solid var(--cf-line); border-radius: 18px; overflow: hidden;
 }
 .cf-step {
-  background: var(--cf-bg); padding: 32px 26px 36px; min-height: 280px;
+  background: var(--cf-bg); padding: 28px 24px 32px; min-height: 260px;
   display: flex; flex-direction: column; transition: background .25s;
 }
 .cf-step:hover { background: var(--cf-bg-2); }
@@ -1227,7 +1227,7 @@ const landingCSS = `
 .cf-demo .cf-section-head h2 .accent { color: var(--cf-accent-soft); }
 .cf-demo .cf-lede { color: color-mix(in oklab, var(--cf-bg) 70%, transparent); }
 .cf-demo .cf-tag { color: var(--cf-accent-soft); }
-.cf-demo-grid { display: grid; grid-template-columns: 5fr 7fr; gap: 56px; align-items: center; }
+.cf-demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
 .cf-demo-points { display: flex; flex-direction: column; gap: 24px; }
 .cf-demo-point {
   padding: 24px; border: 1px solid color-mix(in oklab, var(--cf-bg) 18%, transparent);
@@ -1278,7 +1278,7 @@ const landingCSS = `
 
 /* ── Benefits ── */
 .cf-benefits { padding: 100px 0; border-top: 1px solid var(--cf-line); }
-.cf-ben-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.cf-ben-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 .cf-ben-card {
   border: 1px solid var(--cf-line); border-radius: 18px; padding: 44px;
   background: #fff; display: flex; flex-direction: column; min-height: 360px;
@@ -1304,7 +1304,7 @@ const landingCSS = `
 
 /* ── Cases ── */
 .cf-cases { padding: 100px 0; border-top: 1px solid var(--cf-line); }
-.cf-cases-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.cf-cases-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
 .cf-case {
   border: 1px solid var(--cf-line); border-radius: 16px; overflow: hidden;
   background: #fff; transition: transform .3s ease, border-color .2s, box-shadow .3s ease;
@@ -1329,7 +1329,7 @@ const landingCSS = `
 
 /* ── Quote ── */
 .cf-quote-section { padding: 100px 0; border-top: 1px solid var(--cf-line); }
-.cf-quote-grid { display: grid; grid-template-columns: 4fr 8fr; gap: 64px; align-items: start; }
+.cf-quote-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 48px; align-items: start; }
 .cf-label-tag { font-family: var(--cf-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--cf-muted); }
 .cf-big-quote {
   font-weight: 500; font-size: clamp(22px, 2.8vw, 32px); line-height: 1.35;
@@ -1393,7 +1393,7 @@ const landingCSS = `
 
 /* ── Footer ── */
 .cf-footer { border-top: 1px solid var(--cf-line); padding: 64px 0 40px; }
-.cf-foot-grid { display: grid; grid-template-columns: 5fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 64px; }
+.cf-foot-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 56px; }
 .cf-foot-grid h5 {
   font-family: var(--cf-mono); font-size: 11px; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--cf-muted); margin-bottom: 18px; font-weight: 500;
@@ -1403,12 +1403,12 @@ const landingCSS = `
 .cf-foot-grid ul button:hover { color: var(--cf-ink); }
 .cf-foot-tag { max-width: 36ch; color: var(--cf-ink-soft); font-size: 14px; line-height: 1.55; margin-top: 12px; }
 .cf-foot-mark {
-  font-weight: 700; font-size: 14vw; line-height: 0.9; color: var(--cf-ink);
-  letter-spacing: -0.05em; margin: 24px 0 32px;
+  font-weight: 700; font-size: 12vw; line-height: 0.9; color: var(--cf-ink);
+  letter-spacing: -0.05em; margin: 24px 0 32px; text-align: center;
 }
 .cf-foot-bottom {
   border-top: 1px solid var(--cf-line); padding-top: 24px;
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; justify-content: center; align-items: center;
   font-family: var(--cf-mono); font-size: 11px; color: var(--cf-muted);
   letter-spacing: 0.04em; text-transform: uppercase; flex-wrap: wrap; gap: 16px;
 }
