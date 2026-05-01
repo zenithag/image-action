@@ -107,9 +107,13 @@ async function getChannelCutoffTimes() {
 }
 
 function isVisibleAfterConnection(
-  item: { tenantSlug: string; channelInstanceId: string; createdAt: string },
+  item: { tenantSlug: string; channelInstanceId: string; createdAt: string; rawPayload?: unknown },
   cutoffs: Map<string, number>,
 ) {
+  if (isHistoryMessage(item)) {
+    return false
+  }
+
   const cutoff = cutoffs.get(getChannelKey(item.tenantSlug, item.channelInstanceId))
 
   return !cutoff || getMessageTimestamp(item) >= cutoff
@@ -912,6 +916,30 @@ function getMessageTimestamp(message: { createdAt: string }) {
   return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+function getPayloadText(payload: unknown, key: string) {
+  if (!isRecord(payload)) {
+    return ""
+  }
+
+  const value = payload[key]
+
+  return typeof value === "string" ? value.trim().toLowerCase() : ""
+}
+
+function isHistoryMessage(message: { rawPayload?: unknown }) {
+  const rawPayload = message.rawPayload
+  const data = isRecord(rawPayload) ? rawPayload.data : undefined
+
+  return (
+    getPayloadText(rawPayload, "EventType") === "history" ||
+    getPayloadText(data, "EventType") === "history" ||
+    getPayloadText(rawPayload, "eventType") === "history" ||
+    getPayloadText(data, "eventType") === "history" ||
+    getPayloadText(rawPayload, "event") === "history" ||
+    getPayloadText(data, "event") === "history"
+  )
+}
+
 export async function pruneInboxBeforeChannelInstanceTime(
   tenantSlug: string,
   channelInstanceId: string,
@@ -928,7 +956,7 @@ export async function pruneInboxBeforeChannelInstanceTime(
     const shouldPruneMessage = (message: InboxMessage) =>
       message.tenantSlug === tenantSlug &&
       message.channelInstanceId === channelInstanceId &&
-      getMessageTimestamp(message) < cutoffTime
+      (getMessageTimestamp(message) < cutoffTime || isHistoryMessage(message))
 
     const messages = data.messages.filter((message) => !shouldPruneMessage(message))
     const remainingMessagesByConversation = new Map<string, InboxMessage[]>()

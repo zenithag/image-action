@@ -55,6 +55,15 @@ function getFirstMessagePayload(value: unknown) {
   return asRecord(value)
 }
 
+function isHistoryPayload(payload: unknown) {
+  const root = asRecord(payload)
+  const rootData = asRecord(root.data)
+  const eventType = firstString(root.EventType, rootData.EventType, root.eventType, rootData.eventType)
+  const event = firstString(root.event, rootData.event)
+
+  return eventType.toLowerCase() === "history" || event.toLowerCase() === "history"
+}
+
 function normalizeWebhookPayload(payload: unknown, requestUrl: string): NormalizedWebhookMessage {
   const searchParams = new URL(requestUrl).searchParams
   const root = asRecord(payload)
@@ -108,6 +117,11 @@ function normalizeWebhookPayload(payload: unknown, requestUrl: string): Normaliz
 
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null) as unknown
+
+  if (isHistoryPayload(payload)) {
+    return NextResponse.json({ ok: true, ignored: "history" })
+  }
+
   const normalized = normalizeWebhookPayload(payload, request.url)
 
   if (normalized.fromMe) {
