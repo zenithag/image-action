@@ -47,7 +47,7 @@ export type UazapiChat = {
   wa_name?: string
   wa_contactName?: string
   name?: string
-  wa_lastMsgTimestamp?: number
+  wa_lastMsgTimestamp?: number | string
 }
 
 export type UazapiMessage = {
@@ -79,8 +79,11 @@ export type UazapiMessage = {
   fileSize?: number
   seconds?: number
   duration?: number
-  messageTimestamp?: number
-  timestamp?: number
+  messageTimestamp?: number | string
+  timestamp?: number | string
+  createdAt?: string
+  created_at?: string
+  date?: string
   message?: {
     conversation?: string
     extendedTextMessage?: {

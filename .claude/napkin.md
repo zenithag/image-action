@@ -57,11 +57,11 @@
 8. **[2026-04-25] Referências do catálogo só vão quando o cliente pede; referência visual pode vir do cliente**
    Do instead: no WhatsApp, enviar imagens/cards de produtos apenas em pedido explícito de catálogo/referências/mais opções ou quando a ação for `show_catalog_options`; para composição aceitar SKU/produto do catálogo ou imagem de referência enviada pelo cliente, sempre com imagem base e direção clara de aplicação.
 
-9. **[2026-04-26] Conversa da IA não pode ficar travada em pergunta antiga**
-   Do instead: mensagens claras como SKU, catálogo, imagem ou edição seguem direto, ignorando pendências antigas; `original/nova` é inferência interna, não resposta obrigatória. Se a mensagem atual trouxer SKU/produto sem direção de montagem, perguntar o que fazer em vez de reaproveitar direção antiga.
+9. **[2026-05-01] Sync do WhatsApp não pode importar histórico anterior à conexão**
+   Do instead: usar `syncStartedAt` como corte rígido; timestamps da UAZAPI podem vir como string, número em segundos ou milissegundos. Se mensagem sincronizada não tiver timestamp confiável, pular em vez de usar `new Date()`.
 
-10. **[2026-04-16] Chave OpenRouter vive no provider de IA, não no `.env`**
-   Do instead: cadastrar API key e Base URL em Superadmin > IA & Modelos > Providers. O modelo de criação de imagem fica no perfil `Criacao de imagem`, padrão `google/gemini-3-pro-image-preview`. O `.env` só pode conter opções não secretas de geração (`OPENROUTER_IMAGE_SIZE`, `OPENROUTER_IMAGE_QUALITY`, `OPENROUTER_IMAGE_OUTPUT_FORMAT`); sem provider/credito real, jobs devem falhar explicitamente.
+10. **[2026-04-26] Conversa da IA não pode ficar travada em pergunta antiga**
+   Do instead: mensagens claras como SKU, catálogo, imagem ou edição seguem direto, ignorando pendências antigas; `original/nova` é inferência interna, não resposta obrigatória. Se a mensagem atual trouxer SKU/produto sem direção de montagem, perguntar o que fazer em vez de reaproveitar direção antiga.
 
 ## User Directives
 1. **[2026-04-05] Sempre responder em Português**

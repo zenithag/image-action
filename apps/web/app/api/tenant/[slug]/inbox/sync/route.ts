@@ -2,7 +2,11 @@ import { NextResponse } from "next/server"
 
 import { enqueueProcessInboundMessage, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { readProviders } from "@/lib/server/channel-providers-store"
-import { purgeInboxExceptChannelInstances, upsertSyncedInboxMessage } from "@/lib/server/inbox-store"
+import {
+  pruneInboxBeforeChannelInstanceTime,
+  purgeInboxExceptChannelInstances,
+  upsertSyncedInboxMessage,
+} from "@/lib/server/inbox-store"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { readTenantInstances, updateTenantInstance } from "@/lib/server/tenant-channel-instances-store"
 import {
@@ -24,6 +28,9 @@ type InboxSyncPayload = {
   instances: number
   scannedChats: number
   scannedMessages: number
+  skippedMessagesBeforeConnection: number
+  skippedMessagesWithoutTimestamp: number
+  prunedMessagesBeforeConnection: number
   createdMessages: number
   aiProcessedMessages: number
   aiSkippedMessages: number
@@ -56,6 +63,9 @@ function getEmptySyncPayload(reason: string): InboxSyncPayload {
     instances: 0,
     scannedChats: 0,
     scannedMessages: 0,
+    skippedMessagesBeforeConnection: 0,
+    skippedMessagesWithoutTimestamp: 0,
+    prunedMessagesBeforeConnection: 0,
     createdMessages: 0,
     aiProcessedMessages: 0,
     aiSkippedMessages: 0,
@@ -82,6 +92,9 @@ function cacheSyncError(slug: string, error: unknown) {
       instances: 0,
       scannedChats: 0,
       scannedMessages: 0,
+      skippedMessagesBeforeConnection: 0,
+      skippedMessagesWithoutTimestamp: 0,
+      prunedMessagesBeforeConnection: 0,
       createdMessages: 0,
       aiProcessedMessages: 0,
       aiSkippedMessages: 0,
@@ -124,20 +137,6 @@ function getMessageId(message: UazapiMessage) {
   return firstText(message.id, message.messageid, message.messageId)
 }
 
-function getMessageCreatedAt(message: UazapiMessage) {
-  const timestamp = message.messageTimestamp ?? message.timestamp
-
-  if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
-    return new Date(timestamp > 9999999999 ? timestamp : timestamp * 1000).toISOString()
-  }
-
-  return new Date().toISOString()
-}
-
-function getTime(value: string) {
-  return new Date(value).getTime()
-}
-
 function getProviderTimestampTime(timestamp: unknown) {
   if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
     return timestamp > 9999999999 ? timestamp : timestamp * 1000
@@ -158,6 +157,32 @@ function getProviderTimestampTime(timestamp: unknown) {
   }
 
   return 0
+}
+
+function getMessageTimestampTime(message: UazapiMessage) {
+  const record = message as Record<string, unknown>
+
+  return getProviderTimestampTime(
+    message.messageTimestamp ??
+    message.timestamp ??
+    record.wa_timestamp ??
+    record.wa_messageTimestamp ??
+    record.createdAt ??
+    record.created_at ??
+    record.date,
+  )
+}
+
+function getMessageCreatedAt(message: UazapiMessage) {
+  const timestamp = getMessageTimestampTime(message)
+
+  return timestamp > 0 ? new Date(timestamp).toISOString() : null
+}
+
+function getTime(value: string) {
+  const timestamp = new Date(value).getTime()
+
+  return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 function getInstanceSyncStartedAt(instance: { syncStartedAt?: string; createdAt: string }) {
@@ -241,6 +266,9 @@ async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
         instances: 0,
         scannedChats: 0,
         scannedMessages: 0,
+        skippedMessagesBeforeConnection: 0,
+        skippedMessagesWithoutTimestamp: 0,
+        prunedMessagesBeforeConnection: 0,
         createdMessages: 0,
         aiProcessedMessages: 0,
         aiSkippedMessages: 0,
@@ -265,6 +293,9 @@ async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
 
   let scannedChats = 0
   let scannedMessages = 0
+  let skippedMessagesBeforeConnection = 0
+  let skippedMessagesWithoutTimestamp = 0
+  let prunedMessagesBeforeConnection = 0
   let createdMessages = 0
   let aiProcessedMessages = 0
   let aiSkippedMessages = 0
@@ -282,6 +313,8 @@ async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
     try {
       const syncStartedAt = getInstanceSyncStartedAt(instance)
       const syncStartedTime = getTime(syncStartedAt)
+      const pruneResult = await pruneInboxBeforeChannelInstanceTime(slug, instance.id, syncStartedAt)
+      prunedMessagesBeforeConnection += pruneResult.removedMessages
       const chats = await findUazapiChats(provider, instance.instanceToken, 20)
       scannedChats += chats.length
 
@@ -298,7 +331,16 @@ async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
           const content = normalizeUazapiMessageContent(message)
           if (!content.text && content.contentType === "text") continue
           const createdAt = getMessageCreatedAt(message)
-          if (getTime(createdAt) < syncStartedTime) continue
+
+          if (!createdAt) {
+            skippedMessagesWithoutTimestamp += 1
+            continue
+          }
+
+          if (getTime(createdAt) < syncStartedTime) {
+            skippedMessagesBeforeConnection += 1
+            continue
+          }
 
           const result = await upsertSyncedInboxMessage({
             tenantSlug: slug,
@@ -365,6 +407,9 @@ async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
       instances: activeInstances.length,
       scannedChats,
       scannedMessages,
+      skippedMessagesBeforeConnection,
+      skippedMessagesWithoutTimestamp,
+      prunedMessagesBeforeConnection,
       createdMessages,
       aiProcessedMessages,
       aiSkippedMessages,

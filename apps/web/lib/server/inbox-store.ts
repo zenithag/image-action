@@ -11,6 +11,7 @@ import type {
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { publishInboxRealtime } from "@/lib/server/inbox-realtime"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+import { readTenantInstances } from "@/lib/server/tenant-channel-instances-store"
 
 type InboxData = {
   conversations: InboxConversationSummary[]
@@ -85,13 +86,95 @@ async function readInboxData(): Promise<InboxData> {
   })
 }
 
+function getChannelKey(tenantSlug: string, channelInstanceId: string) {
+  return `${tenantSlug}:${channelInstanceId}`
+}
+
+async function getChannelCutoffTimes() {
+  const instances = await readTenantInstances()
+  const cutoffs = new Map<string, number>()
+
+  for (const instance of instances) {
+    const cutoff = instance.syncStartedAt ?? instance.createdAt
+    const cutoffTime = new Date(cutoff).getTime()
+
+    if (Number.isFinite(cutoffTime)) {
+      cutoffs.set(getChannelKey(instance.tenantSlug, instance.id), cutoffTime)
+    }
+  }
+
+  return cutoffs
+}
+
+function isVisibleAfterConnection(
+  item: { tenantSlug: string; channelInstanceId: string; createdAt: string },
+  cutoffs: Map<string, number>,
+) {
+  const cutoff = cutoffs.get(getChannelKey(item.tenantSlug, item.channelInstanceId))
+
+  return !cutoff || getMessageTimestamp(item) >= cutoff
+}
+
+function applyConnectionCutoffs(data: InboxData, cutoffs: Map<string, number>): InboxData {
+  const messages = data.messages.filter((message) => isVisibleAfterConnection(message, cutoffs))
+  const messagesByConversation = new Map<string, InboxMessage[]>()
+
+  for (const message of messages) {
+    const current = messagesByConversation.get(message.conversationId) ?? []
+    current.push(message)
+    messagesByConversation.set(message.conversationId, current)
+  }
+
+  const conversations = data.conversations.flatMap((conversation) => {
+    const cutoff = cutoffs.get(getChannelKey(conversation.tenantSlug, conversation.channelInstanceId))
+
+    if (!cutoff) {
+      return [conversation]
+    }
+
+    const conversationMessages = messagesByConversation.get(conversation.id) ?? []
+
+    if (conversationMessages.length === 0) {
+      return []
+    }
+
+    const latestMessage = [...conversationMessages].sort((left, right) =>
+      getMessageTimestamp(right) - getMessageTimestamp(left)
+    )[0]
+
+    return [{
+      ...conversation,
+      lastMessage: latestMessage.content,
+      lastMessageAt: latestMessage.createdAt,
+      unreadCount: Math.min(
+        conversation.unreadCount,
+        conversationMessages.filter((message) => message.direction === "inbound").length,
+      ),
+    }]
+  })
+
+  return {
+    conversations,
+    messages,
+  }
+}
+
+async function readVisibleInboxData() {
+  const [data, cutoffs] = await Promise.all([
+    readInboxData(),
+    getChannelCutoffTimes(),
+  ])
+
+  return applyConnectionCutoffs(data, cutoffs)
+}
+
 export async function listAllInboxConversations() {
-  const data = await readInboxData()
+  const data = await readVisibleInboxData()
   return sortConversations(data.conversations)
 }
 
 export async function listAllInboxMessages() {
-  const data = await readInboxData()
+  const data = await readVisibleInboxData()
   return [...data.messages].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
 }
 
@@ -254,13 +337,13 @@ function getMessageContent(text: string | undefined, contentType: InboxMessageCo
 }
 
 export async function listInboxConversations(tenantSlug: string) {
-  const data = await readInboxData()
+  const data = await readVisibleInboxData()
 
   return sortConversations(data.conversations.filter((conversation) => conversation.tenantSlug === tenantSlug))
 }
 
 export async function listInboxMessages(tenantSlug: string, conversationId: string) {
-  const data = await readInboxData()
+  const data = await readVisibleInboxData()
 
   return data.messages
     .filter((message) => message.tenantSlug === tenantSlug && message.conversationId === conversationId)
@@ -268,7 +351,7 @@ export async function listInboxMessages(tenantSlug: string, conversationId: stri
 }
 
 export async function findInboxConversation(tenantSlug: string, conversationId: string) {
-  const data = await readInboxData()
+  const data = await readVisibleInboxData()
 
   return data.conversations.find((conversation) =>
     conversation.tenantSlug === tenantSlug && conversation.id === conversationId
@@ -276,7 +359,7 @@ export async function findInboxConversation(tenantSlug: string, conversationId: 
 }
 
 export async function findInboxMessage(tenantSlug: string, conversationId: string, messageId: string) {
-  const data = await readInboxData()
+  const data = await readVisibleInboxData()
 
   return data.messages.find((message) =>
     message.tenantSlug === tenantSlug &&
@@ -820,5 +903,84 @@ export async function purgeInboxExceptChannelInstances(tenantSlug: string, chann
         message.tenantSlug !== tenantSlug || allowedIds.has(message.channelInstanceId)
       ),
     })
+  })
+}
+
+function getMessageTimestamp(message: { createdAt: string }) {
+  const timestamp = new Date(message.createdAt).getTime()
+
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+export async function pruneInboxBeforeChannelInstanceTime(
+  tenantSlug: string,
+  channelInstanceId: string,
+  cutoffIso: string,
+) {
+  return withInboxMutation(async () => {
+    const cutoffTime = new Date(cutoffIso).getTime()
+
+    if (!Number.isFinite(cutoffTime)) {
+      return { removedMessages: 0, removedConversations: 0 }
+    }
+
+    const data = await readInboxData()
+    const shouldPruneMessage = (message: InboxMessage) =>
+      message.tenantSlug === tenantSlug &&
+      message.channelInstanceId === channelInstanceId &&
+      getMessageTimestamp(message) < cutoffTime
+
+    const messages = data.messages.filter((message) => !shouldPruneMessage(message))
+    const remainingMessagesByConversation = new Map<string, InboxMessage[]>()
+
+    for (const message of messages) {
+      if (message.tenantSlug !== tenantSlug || message.channelInstanceId !== channelInstanceId) {
+        continue
+      }
+
+      const current = remainingMessagesByConversation.get(message.conversationId) ?? []
+      current.push(message)
+      remainingMessagesByConversation.set(message.conversationId, current)
+    }
+
+    let removedConversations = 0
+    const conversations = data.conversations.flatMap((conversation) => {
+      if (conversation.tenantSlug !== tenantSlug || conversation.channelInstanceId !== channelInstanceId) {
+        return [conversation]
+      }
+
+      const conversationMessages = remainingMessagesByConversation.get(conversation.id) ?? []
+
+      if (conversationMessages.length === 0) {
+        removedConversations += 1
+        return []
+      }
+
+      const latestMessage = [...conversationMessages].sort((left, right) =>
+        getMessageTimestamp(right) - getMessageTimestamp(left)
+      )[0]
+
+      return [{
+        ...conversation,
+        lastMessage: latestMessage.content,
+        lastMessageAt: latestMessage.createdAt,
+        unreadCount: Math.min(
+          conversation.unreadCount,
+          conversationMessages.filter((message) => message.direction === "inbound").length,
+        ),
+        updatedAt: new Date().toISOString(),
+      }]
+    })
+
+    const removedMessages = data.messages.length - messages.length
+
+    if (removedMessages > 0 || removedConversations > 0) {
+      await writeInboxData({
+        conversations: sortConversations(conversations),
+        messages,
+      })
+    }
+
+    return { removedMessages, removedConversations }
   })
 }
