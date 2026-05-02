@@ -72,6 +72,9 @@ type TenantAnalyticsViewProps = {
 
 type DateRange = AnalyticsPayload["meta"]["range"]
 
+const chartAxisColor = "var(--muted-foreground)"
+const chartGridColor = "var(--border)"
+
 async function requestJson<T>(url: string) {
   const response = await fetch(url, { cache: "no-store" })
   const payload = await response.json().catch(() => null) as T | { error?: string } | null
@@ -211,9 +214,9 @@ function DashboardEditorial({ data }: { data: AnalyticsPayload }) {
               {hasTimelineData ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <LineChart data={data.conversationData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                    <XAxis dataKey="name" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
+                    <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
                     <Tooltip />
                     <Line type="monotone" dataKey="conversas" stroke="#31c48d" strokeWidth={3} dot={false} />
                     <Line type="monotone" dataKey="composicoes" stroke="#60a5fa" strokeWidth={3} dot={false} />
@@ -437,9 +440,9 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
                   {hasTimelineData ? (
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={data.conversationData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                        <XAxis dataKey="name" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
+                        <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
                         <Tooltip />
                         <Line type="monotone" dataKey="conversas" stroke="#31c48d" strokeWidth={3} dot={false} />
                         <Line type="monotone" dataKey="composicoes" stroke="#60a5fa" strokeWidth={3} dot={false} />
@@ -487,9 +490,9 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
                     {hasHourlyData ? (
                       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <BarChart data={data.hourlyData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={12} interval={2} />
-                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                          <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                          <XAxis dataKey="hour" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} interval={2} />
+                          <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
                           <Tooltip />
                           <Bar dataKey="ia" stackId="a" fill="#31c48d" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="operador" stackId="a" fill="#60a5fa" radius={[4, 4, 0, 0]} />
