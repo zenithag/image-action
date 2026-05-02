@@ -404,7 +404,9 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                         </span>
                       </div>
                       <div className="absolute right-2.5 top-2.5">
-                        <span className="rounded-full bg-white/90 px-2 py-0.5 font-mono text-[10px] text-foreground">{job.id.slice(0, 8)}</span>
+                        <span className="rounded-full border border-border/60 bg-background/90 px-2 py-0.5 font-mono text-[10px] text-foreground shadow-sm backdrop-blur">
+                          {job.id.slice(0, 8)}
+                        </span>
                       </div>
                     </div>
                     <div className="p-3.5">

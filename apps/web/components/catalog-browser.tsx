@@ -688,7 +688,9 @@ function ProductCard({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/15 to-transparent" />
           {item.sku && (
-            <span className="absolute left-2.5 top-2.5 rounded-full bg-white/85 px-2 py-0.5 font-mono text-[11px] text-foreground">{item.sku}</span>
+            <span className="absolute left-2.5 top-2.5 rounded-full border border-border/60 bg-background/90 px-2 py-0.5 font-mono text-[11px] text-foreground shadow-sm backdrop-blur">
+              {item.sku}
+            </span>
           )}
         </div>
         <div ref={menuRef} className="absolute right-2 top-2 z-40">
