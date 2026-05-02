@@ -244,7 +244,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
                 <span className="absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r bg-primary" />
               )}
               <div className="relative">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-900 border border-border/50">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border/50 bg-secondary text-sm font-bold text-secondary-foreground">
                   {getInitials(conversation.contact.name)}
                 </div>
                 <div

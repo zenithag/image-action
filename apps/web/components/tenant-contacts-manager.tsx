@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Filter, Loader2, Plus, Search, UserRound, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import type { CompositionJob } from "@/lib/composition-types"
 import type { TenantContact, TenantContactInput } from "@/lib/contact-types"
 import { cn } from "@/lib/utils"
 
@@ -33,6 +34,10 @@ type ContactForm = {
 
 type TenantContactsManagerProps = {
   tenantSlug: string
+}
+
+type CompositionJobsResponse = {
+  jobs: CompositionJob[]
 }
 
 const emptyForm: ContactForm = {
@@ -97,8 +102,24 @@ function payloadFromForm(form: ContactForm): TenantContactInput {
   }
 }
 
+function normalizePhone(value?: string) {
+  return (value || "").replace(/\D/g, "")
+}
+
+function contactMatchesJob(contact: TenantContact, job: CompositionJob) {
+  const contactPhone = normalizePhone(contact.phone || contact.externalContactId)
+  const jobPhone = normalizePhone(job.contactPhone)
+
+  if (contactPhone && jobPhone && (contactPhone.endsWith(jobPhone) || jobPhone.endsWith(contactPhone))) {
+    return true
+  }
+
+  return contact.name.trim().toLowerCase() === job.contactName.trim().toLowerCase()
+}
+
 export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps) {
   const [contacts, setContacts] = useState<TenantContact[]>([])
+  const [compositionJobs, setCompositionJobs] = useState<CompositionJob[]>([])
   const [query, setQuery] = useState("")
   const [selectedContact, setSelectedContact] = useState<TenantContact | null>(null)
   const [editingContact, setEditingContact] = useState<TenantContact | null>(null)
@@ -122,8 +143,18 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
     }
   }
 
+  async function loadCompositionJobs() {
+    try {
+      const data = await requestJson<CompositionJobsResponse>(`/api/tenant/${tenantSlug}/compositions/jobs`, { cache: "no-store" })
+      setCompositionJobs(data.jobs)
+    } catch {
+      setCompositionJobs([])
+    }
+  }
+
   useEffect(() => {
     void loadContacts()
+    void loadCompositionJobs()
   }, [tenantSlug])
 
   const filteredContacts = useMemo(() => {
@@ -140,6 +171,14 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
     )
   }, [contacts, query])
 
+  const selectedContactJobs = useMemo(() => {
+    if (!selectedContact) return []
+
+    return compositionJobs
+      .filter((job) => contactMatchesJob(selectedContact, job))
+      .slice(0, 5)
+  }, [compositionJobs, selectedContact])
+
   function openCreate() {
     setEditingContact(null)
     setForm(emptyForm)
@@ -147,11 +186,6 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
   }
 
   function openEdit(contact: TenantContact) {
-    if (contact.source === "inbox") {
-      setError("Contatos gerados pelo inbox devem ser cadastrados manualmente antes de editar.")
-      return
-    }
-
     setEditingContact(contact)
     setForm(formFromContact(contact))
     setIsFormOpen(true)
@@ -165,15 +199,27 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
 
     try {
       if (editingContact) {
-        const updated = await requestJson<TenantContact>(
-          `/api/tenant/${tenantSlug}/contacts/${encodeURIComponent(editingContact.id)}`,
-          {
-            method: "PATCH",
-            body: JSON.stringify(payloadFromForm(form)),
-          }
-        )
-        setContacts((current) => current.map((contact) => contact.id === updated.id ? updated : contact))
-        setSelectedContact((current) => current?.id === updated.id ? updated : current)
+        if (editingContact.source === "inbox") {
+          const created = await requestJson<TenantContact>(`/api/tenant/${tenantSlug}/contacts`, {
+            method: "POST",
+            body: JSON.stringify({
+              ...payloadFromForm(form),
+              externalContactId: editingContact.externalContactId,
+            }),
+          })
+          setContacts((current) => [created, ...current.filter((contact) => contact.id !== editingContact.id)])
+          setSelectedContact(created)
+        } else {
+          const updated = await requestJson<TenantContact>(
+            `/api/tenant/${tenantSlug}/contacts/${encodeURIComponent(editingContact.id)}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify(payloadFromForm(form)),
+            }
+          )
+          setContacts((current) => current.map((contact) => contact.id === updated.id ? updated : contact))
+          setSelectedContact((current) => current?.id === updated.id ? updated : current)
+        }
       } else {
         const created = await requestJson<TenantContact>(`/api/tenant/${tenantSlug}/contacts`, {
           method: "POST",
@@ -376,6 +422,24 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
                   <p className="text-sm leading-relaxed text-muted-foreground">{selectedContact.notes}</p>
                 </div>
               )}
+              <div className="rounded-xl border border-border bg-background p-4">
+                <h4 className="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Composições</h4>
+                {selectedContactJobs.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedContactJobs.map((job) => (
+                      <div key={job.id} className="rounded-lg border border-border bg-card px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="truncate text-sm font-medium text-foreground">{job.catalogItemName || job.prompt}</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">{job.status}</span>
+                        </div>
+                        <p className="mt-1 font-mono text-[11px] text-muted-foreground">{formatDate(job.createdAt)} · {job.id.slice(0, 8)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nenhuma composição vinculada a este contato ainda.</p>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex gap-2 border-t border-border p-4">

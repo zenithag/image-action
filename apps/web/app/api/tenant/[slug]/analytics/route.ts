@@ -14,7 +14,7 @@ type RouteContext = {
   params: Promise<{ slug: string }>
 }
 
-type RangeKey = "7d" | "30d" | "month"
+type RangeKey = "7d" | "30d" | "month" | "custom"
 
 function startOfDay(date: Date) {
   const copy = new Date(date)
@@ -32,13 +32,47 @@ function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }
 
-function resolveRange(value: string | null): RangeKey {
-  return value === "30d" || value === "month" ? value : "7d"
+function parseDateParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null
+  }
+
+  const date = new Date(`${value}T00:00:00`)
+
+  return Number.isFinite(date.getTime()) ? date : null
 }
 
-function getRangeWindow(range: RangeKey) {
+function formatRangeDate(date: Date) {
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+}
+
+function resolveRange(value: string | null): RangeKey {
+  if (value === "30d" || value === "month" || value === "custom") return value
+  return "7d"
+}
+
+function getRangeWindow(range: RangeKey, params?: { start?: Date | null; end?: Date | null }) {
   const now = new Date()
   const end = new Date()
+
+  if (range === "custom" && params?.start && params?.end && params.start <= params.end) {
+    const start = startOfDay(params.start)
+    const customEnd = endOfDay(params.end)
+    const bucketCount = Math.max(1, Math.ceil((customEnd.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)))
+    const previousEnd = new Date(start)
+    const previousStart = new Date(start)
+    previousStart.setDate(previousStart.getDate() - bucketCount)
+
+    return {
+      range,
+      label: `${formatRangeDate(start)} a ${formatRangeDate(params.end)}`,
+      start,
+      end: customEnd,
+      previousStart,
+      previousEnd,
+      bucketCount,
+    }
+  }
 
   if (range === "month") {
     const start = startOfMonth(now)
@@ -196,14 +230,18 @@ export async function GET(request: Request, context: RouteContext) {
   const { slug } = await context.params
   const { searchParams } = new URL(request.url)
   const range = resolveRange(searchParams.get("range"))
-  const window = getRangeWindow(range)
+  const window = getRangeWindow(range, {
+    start: parseDateParam(searchParams.get("start")),
+    end: parseDateParam(searchParams.get("end")),
+  })
 
   const conversations = await listInboxConversations(slug)
   const messagesByConversation = await Promise.all(
     conversations.map((conversation) => listInboxMessages(slug, conversation.id))
   )
   const messages = messagesByConversation.flat()
-  const jobs = await listCompositionJobs(slug)
+  const jobs = await listCompositionJobs(slug, { includeArchived: true })
+  const visibleJobs = jobs.filter((job) => !job.archivedAt)
   const contacts = await listContacts(slug)
   const catalogItems = await listCatalogItems(slug)
   const allInstances = await readTenantInstances()
@@ -289,7 +327,7 @@ export async function GET(request: Request, context: RouteContext) {
     recentConversations: conversations
       .slice(0, 5)
       .map(mapRecentConversation),
-    reviewQueue: jobs
+    reviewQueue: visibleJobs
       .filter((job) => job.status === "queued" || job.status === "processing" || job.status === "failed")
       .slice(0, 5)
       .map(mapReviewJob),

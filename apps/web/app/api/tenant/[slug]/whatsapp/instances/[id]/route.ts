@@ -38,7 +38,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       if (!alreadyRemoved) {
         remoteDeleteWarning = error instanceof Error
           ? error.message
-          : "Nao foi possivel remover a instancia na UAZAPI."
+          : "Nao foi possivel remover a instancia no provedor."
       }
     }
   }

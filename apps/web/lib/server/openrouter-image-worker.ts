@@ -417,6 +417,8 @@ function getFrameInstruction(baseImage: BaseImage) {
   return [
     `A imagem final deve ocupar 100% do quadro original ${baseImage.width}x${baseImage.height}.`,
     `Use a proporcao ${getClosestAspectRatio(baseImage.width, baseImage.height)} do inicio ao fim.`,
+    "Preserve o mesmo enquadramento, panorama, angulo de camera, distancia focal aparente e linhas de fuga da foto original.",
+    "Nao aproxime, afaste, gire, recorte, estique, expanda ou transforme a imagem em panoramica, a menos que o briefing peça isso explicitamente.",
     "Nao gere uma imagem quadrada no centro de um canvas maior.",
     "Nao use a foto original como borda ou fundo visivel. A composicao editada deve preencher toda a largura e toda a altura.",
   ].join("\n")
@@ -1320,7 +1322,7 @@ function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
     "Nao adicione textos, marcas d'agua, logos ou elementos que nao foram pedidos.",
     job.catalogItemName ? `Produto ou referencia principal: ${job.catalogItemName}.` : "",
     job.catalogColorReference ? `Referencia tecnica de cor obrigatoria: ${job.catalogColorReference}. Use essa cor na parede/area solicitada.` : "",
-    typeof job.changeStrength === "number" ? `Intensidade da mudanca: ${job.changeStrength} de 100. Quanto menor, mais conservadora e fiel a imagem original; quanto maior, mais perceptivel a alteracao solicitada.` : "",
+    typeof job.changeStrength === "number" ? `Intensidade da mudanca: ${job.changeStrength} de 100. Valores baixos deixam a alteracao mais discreta; valores altos deixam a alteracao mais evidente. Em qualquer intensidade, mantenha realismo, escala, perspectiva e coerencia com a foto original.` : "",
     `Modo: ${job.mode}.`,
     `Briefing do cliente: ${job.prompt}`,
   ].filter(Boolean).join("\n")
@@ -1339,7 +1341,7 @@ function buildLocalizedRenderPrompt(job: CompositionJob, baseImage: BaseImage) {
     "Apenas a superficie alvo pode parecer nova/renderizada.",
     job.catalogItemName ? `Produto ou referencia principal: ${job.catalogItemName}.` : "",
     job.catalogColorReference ? `Cor/material obrigatorio da superficie alvo: ${job.catalogColorReference}.` : "",
-    typeof job.changeStrength === "number" ? `Intensidade da mudanca: ${job.changeStrength} de 100. Quanto menor, mais conservadora e fiel a imagem original; quanto maior, mais perceptivel a alteracao solicitada.` : "",
+    typeof job.changeStrength === "number" ? `Intensidade da mudanca: ${job.changeStrength} de 100. Valores baixos deixam a alteracao mais discreta; valores altos deixam a alteracao mais evidente. Em qualquer intensidade, mantenha realismo, escala, perspectiva e coerencia com a foto original.` : "",
     `Modo: ${job.mode}.`,
     `Briefing do cliente: ${job.prompt}`,
   ].filter(Boolean).join("\n")

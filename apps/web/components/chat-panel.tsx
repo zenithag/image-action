@@ -480,7 +480,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-900 border border-border/50">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border/50 bg-secondary text-sm font-bold text-secondary-foreground">
             {getInitials(currentContactName)}
           </div>
           <div className="min-w-0">

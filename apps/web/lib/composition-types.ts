@@ -37,6 +37,7 @@ export type CompositionJob = {
   resultImageUrl?: string
   shareToken?: string
   shareEnabledAt?: string
+  archivedAt?: string
   errorMessage?: string
   processingAttempts: number
   processorProvider?: "openrouter"

@@ -728,7 +728,7 @@ function ProductCard({
               "rounded-[4px] px-2 py-0.5 text-[9px] font-bold uppercase",
               item.tags.usage_mode === "referencia"
                 ? "bg-amber-500/15 text-amber-700"
-                : "bg-emerald-500/15 text-emerald-700",
+                : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
             )}>
               {getUsageModeLabel(item.tags.usage_mode)}
             </span>

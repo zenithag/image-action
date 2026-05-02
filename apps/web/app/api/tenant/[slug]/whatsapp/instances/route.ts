@@ -54,7 +54,7 @@ function toInstanceStatus(uazapiStatus: unknown, connected: boolean) {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Nao foi possivel configurar o webhook da UAZAPI."
+  return error instanceof Error ? error.message : "Nao foi possivel configurar o webhook do provedor."
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -90,7 +90,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!provider) {
     return NextResponse.json({
-      error: "Nao ha provider UAZAPI ativo com capacidade disponivel.",
+      error: "Nao ha provedor WhatsApp ativo com capacidade disponivel.",
     }, { status: 409 })
   }
 
@@ -112,7 +112,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (!instanceToken) {
       return NextResponse.json({
-        error: "A UAZAPI criou a instancia, mas nao retornou o token da instancia.",
+        error: "O provedor criou a instancia, mas nao retornou o token da instancia.",
       }, { status: 502 })
     }
 

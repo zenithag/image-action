@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useEffect, useMemo, useState } from "react"
+import type { ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowRight,
@@ -45,6 +46,10 @@ function formatSourceLabel(image: StudioImageArtifact | null) {
     ].filter(Boolean).join(" - ")
   }
 
+  if (image.source === "upload") {
+    return image.caption || "Upload do dispositivo"
+  }
+
   return [
     image.contactName || "Conversa",
     new Intl.DateTimeFormat("pt-BR", {
@@ -68,6 +73,7 @@ function getReferenceKey(reference: StudioImageArtifact) {
   if (reference.source === "catalog" && reference.catalogItemId) return `catalog:${reference.catalogItemId}`
   if (reference.source === "catalog" && reference.catalogSku) return `catalog-sku:${normalizeSku(reference.catalogSku)}`
   if (reference.source === "inbox" && reference.messageId) return `inbox:${reference.messageId}`
+  if (reference.source === "upload") return `upload:${reference.mediaUrl.slice(0, 80)}`
   return `${reference.source}:${reference.mediaUrl}`
 }
 
@@ -83,11 +89,13 @@ function ImageSlotCard({
   description,
   image,
   onClear,
+  onUpload,
 }: {
   title: string
   description: string
   image: StudioImageArtifact | null
   onClear: () => void
+  onUpload?: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
     <div className="rounded-[12px] border border-border bg-card p-2.5">
@@ -134,11 +142,18 @@ function ImageSlotCard({
           <div>
             <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground" />
             <p className="mt-2 text-[12px] font-medium text-foreground">
-              Envie uma imagem do Inbox
+              Envie uma imagem do Inbox ou do dispositivo
             </p>
             <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
               Abra uma imagem na conversa e escolha "Usar como cena" ou "Usar como referencia".
             </p>
+            {onUpload && (
+              <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Upload
+                <input type="file" accept="image/*" className="sr-only" onChange={onUpload} />
+              </label>
+            )}
           </div>
         </div>
       )}
@@ -149,9 +164,11 @@ function ImageSlotCard({
 function ReferenceCollectionCard({
   references,
   onRemove,
+  onUpload,
 }: {
   references: StudioImageArtifact[]
   onRemove: (index: number) => void
+  onUpload?: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
     <div className="rounded-[12px] border border-border bg-card p-2.5">
@@ -209,6 +226,13 @@ function ReferenceCollectionCard({
             <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
               Use imagens do Inbox ou busque produtos por SKU.
             </p>
+            {onUpload && (
+              <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Upload
+                <input type="file" accept="image/*" className="sr-only" onChange={onUpload} />
+              </label>
+            )}
           </div>
         </div>
       )}
@@ -240,6 +264,41 @@ export default function EditorPage({
   const [createdJob, setCreatedJob] = useState<CompositionJob | null>(null)
   // TODO: Revisit direct canvas tools when Studio supports in-place editing workflows.
   const showCanvasTools = false
+
+  function fileToDataUrl(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ""))
+      reader.onerror = () => reject(new Error("Nao foi possivel carregar a imagem selecionada."))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>, slot: "base" | "reference") {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+
+    try {
+      const mediaUrl = await fileToDataUrl(file)
+      const artifact: StudioImageArtifact = {
+        source: "upload",
+        mediaUrl,
+        caption: file.name,
+        contactName: "Studio",
+        createdAt: new Date().toISOString(),
+      }
+
+      if (slot === "base") {
+        setBaseImage(artifact)
+        return
+      }
+
+      setReferences((current) => mergeReferences(current, artifact))
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Erro ao carregar imagem.")
+    }
+  }
 
   useEffect(() => {
     const check = () => {
@@ -349,10 +408,6 @@ export default function EditorPage({
 
   async function createComposition() {
     if (!baseImage || !prompt.trim() || isGenerating) return
-    if (!baseImage.conversationId || !baseImage.channelInstanceId || !baseImage.messageId) {
-      setError("A cena base precisa vir de uma imagem do Inbox.")
-      return
-    }
 
     setIsGenerating(true)
     setError(null)
@@ -360,22 +415,22 @@ export default function EditorPage({
     setCreatedJob(null)
 
     const body: CompositionJobInput = {
-      conversationId: baseImage.conversationId,
-      channelInstanceId: baseImage.channelInstanceId,
+      conversationId: baseImage.conversationId || `studio:${slug}`,
+      channelInstanceId: baseImage.channelInstanceId || "studio-upload",
       contactName: baseImage.contactName || "Contato",
       contactPhone: baseImage.contactPhone,
       mode: "interior",
       source: "operator",
-      baseMessageId: baseImage.messageId,
+      baseMessageId: baseImage.source === "inbox" ? baseImage.messageId : undefined,
       baseImageUrl: baseImage.mediaUrl,
       referenceMessageId: references.find((reference) => reference.source === "inbox")?.messageId,
       referenceImageUrl: references.find((reference) => reference.source === "inbox")?.mediaUrl,
       catalogItemId: references.find((reference) => reference.source === "catalog")?.catalogItemId,
       catalogItemName: references.find((reference) => reference.source === "catalog")?.catalogItemName,
       references: references.map((reference) => ({
-        source: reference.source,
+        source: reference.source === "upload" ? "url" : reference.source,
         messageId: reference.source === "inbox" ? reference.messageId : undefined,
-        imageUrl: reference.source === "inbox" ? reference.mediaUrl : undefined,
+        imageUrl: reference.source === "inbox" || reference.source === "upload" ? reference.mediaUrl : undefined,
         catalogItemId: reference.source === "catalog" ? reference.catalogItemId : undefined,
         catalogItemName: reference.source === "catalog" ? reference.catalogItemName : undefined,
         catalogSku: reference.catalogSku,
@@ -519,11 +574,13 @@ export default function EditorPage({
                 description="Imagem principal que sera transformada."
                 image={baseImage}
                 onClear={() => setBaseImage(null)}
+                onUpload={(event) => void handleUpload(event, "base")}
               />
 
               <ReferenceCollectionCard
                 references={references}
                 onRemove={(index) => setReferences((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                onUpload={(event) => void handleUpload(event, "reference")}
               />
 
               <div className="rounded-[12px] border border-border bg-card p-3">
@@ -600,7 +657,7 @@ export default function EditorPage({
                   className="w-full accent-primary"
                 />
                 <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                  Use menor intensidade para manter maxima fidelidade; use maior intensidade para mudancas mais visiveis.
+                  Baixa intensidade deixa a alteração mais discreta. Alta intensidade deixa a mudança mais evidente, mantendo realismo, escala e perspectiva.
                 </p>
               </div>
             </div>

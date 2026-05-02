@@ -175,16 +175,13 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
     const name = savedName.trim()
     if (!name || isLoading) return
 
-    if (activeInstance?.status === "connected") {
-      setError("Essa instância já está conectada. Para adicionar outro número, informe um novo nome de instância.")
-      return
-    }
+    const shouldCreateNewInstance = !activeInstance || activeInstance.status === "connected"
 
     setIsLoading(true)
     setError(null)
 
     try {
-      const response = activeInstance
+      const response = !shouldCreateNewInstance && activeInstance
         ? await fetch(`/api/tenant/${tenantSlug}/whatsapp/instances/${activeInstance.id}/connect`, {
             method: "POST",
           })
@@ -211,7 +208,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
       applyActiveInstance(instance)
 
       if (!instance.qrcode && !instance.connected && !instance.paircode) {
-        setError("Instancia criada, mas a UAZAPI ainda nao retornou QR Code. Clique em Atualizar QR Code.")
+        setError("Instancia criada, mas o provedor ainda nao retornou QR Code. Clique em Atualizar QR Code.")
       }
     } catch (qrError) {
       setError(qrError instanceof Error ? qrError.message : "Erro ao gerar QR Code.")
@@ -273,7 +270,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
   const deleteInstance = async (instance: TenantWhatsappInstance) => {
     if (deletingInstanceId) return
 
-    const shouldDelete = window.confirm(`Remover a instancia "${instance.name}" deste tenant? O sistema tambem tentara deletar a instancia na UAZAPI.`)
+    const shouldDelete = window.confirm(`Remover a instancia "${instance.name}" deste tenant? O sistema tambem tentara remover essa conexão no provedor.`)
     if (!shouldDelete) return
 
     setDeletingInstanceId(instance.id)
@@ -362,7 +359,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <h3 className="font-display text-lg font-bold">Instância principal</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">via UAZAPI · {activeInstance.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Canal conectado · {activeInstance.name}</p>
                   </div>
                   <span className="flex w-fit items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
                     <CheckCircle2 className="h-3 w-3" /> Conectado
@@ -375,7 +372,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-[15px] font-medium">{activeInstance.phoneNumber ? `+${activeInstance.phoneNumber}` : "Número não disponível"}</p>
                     <p className="mt-1 break-words font-mono text-xs text-muted-foreground">
-                      {activeInstance.profileName || "Perfil não identificado"} · {activeInstance.providerName}
+                      {activeInstance.profileName || "Perfil não identificado"}
                     </p>
                   </div>
                   <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -418,7 +415,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
               <div className="py-6">
                 <h3 className="font-display text-lg font-bold">Conectar WhatsApp</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {step === "name" ? "Dê um nome para a instância que será criada na UAZAPI." : "Gerando QR Code..."}
+                  {step === "name" ? "Dê um nome para identificar este número na plataforma." : "Gerando QR Code..."}
                 </p>
                 {step === "name" && (
                   <div className="mt-6 max-w-sm space-y-4">
@@ -545,7 +542,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{instance.name}</p>
                         <p className="break-words text-xs text-muted-foreground">
-                          {instance.providerName} · {instance.phoneNumber ? `+${instance.phoneNumber}` : formatDate(instance.updatedAt)}
+                          {instance.phoneNumber ? `+${instance.phoneNumber}` : formatDate(instance.updatedAt)}
                         </p>
                       </div>
                     </button>
