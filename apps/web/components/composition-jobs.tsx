@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import {
   CheckCircle2,
   Clock,
-  EyeOff,
   Image as ImageIcon,
   Link2,
   Loader2,
   RotateCcw,
   Sparkles,
+  Trash2,
   XCircle,
 } from "lucide-react"
 
@@ -271,6 +271,8 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   }
 
   async function archiveJob(jobId: string) {
+    if (!window.confirm("Excluir esta composicao da lista? Ela continuara contando nas metricas.")) return
+
     setError(null)
 
     try {
@@ -280,7 +282,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
       setViewingJob(null)
       await loadJobs({ silent: true })
     } catch (archiveError) {
-      setError(archiveError instanceof Error ? archiveError.message : "Nao foi possivel ocultar a composicao.")
+      setError(archiveError instanceof Error ? archiveError.message : "Nao foi possivel excluir a composicao.")
     }
   }
 
@@ -408,6 +410,18 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                     <div className="p-3.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-sm font-medium text-card-foreground">{job.contactName}</span>
+                        <button
+                          type="button"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          disabled={job.status === "processing"}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void archiveJob(job.id)
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Excluir
+                        </button>
                       </div>
                       {job.contactPhone && (
                         <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{job.contactPhone}</p>
@@ -613,15 +627,13 @@ function CompositionViewerModal({
   }
 
   const archiveJob = async () => {
-    if (!window.confirm("Ocultar esta composicao da lista? Ela continuara contando nas metricas.")) return
-
     setIsArchiving(true)
     setDownloadError(null)
 
     try {
       await onArchive(job.id)
     } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : "Nao foi possivel ocultar a composicao.")
+      setDownloadError(error instanceof Error ? error.message : "Nao foi possivel excluir a composicao.")
     } finally {
       setIsArchiving(false)
     }
@@ -886,12 +898,12 @@ function CompositionViewerModal({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full rounded-[10px] font-sans text-muted-foreground hover:text-foreground"
+                  className="w-full rounded-[10px] font-sans text-destructive hover:bg-destructive/10 hover:text-destructive"
                   disabled={isArchiving || job.status === "processing"}
                   onClick={archiveJob}
                 >
-                  {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                  Ocultar da lista
+                  {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  Excluir composição
                 </Button>
               </div>
             </div>
