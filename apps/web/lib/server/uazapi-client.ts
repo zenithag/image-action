@@ -435,7 +435,7 @@ export async function createUazapiInstance(provider: StoredProvider, tenantSlug:
     },
     body: JSON.stringify({
       name,
-      systemName: "image-action",
+      systemName: "ComoFica",
       adminField01: tenantSlug,
       adminField02: provider.id,
     }),

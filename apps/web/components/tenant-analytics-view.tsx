@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 
 type AnalyticsPayload = {
   meta: {
-    range: "7d" | "30d" | "month"
+    range: "7d" | "30d" | "month" | "custom"
     label: string
   }
   stats: {
@@ -69,6 +69,8 @@ type TenantAnalyticsViewProps = {
   tenantSlug: string
   compact?: boolean
 }
+
+type DateRange = AnalyticsPayload["meta"]["range"]
 
 async function requestJson<T>(url: string) {
   const response = await fetch(url, { cache: "no-store" })
@@ -296,14 +298,21 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [variant, setVariant] = useState<"classic" | "editorial">("classic")
-  const [dateRange, setDateRange] = useState<"7d" | "30d" | "month">("7d")
+  const [dateRange, setDateRange] = useState<DateRange>("7d")
+  const [customStart, setCustomStart] = useState(() => new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
+  const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().slice(0, 10))
 
   async function loadAnalytics(range = dateRange) {
     setIsLoading(true)
     setError(null)
 
     try {
-      const payload = await requestJson<AnalyticsPayload>(`/api/tenant/${tenantSlug}/analytics?range=${range}`)
+      const params = new URLSearchParams({ range })
+      if (range === "custom") {
+        params.set("start", customStart)
+        params.set("end", customEnd)
+      }
+      const payload = await requestJson<AnalyticsPayload>(`/api/tenant/${tenantSlug}/analytics?${params.toString()}`)
       setData(payload)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Erro ao carregar analytics.")
@@ -314,7 +323,7 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
 
   useEffect(() => {
     void loadAnalytics(dateRange)
-  }, [tenantSlug, dateRange])
+  }, [tenantSlug, dateRange, customStart, customEnd])
 
   const hasTimelineData = useMemo(() =>
     Boolean(data?.conversationData.some((item) => item.conversas > 0 || item.composicoes > 0 || item.contatos > 0)),
@@ -340,13 +349,32 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
         <div className="flex items-center gap-3">
           <select
             value={dateRange}
-            onChange={(event) => setDateRange(event.target.value as "7d" | "30d" | "month")}
+            onChange={(event) => setDateRange(event.target.value as DateRange)}
             className="h-9 rounded-[10px] border border-border bg-background px-3 text-sm outline-none focus:border-primary"
           >
             <option value="7d">Últimos 7 dias</option>
             <option value="30d">Últimos 30 dias</option>
             <option value="month">Este mês</option>
+            <option value="custom">Personalizado</option>
           </select>
+          {dateRange === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(event) => setCustomStart(event.target.value)}
+                className="h-9 rounded-[10px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                aria-label="Data inicial"
+              />
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(event) => setCustomEnd(event.target.value)}
+                className="h-9 rounded-[10px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                aria-label="Data final"
+              />
+            </div>
+          )}
           <div className="flex items-center gap-0.5 rounded-[10px] bg-muted p-[3px]">
             {([["classic", "Clássica"], ["editorial", "Editorial"]] as const).map(([key, label]) => (
               <button

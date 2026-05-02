@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import {
   CheckCircle2,
   Clock,
+  EyeOff,
   Image as ImageIcon,
   Link2,
   Loader2,
@@ -269,6 +270,20 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
     }
   }
 
+  async function archiveJob(jobId: string) {
+    setError(null)
+
+    try {
+      await requestJson<CompositionJob>(`/api/tenant/${tenantSlug}/compositions/jobs/${encodeURIComponent(jobId)}`, {
+        method: "DELETE",
+      })
+      setViewingJob(null)
+      await loadJobs({ silent: true })
+    } catch (archiveError) {
+      setError(archiveError instanceof Error ? archiveError.message : "Nao foi possivel ocultar a composicao.")
+    }
+  }
+
   useEffect(() => {
     void loadJobs()
 
@@ -394,6 +409,9 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-sm font-medium text-card-foreground">{job.contactName}</span>
                       </div>
+                      {job.contactPhone && (
+                        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{job.contactPhone}</p>
+                      )}
                       <p className="mt-1 truncate text-xs text-muted-foreground">{job.prompt}</p>
                       <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span className="rounded-full border border-border px-2 py-0.5 text-[10px]">{modeLabels[job.mode]}</span>
@@ -420,6 +438,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
           onClose={() => setViewingJob(null)}
           onRetry={retryJob}
           onProcess={processJob}
+          onArchive={archiveJob}
           isRetrying={isRetrying}
           isProcessing={isProcessing}
         />
@@ -433,6 +452,7 @@ function CompositionViewerModal({
   onClose,
   onRetry,
   onProcess,
+  onArchive,
   isRetrying,
   isProcessing,
 }: {
@@ -440,6 +460,7 @@ function CompositionViewerModal({
   onClose: () => void
   onRetry: (jobId: string) => Promise<void>
   onProcess: (jobId: string) => Promise<void>
+  onArchive: (jobId: string) => Promise<void>
   isRetrying: string | null
   isProcessing: string | null
 }) {
@@ -448,6 +469,7 @@ function CompositionViewerModal({
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingComparison, setIsDownloadingComparison] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
   const [shareSuccess, setShareSuccess] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const isResizing = useRef(false)
@@ -587,6 +609,21 @@ function CompositionViewerModal({
       setDownloadError(error instanceof Error ? error.message : "Nao foi possivel gerar o link publico.")
     } finally {
       setIsSharing(false)
+    }
+  }
+
+  const archiveJob = async () => {
+    if (!window.confirm("Ocultar esta composicao da lista? Ela continuara contando nas metricas.")) return
+
+    setIsArchiving(true)
+    setDownloadError(null)
+
+    try {
+      await onArchive(job.id)
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Nao foi possivel ocultar a composicao.")
+    } finally {
+      setIsArchiving(false)
     }
   }
 
@@ -748,6 +785,9 @@ function CompositionViewerModal({
                 <h4 className="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Informacoes</h4>
                 <div className="space-y-2.5">
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Cliente</span><span className="font-medium truncate">{job.contactName}</span></div>
+                  {job.contactPhone && (
+                    <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Telefone</span><span className="truncate font-mono text-xs text-foreground">{job.contactPhone}</span></div>
+                  )}
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">ID do job</span><span className="font-mono">{job.id.slice(0, 8)}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Status</span><span className="font-bold text-primary">{statusConfig[job.status].label}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Modo</span><span className="rounded-full border border-border px-2 py-0.5 text-[10px]">{modeLabels[job.mode]}</span></div>
@@ -804,7 +844,7 @@ function CompositionViewerModal({
 
               <div className="border-t border-border pt-2.5 mt-2.5 space-y-2.5">
                 {shareSuccess && (
-                  <p className="rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+                  <p className="rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
                     {shareSuccess}
                   </p>
                 )}
@@ -842,6 +882,16 @@ function CompositionViewerModal({
                 >
                   {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {isDownloading ? "Baixando..." : "Download resultado"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full rounded-[10px] font-sans text-muted-foreground hover:text-foreground"
+                  disabled={isArchiving || job.status === "processing"}
+                  onClick={archiveJob}
+                >
+                  {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                  Ocultar da lista
                 </Button>
               </div>
             </div>

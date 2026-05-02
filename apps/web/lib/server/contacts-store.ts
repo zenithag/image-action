@@ -1,4 +1,5 @@
 import type { TenantContact, TenantContactInput, TenantContactStatus } from "@/lib/contact-types"
+import type { InboxConversationSummary } from "@/lib/inbox-types"
 import { listInboxConversations } from "@/lib/server/inbox-store"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
@@ -67,8 +68,32 @@ function sortContacts(contacts: TenantContact[]) {
   })
 }
 
-async function buildInboxContacts(tenantSlug: string, storedContacts: TenantContact[]) {
-  const conversations = await listInboxConversations(tenantSlug)
+function getConversationStatsForContact(contact: TenantContact, conversations: InboxConversationSummary[]) {
+  if (!contact.externalContactId) {
+    return contact
+  }
+
+  const contactConversations = conversations.filter((conversation) => conversation.externalContactId === contact.externalContactId)
+
+  if (contactConversations.length === 0) {
+    return contact
+  }
+
+  const lastConversation = [...contactConversations].sort((left, right) =>
+    new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
+  )[0]
+
+  return {
+    ...contact,
+    conversationsCount: contactConversations.length,
+    lastContactAt: lastConversation?.lastMessageAt ?? contact.lastContactAt,
+    updatedAt: new Date(lastConversation?.updatedAt ?? contact.updatedAt) > new Date(contact.updatedAt)
+      ? lastConversation!.updatedAt
+      : contact.updatedAt,
+  }
+}
+
+function buildInboxContacts(tenantSlug: string, storedContacts: TenantContact[], conversations: InboxConversationSummary[]) {
   const storedKeys = new Set(storedContacts.map((contact) => contact.externalContactId).filter(Boolean))
   const byExternalContact = new Map<string, TenantContact>()
 
@@ -115,9 +140,11 @@ async function buildInboxContacts(tenantSlug: string, storedContacts: TenantCont
 export async function listContacts(tenantSlug: string) {
   const data = await readContactsData()
   const storedContacts = data.contacts.filter((contact) => contact.tenantSlug === tenantSlug)
-  const inboxContacts = await buildInboxContacts(tenantSlug, storedContacts)
+  const conversations = await listInboxConversations(tenantSlug)
+  const enrichedStoredContacts = storedContacts.map((contact) => getConversationStatsForContact(contact, conversations))
+  const inboxContacts = buildInboxContacts(tenantSlug, enrichedStoredContacts, conversations)
 
-  return sortContacts([...storedContacts, ...inboxContacts])
+  return sortContacts([...enrichedStoredContacts, ...inboxContacts])
 }
 
 export async function createContact(tenantSlug: string, input: TenantContactInput) {

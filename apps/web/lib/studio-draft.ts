@@ -1,7 +1,7 @@
 export type StudioImageSlot = "base" | "reference"
 
 export type StudioImageArtifact = {
-  source: "inbox" | "catalog"
+  source: "inbox" | "catalog" | "upload"
   conversationId?: string
   channelInstanceId?: string
   messageId?: string

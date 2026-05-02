@@ -33,7 +33,7 @@ function toInstanceStatus(uazapiStatus: unknown, connected: boolean) {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Nao foi possivel configurar o webhook da UAZAPI."
+  return error instanceof Error ? error.message : "Nao foi possivel configurar o webhook do provedor."
 }
 
 export async function POST(_request: Request, context: RouteContext) {

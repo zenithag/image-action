@@ -67,10 +67,13 @@ function normalizeReferences(value: CompositionJobInput["references"]) {
   return references.length > 0 ? references : undefined
 }
 
-export async function listCompositionJobs(tenantSlug: string) {
+export async function listCompositionJobs(tenantSlug: string, options?: { includeArchived?: boolean }) {
   const data = await readCompositionJobsData()
 
-  return sortJobs(data.jobs.filter((job) => job.tenantSlug === tenantSlug))
+  return sortJobs(data.jobs.filter((job) =>
+    job.tenantSlug === tenantSlug &&
+    (options?.includeArchived || !job.archivedAt)
+  ))
 }
 
 export async function findCompositionJob(tenantSlug: string, jobId: string) {
@@ -133,7 +136,7 @@ export async function updateCompositionJob(
   jobId: string,
   updates: Partial<Pick<
     CompositionJob,
-    "status" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
+    "status" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "archivedAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
   >>
 ): Promise<CompositionJob | null> {
   return withCompositionJobsMutation(async () => {
@@ -215,6 +218,12 @@ export async function retryCompositionJob(tenantSlug: string, jobId: string) {
     errorMessage: undefined,
     startedAt: undefined,
     completedAt: undefined,
+  })
+}
+
+export async function archiveCompositionJob(tenantSlug: string, jobId: string) {
+  return updateCompositionJob(tenantSlug, jobId, {
+    archivedAt: new Date().toISOString(),
   })
 }
 

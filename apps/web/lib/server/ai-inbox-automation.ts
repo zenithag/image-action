@@ -168,6 +168,52 @@ function isClientReferenceImageInstruction(text: string) {
   ])
 }
 
+function hasTextualReferenceCue(text: string) {
+  const normalized = normalizeSearchText(text)
+
+  return includesAny(normalized, [
+    "acabamento",
+    "amadeirado",
+    "azul",
+    "bege",
+    "branco",
+    "cimento",
+    "cinza",
+    "concreto",
+    "cor",
+    "couro",
+    "granito",
+    "madeira",
+    "marmore",
+    "material",
+    "modelo",
+    "padrao",
+    "pedra",
+    "porcelanato",
+    "referencia",
+    "revestimento",
+    "ripado",
+    "textura",
+    "tijolo",
+    "verde",
+    "vidro",
+  ]) || /\b(?:com|de|em|por|igual a|parecido com|na cor)\s+[a-z0-9]/.test(normalized)
+}
+
+function getFreeTextReferenceForComposition(input: {
+  text: string
+  hasKnownReference: boolean
+  hasDirection: boolean
+}) {
+  const text = input.text.trim()
+
+  if (!text || input.hasKnownReference || !input.hasDirection || !hasTextualReferenceCue(text)) {
+    return ""
+  }
+
+  return text
+}
+
 function getComoFicaTriggerMatch(text: string) {
   const normalized = normalizeSearchText(text).trim()
   const compact = normalized.replace(/[^a-z0-9]+/g, "")
@@ -864,11 +910,6 @@ function isCatalogBrowseRequest(text: string) {
     "produtos",
     "opcoes",
     "opcao",
-    "referencia",
-    "referencias",
-    "amostra",
-    "amostras",
-    "modelos",
   ])) {
     return true
   }
@@ -1100,11 +1141,11 @@ function formatCompositionMissingInputsReply(input: {
   }
 
   if (!input.hasVisualReference && !input.hasDirection) {
-    return "Recebi a imagem. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada na imagem. Pode me mandar um SKU/produto do catálogo ou enviar uma imagem de referência."
+    return "Recebi a imagem. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada na imagem. Pode me mandar um SKU/produto do catálogo, enviar uma imagem de referência ou descrever a referência sem SKU."
   }
 
   if (!input.hasVisualReference) {
-    return "Entendi o que você quer fazer na imagem. Agora preciso da referência visual: pode me mandar o SKU/produto do catálogo ou enviar uma imagem de referência."
+    return "Entendi o que você quer fazer na imagem. Agora preciso da referência visual: pode me mandar o SKU/produto do catálogo, enviar uma imagem de referência ou descrever a referência sem SKU."
   }
 
   return "Perfeito, já tenho a referência. Agora me diga exatamente o que você quer fazer na imagem e onde aplicar essa referência."
@@ -1531,6 +1572,29 @@ export async function processInboundMessageWithAi(input: {
     baseChoiceAnswer
   )
   const hasBaseImage = Boolean(effectiveLatestBaseImageMessage)
+  const currentMessageHasDirection = hasSpecificCompositionDirection(inboundMessage.content)
+  const currentMessageHasCatalogProduct = Boolean(
+    skuReference ||
+    productReferences.length > 0 ||
+    colorReferences.length > 0
+  )
+  const currentMessageHasKnownVisualReference = Boolean(
+    currentMessageHasCatalogProduct ||
+    clientReferenceImageMessage ||
+    inferredReferenceImageMessage ||
+    sessionReferenceImage
+  )
+  const currentFreeTextReference = getFreeTextReferenceForComposition({
+    text: inboundMessage.content,
+    hasKnownReference: currentMessageHasKnownVisualReference,
+    hasDirection: currentMessageHasDirection,
+  })
+  const pendingFreeTextReference = getFreeTextReferenceForComposition({
+    text: pendingSessionPrompt || pendingBaseChoiceRequest || "",
+    hasKnownReference: currentMessageHasKnownVisualReference,
+    hasDirection: hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest]),
+  })
+  const freeTextReference = currentFreeTextReference || pendingFreeTextReference
   const hasOpenTask = hasOpenStructuredTask(
     conversation.state,
     compositionSession,
@@ -1542,6 +1606,7 @@ export async function processInboundMessageWithAi(input: {
     baseChoiceAnswer ||
     explicitBaseChoice ||
     wantsDifferentBaseImage(inboundMessage.content) ||
+    freeTextReference ||
     skuReference ||
     productReferences.length > 0 ||
     colorReferences.length > 0 ||
@@ -1830,6 +1895,25 @@ export async function processInboundMessageWithAi(input: {
       pendingPrompt: undefined,
       pendingBaseChoice: false,
     }))
+  } else if (freeTextReference && hasBaseImage) {
+    nextAction = "create_composition_job"
+    reply = "Vou usar a referência que você descreveu e colocar essa composição na fila."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "composing",
+      pendingPrompt: undefined,
+      pendingBaseChoice: false,
+    }))
+  } else if (freeTextReference && !hasBaseImage) {
+    nextAction = "ask_for_base_image"
+    nextStateOverride = "awaiting_base_image"
+    reply = "Entendi a referência e como ela deve ser aplicada. Agora me envie a imagem do ambiente ou produto que você quer transformar."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "awaiting_base_image",
+      pendingPrompt: inboundMessage.content,
+      pendingBaseChoice: false,
+    }))
   } else if (catalogLinkRequested) {
     nextAction = "show_catalog_options"
     reply = formatCatalogLinkReply(input.tenantSlug)
@@ -1844,17 +1928,16 @@ export async function processInboundMessageWithAi(input: {
     primaryReference ||
     clientReferenceImageMessage ||
     inferredReferenceImageMessage ||
-    sessionReferenceImage
+    sessionReferenceImage ||
+    freeTextReference
   )
-  const currentMessageHasCatalogProduct = Boolean(
-    skuReference ||
-    productReferences.length > 0 ||
-    colorReferences.length > 0
+  const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
+  const hasPendingFreeTextDirection = Boolean(
+    pendingFreeTextReference &&
+    hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest])
   )
-  const currentMessageHasVisualReference = Boolean(currentMessageHasCatalogProduct || clientReferenceImageMessage || inferredReferenceImageMessage)
-  const currentMessageHasDirection = hasSpecificCompositionDirection(inboundMessage.content)
   const hasDirectionForComposition = currentMessageHasVisualReference
-    ? currentMessageHasDirection
+    ? currentMessageHasDirection || hasPendingFreeTextDirection
     : hasCompositionDirection([
       compositionPromptOverride,
       inboundMessage.content,
@@ -1986,6 +2069,7 @@ export async function processInboundMessageWithAi(input: {
         clientReferenceForComposition
           ? `${clientReferenceForComposition.label}${clientReferenceForComposition.messageId ? ` na mensagem ${clientReferenceForComposition.messageId}` : ""}`
           : "",
+        freeTextReference ? `Referência textual descrita pelo cliente: ${freeTextReference}` : "",
       ].filter(Boolean).join("\n")
       const prompt = buildCompositionPrompt(
         promptMessage,
