@@ -30,6 +30,8 @@ type OpenRouterImageResponse = {
   choices?: OpenRouterImageChoice[]
   error?: {
     message?: string
+    code?: string | number
+    metadata?: Record<string, unknown>
   } | string
   usage?: unknown
 }
@@ -94,7 +96,14 @@ const surfaceSegmentationGuardrail = [
   "Quando o cliente disser lado direito, lado esquerdo, parede do fundo, teto ou piso, altere somente essa superficie indicada e preserve todas as outras superficies.",
   "Nunca pinte portas, janelas, vidro, piso, teto, moveis ou objetos quando o pedido for apenas parede.",
 ].join("\n")
-const defaultImageFallbackModel = "google/gemini-3-pro-image-preview"
+const defaultImageGenerationModel = "google/gemini-3-pro-image-preview"
+const defaultImageFallbackModels = [
+  "google/gemini-3.1-flash-image-preview",
+  "google/gemini-2.5-flash-image",
+  "openai/gpt-5.4-image-2",
+  "openai/gpt-5-image",
+  "openai/gpt-5-image-mini",
+]
 
 function appendPath(baseUrl: string, pathname: string) {
   return `${baseUrl.replace(/\/+$/, "")}/${pathname.replace(/^\/+/, "")}`
@@ -1380,7 +1389,15 @@ function getOpenRouterError(status: number, payload: OpenRouterImageResponse | n
   }
 
   if (typeof error === "object" && error && typeof error.message === "string" && error.message.trim()) {
-    return error.message.trim()
+    const details = [
+      typeof error.code === "string" || typeof error.code === "number" ? `codigo ${error.code}` : "",
+      typeof error.metadata?.provider_name === "string" ? `provider ${error.metadata.provider_name}` : "",
+      typeof error.metadata?.raw === "string" ? error.metadata.raw : "",
+    ]
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    return [error.message.trim(), ...details].join(" | ")
   }
 
   return `OpenRouter respondeu HTTP ${status}.`
@@ -1711,13 +1728,12 @@ async function saveImageResult(job: CompositionJob, bytes: Buffer, mimeType: str
 }
 
 function getImageGenerationModels(primaryModel: string, fallbackModelIds: string[]) {
-  const models = [primaryModel, ...fallbackModelIds]
-
-  if (fallbackModelIds.length === 0 && primaryModel !== defaultImageFallbackModel) {
-    models.push(defaultImageFallbackModel)
-  }
-
-  return [...new Set(models.filter(Boolean))]
+  return [...new Set([
+    primaryModel,
+    ...fallbackModelIds,
+    defaultImageGenerationModel,
+    ...defaultImageFallbackModels,
+  ].filter(Boolean))]
 }
 
 function normalizeOpenRouterError(error: unknown) {
@@ -1780,7 +1796,7 @@ async function requestOpenRouterImage(
 
 async function generateImageWithOpenRouter(provider: AiProvider, job: CompositionJob, baseImage: BaseImage, prompt: string) {
   const profile = await getAiModelProfile("image_generation")
-  const model = profile?.modelId || "google/gemini-3-pro-image-preview"
+  const model = profile?.modelId || defaultImageGenerationModel
   const fallbackModelIds = profile?.fallbackModelIds ?? []
   const referenceImageUrls = await getCatalogMaterialImages(job)
   const content = [
