@@ -48,7 +48,7 @@ type EnqueueOptions = {
 
 let pool: Pool | null = null
 let tableReady: Promise<void> | null = null
-let processingLoop: Promise<void> | null = null
+let processingLoop: Promise<number | void> | null = null
 
 const memoryJobs: Array<AppJob & { status: AppJobStatus; dedupeKey?: string }> = []
 

@@ -24,10 +24,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  await processAppJobQueue()
+  const processedJobs = await processAppJobQueue()
 
   return NextResponse.json({
     ok: true,
+    processedJobs,
     processedAt: new Date().toISOString(),
   })
 }

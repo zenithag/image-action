@@ -5,6 +5,7 @@
   "scripts": {
     "dev:web": "pnpm --dir apps/web dev",
     "build:web": "pnpm --dir apps/web build",
+    "worker:app-jobs": "pnpm --dir apps/web worker:app-jobs",
     "seed:superadmin": "pnpm --dir apps/web seed:superadmin",
     "test:ai-regression": "node apps/web/scripts/ai-regression.mjs",
     "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit -p tsconfig.typecheck.json",

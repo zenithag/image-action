@@ -50,6 +50,7 @@ O seed usa `SEED_SUPERADMIN_*` e, se essas variaveis nao existirem, usa `AUTH_BO
 
 ## Observacoes
 
-- O compose atual sobe `web`, `app-job-worker` e `segmentation-service`. O `app-job-worker` usa a mesma imagem do web, mas roda em porta interna e drena a fila de jobs sem expor rota publica.
+- O compose atual sobe `web`, `app-job-worker` e `segmentation-service`. O `app-job-worker` usa a mesma imagem do web, mas roda em porta interna e drena a fila `app_job_queue` sem expor rota publica. Esse servico precisa ficar ativo para responder conversas do WhatsApp mesmo quando o inbox nao esta aberto.
+- Para rodar localmente fora do Docker, suba o `web` e depois execute `APP_JOB_WORKER_URL=http://localhost:3000/api/internal/app-jobs/process pnpm worker:app-jobs`.
 - O primeiro processamento de segmentacao pode demorar porque os modelos sao baixados para o cache do container.
 - No Dokploy, variaveis da aba Environment sao escritas no `.env` do deploy e precisam estar referenciadas no compose. Este arquivo ja referencia as variaveis necessarias.

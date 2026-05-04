@@ -63,19 +63,14 @@ services:
     restart: unless-stopped
     command: >
       sh -c "node apps/web/server.js &
-      until wget -q -O /dev/null http://127.0.0.1:3001; do sleep 1; done;
-      while true; do
-        wget -q -O /dev/null
-          --method=POST
-          --header=\"x-app-job-worker-token: $${NEXTAUTH_SECRET}\"
-          http://127.0.0.1:3001/api/internal/app-jobs/process || true;
-        sleep $${APP_JOB_WORKER_INTERVAL_SECONDS:-2};
-      done"
+      node apps/web/scripts/app-job-worker.mjs"
     environment:
       NODE_ENV: production
       NODE_OPTIONS: --no-experimental-webstorage
       HOSTNAME: 0.0.0.0
       PORT: 3001
+      APP_JOB_WORKER_URL: http://127.0.0.1:3001/api/internal/app-jobs/process
+      APP_JOB_WORKER_TOKEN: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
       APP_JOB_WORKER_INTERVAL_SECONDS: ${APP_JOB_WORKER_INTERVAL_SECONDS:-2}
       VISUALFLOW_DATA_DIR: /app/apps/web/.local
       VISUALFLOW_PUBLIC_DIR: /app/apps/web/public
