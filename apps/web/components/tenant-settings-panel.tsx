@@ -662,6 +662,10 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                   <p className="mt-1 text-sm text-muted-foreground">Configurações do assistente de IA e prompts do sistema.</p>
                   <div className="mt-6 grid gap-4">
                     <Toggle checked={settings.assistant.enabled} onChange={(checked) => updateSection("assistant", { enabled: checked })} label="Assistente IA habilitado" />
+                    <Toggle checked={settings.assistant.catalogEnabled} onChange={(checked) => updateSection("assistant", { catalogEnabled: checked })} label="Usar catálogo no WhatsApp" />
+                    <p className="-mt-2 text-xs text-muted-foreground">
+                      Desligado: a IA usa apenas referências enviadas pelo cliente no WhatsApp e não solicita produto ou link do catálogo.
+                    </p>
                     <Field label="Nome do assistente">
                       <TextInput
                         value={settings.assistant.assistantName}

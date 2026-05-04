@@ -248,6 +248,93 @@ function isUseRecentImagesRequest(text: string) {
   ])
 }
 
+type ImagePairRoleChoice = "first_base" | "second_base"
+
+function getImagePairRoleChoice(text: string): ImagePairRoleChoice | null {
+  const normalized = normalizeSearchText(text).trim()
+
+  if (/^(1|opcao 1|opção 1|primeira|a primeira|primeira cena|primeira e cena|primeira é cena)$/.test(normalized)) {
+    return "first_base"
+  }
+
+  if (/^(2|opcao 2|opção 2|segunda|a segunda|segunda cena|segunda e cena|segunda é cena)$/.test(normalized)) {
+    return "second_base"
+  }
+
+  if (
+    includesAny(normalized, ["primeira imagem e a cena", "primeira foto e a cena", "primeira como cena"]) ||
+    (
+      includesAny(normalized, ["primeira imagem", "primeira foto"]) &&
+      includesAny(normalized, ["cena", "ambiente", "base"])
+    )
+  ) {
+    return "first_base"
+  }
+
+  if (
+    includesAny(normalized, ["segunda imagem e a cena", "segunda foto e a cena", "segunda como cena"]) ||
+    (
+      includesAny(normalized, ["segunda imagem", "segunda foto"]) &&
+      includesAny(normalized, ["cena", "ambiente", "base"])
+    )
+  ) {
+    return "second_base"
+  }
+
+  return null
+}
+
+function isImagePairRoleQuestion(content: string) {
+  const normalized = normalizeSearchText(content)
+
+  return normalized.includes("qual e a cena") &&
+    normalized.includes("qual e a referencia")
+}
+
+function getPendingImagePairRoleRequest(messages: InboxMessage[], currentMessageId: string, currentContent = "") {
+  const previousMessages = messages.filter((message) => message.id !== currentMessageId)
+  let questionIndex = -1
+
+  for (let index = previousMessages.length - 1; index >= 0; index -= 1) {
+    const message = previousMessages[index]
+
+    if (
+      message.direction === "outbound" &&
+      message.role === "assistant" &&
+      isImagePairRoleQuestion(message.content)
+    ) {
+      questionIndex = index
+      break
+    }
+  }
+
+  if (questionIndex === -1) {
+    return null
+  }
+
+  if (currentContent && !getImagePairRoleChoice(currentContent)) {
+    return null
+  }
+
+  const inboundMessagesAfterQuestion = previousMessages
+    .slice(questionIndex + 1)
+    .filter((message) => message.direction === "inbound")
+
+  if (inboundMessagesAfterQuestion.length > 0) {
+    return null
+  }
+
+  return previousMessages[questionIndex].content
+}
+
+function formatImagePairRoleQuestion() {
+  return [
+    "Recebi duas imagens. Qual é a cena e qual é a referência?",
+    "Responda 1 se a primeira imagem for a cena e a segunda for a referência.",
+    "Responda 2 se a primeira imagem for a referência e a segunda for a cena.",
+  ].join("\n\n")
+}
+
 function toSessionProduct(item: CatalogItem, color?: string): InboxCompositionSessionProduct {
   return {
     id: item.id,
@@ -1075,16 +1162,24 @@ function filterCatalogItemsForAssistant(items: CatalogItem[], categories: string
   })
 }
 
-function getDefaultWelcomeMessage(companyName: string, assistantName: string) {
+function getDefaultWelcomeMessage(companyName: string, assistantName: string, catalogEnabled = true) {
   const company = companyName.trim() || "nossa loja"
   const name = assistantName.trim() || "assistente virtual"
+
+  if (!catalogEnabled) {
+    return `Oi, seja bem-vindo à ${company}! Eu sou ${name} e estou aqui para ajudar. Posso criar uma simulação visual a partir da foto do seu ambiente e de uma referência enviada por você aqui no WhatsApp.`
+  }
 
   return `Oi, seja bem-vindo à ${company}! Eu sou ${name} e estou aqui para ajudar. Posso te mostrar produtos do catálogo ou criar uma simulação visual a partir da foto do seu ambiente.`
 }
 
 function getWelcomeMessage(settings: Awaited<ReturnType<typeof getTenantSettings>>) {
   return settings.assistant.welcomeMessage.trim() ||
-    getDefaultWelcomeMessage(settings.general.companyName, settings.assistant.assistantName)
+    getDefaultWelcomeMessage(
+      settings.general.companyName,
+      settings.assistant.assistantName,
+      settings.assistant.catalogEnabled,
+    )
 }
 
 function isFirstInboundMessage(messages: InboxMessage[], currentMessageId: string) {
@@ -1109,9 +1204,11 @@ function withWelcomeMessage(reply: string, welcomeMessage: string, shouldInclude
 function getAssistantSystemPrompt(settings: Awaited<ReturnType<typeof getTenantSettings>>) {
   return [
     `Nome do assistente: ${settings.assistant.assistantName || "Yá"}.`,
-    settings.assistant.catalogCategories.length > 0
-      ? `Categorias permitidas para consulta no WhatsApp: ${settings.assistant.catalogCategories.join(", ")}. Nao ofereca produtos fora dessas categorias.`
-      : "Categorias permitidas para consulta no WhatsApp: todas as categorias ativas do catalogo.",
+    settings.assistant.catalogEnabled
+      ? settings.assistant.catalogCategories.length > 0
+        ? `Categorias permitidas para consulta no WhatsApp: ${settings.assistant.catalogCategories.join(", ")}. Nao ofereca produtos fora dessas categorias.`
+        : "Categorias permitidas para consulta no WhatsApp: todas as categorias ativas do catalogo."
+      : "Catalogo desabilitado neste tenant. Nao ofereca catalogo, nao envie link do catalogo, nao peca SKU/produto do catalogo e use apenas referencias enviadas pelo cliente no WhatsApp ou descritas em texto.",
     settings.assistant.systemPrompt.trim(),
   ].filter(Boolean).join("\n")
 }
@@ -1132,6 +1229,7 @@ function formatCompositionMissingInputsReply(input: {
   hasVisualReference: boolean
   hasDirection: boolean
   tenantSlug?: string
+  catalogEnabled?: boolean
 }) {
   if (!input.hasBaseImage) {
     if (input.hasVisualReference) {
@@ -1144,18 +1242,18 @@ function formatCompositionMissingInputsReply(input: {
   if (!input.hasVisualReference && !input.hasDirection) {
     return [
       "Recebi a imagem. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada na imagem.",
-      input.tenantSlug
+      input.catalogEnabled && input.tenantSlug
         ? `Se quiser escolher no catálogo, aqui está o link: ${getPublicCatalogUrl(input.tenantSlug)}`
-        : "Você pode me mandar uma imagem de referência, descrever a referência ou informar um SKU/produto.",
+        : "Você pode me mandar uma imagem de referência ou descrever a referência que quer aplicar.",
     ].join("\n\n")
   }
 
   if (!input.hasVisualReference) {
     return [
       "Entendi o que você quer fazer na imagem. Agora preciso da referência visual.",
-      input.tenantSlug
+      input.catalogEnabled && input.tenantSlug
         ? `Se quiser escolher no catálogo, aqui está o link: ${getPublicCatalogUrl(input.tenantSlug)}`
-        : "Você pode me mandar uma imagem de referência, descrever a referência ou informar um SKU/produto.",
+        : "Você pode me mandar uma imagem de referência ou descrever a referência que quer aplicar.",
     ].join("\n\n")
   }
 
@@ -1503,10 +1601,12 @@ export async function processInboundMessageWithAi(input: {
     return { ok: true, skipped: "external_auto_reply" }
   }
 
-  const catalogItems = filterCatalogItemsForAssistant(
-    await listCatalogItems(input.tenantSlug),
-    settings.assistant.catalogCategories,
-  )
+  const catalogItems = settings.assistant.catalogEnabled
+    ? filterCatalogItemsForAssistant(
+      await listCatalogItems(input.tenantSlug),
+      settings.assistant.catalogCategories,
+    )
+    : []
   const colorReferences = findCatalogColorReferences(catalogItems, input.message.content)
   const skuReference = findCatalogSkuReference(catalogItems, input.message.content)
   const productReferences = uniqueCatalogItems([
@@ -1521,7 +1621,7 @@ export async function processInboundMessageWithAi(input: {
     ? findSessionProductItem(compositionSession, catalogItems)
     : null
   const genericCatalogItems = getCatalogItemsForGenericRequest(catalogItems, messages, input.message.content)
-  const catalogLinkRequested = !skuReference && (
+  const catalogLinkRequested = settings.assistant.catalogEnabled && !skuReference && (
     isCatalogBrowseRequest(input.message.content) ||
     (genericCatalogItems.length > 0 && (
       isCatalogMoreRequest(input.message.content) ||
@@ -1544,7 +1644,21 @@ export async function processInboundMessageWithAi(input: {
     settings.assistant.humanHandoffKeywords,
   )
   const recentBaseImageMessages = getRecentBaseImageMessages(messages)
-  const latestBaseImageMessage = recentBaseImageMessages[0] ?? getLatestBaseImageMessage(messages)
+  const rawLatestBaseImageMessage = recentBaseImageMessages[0] ?? getLatestBaseImageMessage(messages)
+  const storedSessionBaseImageMessage = compositionSession.baseImage?.messageId
+    ? messages.find((message) => message.id === compositionSession.baseImage?.messageId) ?? null
+    : null
+  const latestBaseImageMessage = rawLatestBaseImageMessage?.id === inboundMessage.id
+    ? rawLatestBaseImageMessage
+    : storedSessionBaseImageMessage ?? rawLatestBaseImageMessage
+  const pendingImagePairRoleRequest = getPendingImagePairRoleRequest(
+    messages,
+    input.message.id,
+    input.message.content,
+  )
+  const imagePairRoleChoice = pendingImagePairRoleRequest
+    ? getImagePairRoleChoice(input.message.content)
+    : null
   const inferredImagePair = inboundMessage.contentType === "text" &&
     isUseRecentImagesRequest(inboundMessage.content) &&
     recentBaseImageMessages.length >= 2
@@ -1552,10 +1666,22 @@ export async function processInboundMessageWithAi(input: {
     (
       compositionSession.step === "awaiting_reference_image" ||
       isClientReferenceImageInstruction(inboundMessage.content)
-    )
+  )
   const clientReferenceImageMessage = currentImageAsClientReference ? inboundMessage : null
-  const inferredReferenceImageMessage = inferredImagePair ? recentBaseImageMessages[1] : null
-  const effectiveLatestBaseImageMessage = clientReferenceImageMessage
+  const imagePairBaseMessage = imagePairRoleChoice && recentBaseImageMessages.length >= 2
+    ? imagePairRoleChoice === "first_base"
+      ? recentBaseImageMessages[1]
+      : recentBaseImageMessages[0]
+    : null
+  const imagePairReferenceMessage = imagePairRoleChoice && recentBaseImageMessages.length >= 2
+    ? imagePairRoleChoice === "first_base"
+      ? recentBaseImageMessages[0]
+      : recentBaseImageMessages[1]
+    : null
+  const inferredReferenceImageMessage = imagePairReferenceMessage ?? (inferredImagePair ? recentBaseImageMessages[1] : null)
+  const effectiveLatestBaseImageMessage = imagePairBaseMessage
+    ? imagePairBaseMessage
+    : clientReferenceImageMessage
     ? recentBaseImageMessages.find((message) => message.id !== inboundMessage.id) ?? latestBaseImageMessage
     : inferredImagePair
       ? recentBaseImageMessages[0]
@@ -1583,6 +1709,13 @@ export async function processInboundMessageWithAi(input: {
     baseChoiceAnswer
   )
   const hasBaseImage = Boolean(effectiveLatestBaseImageMessage)
+  const hasAmbiguousRecentImagePair = inboundMessage.contentType === "image" &&
+    !clientReferenceImageMessage &&
+    recentBaseImageMessages.length >= 2 &&
+    recentBaseImageMessages[0]?.id === inboundMessage.id &&
+    Math.abs(getMessageTime(recentBaseImageMessages[0].createdAt) - getMessageTime(recentBaseImageMessages[1].createdAt)) <= 10 * 60 * 1000 &&
+    !hasSpecificCompositionDirection(inboundMessage.content) &&
+    !isClientReferenceImageInstruction(inboundMessage.content)
   const currentMessageHasDirection = hasSpecificCompositionDirection(inboundMessage.content)
   const currentMessageHasCatalogProduct = Boolean(
     skuReference ||
@@ -1615,6 +1748,7 @@ export async function processInboundMessageWithAi(input: {
   const isActionableMessage = Boolean(
     inboundMessage.contentType !== "text" ||
     baseChoiceAnswer ||
+    imagePairRoleChoice ||
     explicitBaseChoice ||
     wantsDifferentBaseImage(inboundMessage.content) ||
     freeTextReference ||
@@ -1623,7 +1757,7 @@ export async function processInboundMessageWithAi(input: {
     colorReferences.length > 0 ||
     genericCatalogItems.length > 0 ||
     catalogLinkRequested ||
-    isCatalogBrowseRequest(inboundMessage.content) ||
+    (settings.assistant.catalogEnabled && isCatalogBrowseRequest(inboundMessage.content)) ||
     isColorEditRequest(inboundMessage.content) ||
     isActionableVisualInstruction(inboundMessage.content) ||
     handoffRequestedByKeyword
@@ -1667,6 +1801,12 @@ export async function processInboundMessageWithAi(input: {
   })
   let nextAction = classification.next_action
   let reply = classification.reply?.trim() || getDefaultReply(nextAction)
+  if (!settings.assistant.catalogEnabled && nextAction === "show_catalog_options") {
+    nextAction = hasBaseImage ? "ask_for_reference_image" : "ask_for_base_image"
+    reply = hasBaseImage
+      ? "Neste atendimento vou usar uma referência enviada por você. Me mande a imagem de referência ou descreva a referência que quer aplicar."
+      : "Neste atendimento vou usar uma referência enviada por você. Me envie a cena que quer transformar e a referência que quer aplicar."
+  }
   let compositionJobId: string | undefined
   let compositionBaseChoice: CompositionBaseChoice | null = explicitBaseChoice
   let compositionPromptOverride: string | null = null
@@ -1684,6 +1824,27 @@ export async function processInboundMessageWithAi(input: {
       updatedAt: new Date().toISOString(),
     }
     shouldPersistCompositionSession = true
+  }
+
+  if (imagePairBaseMessage && imagePairReferenceMessage) {
+    setCompositionSession((session) => ({
+      ...session,
+      baseImage: {
+        kind: "base",
+        messageId: imagePairBaseMessage.id,
+        imageUrl: getMessageMediaUrl(input.tenantSlug, imagePairBaseMessage),
+        label: "imagem enviada pelo cliente",
+        createdAt: imagePairBaseMessage.createdAt,
+      },
+      referenceImage: {
+        kind: "reference",
+        messageId: imagePairReferenceMessage.id,
+        imageUrl: getMessageMediaUrl(input.tenantSlug, imagePairReferenceMessage),
+        label: "imagem de referência enviada pelo cliente",
+        createdAt: imagePairReferenceMessage.createdAt,
+      },
+      pendingBaseChoice: false,
+    }))
   }
 
   if (clientReferenceImageMessage) {
@@ -1721,7 +1882,11 @@ export async function processInboundMessageWithAi(input: {
     }))
   }
 
-  if (inboundMessage.contentType === "image" && !clientReferenceImageMessage) {
+  if (
+    inboundMessage.contentType === "image" &&
+    !clientReferenceImageMessage &&
+    !hasAmbiguousRecentImagePair
+  ) {
     setCompositionSession((session) => ({
       ...session,
       baseImage: {
@@ -1739,6 +1904,40 @@ export async function processInboundMessageWithAi(input: {
   if (handoffRequestedByKeyword) {
     nextAction = "handoff_to_operator"
     reply = "Vou encaminhar seu atendimento para um operador continuar daqui."
+  } else if (hasAmbiguousRecentImagePair) {
+    nextAction = "reply_in_chat"
+    nextStateOverride = "awaiting_selection"
+    reply = formatImagePairRoleQuestion()
+    setCompositionSession((session) => ({
+      ...session,
+      step: "awaiting_base_choice",
+      pendingPrompt: pendingSessionPrompt || undefined,
+      pendingBaseChoice: false,
+    }))
+  } else if (imagePairBaseMessage && imagePairReferenceMessage) {
+    const pairDirection = hasCompositionDirection([pendingSessionPrompt, inboundMessage.content])
+
+    if (pairDirection) {
+      nextAction = "create_composition_job"
+      compositionPromptOverride = pendingSessionPrompt || inboundMessage.content
+      reply = "Perfeito. Vou usar a imagem definida como cena e aplicar a referência nela conforme você pediu."
+      setCompositionSession((session) => ({
+        ...session,
+        step: "composing",
+        pendingPrompt: undefined,
+        pendingBaseChoice: false,
+      }))
+    } else {
+      nextAction = "ask_for_reference_image"
+      nextStateOverride = "collecting_preferences"
+      reply = "Perfeito. Já sei qual imagem é a cena e qual é a referência. Agora me diga como essa referência deve ser aplicada na cena."
+      setCompositionSession((session) => ({
+        ...session,
+        step: "product_selected",
+        pendingPrompt: undefined,
+        pendingBaseChoice: false,
+      }))
+    }
   } else if (clientReferenceImageMessage && !hasBaseImage) {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
@@ -1958,6 +2157,7 @@ export async function processInboundMessageWithAi(input: {
     ])
   const shouldAskForCompositionInputs =
     nextAction !== "handoff_to_operator" &&
+    !hasAmbiguousRecentImagePair &&
     !(clientReferenceImageMessage && !hasBaseImage) &&
     classification.intent === "visual_edit" &&
     (
@@ -1976,10 +2176,17 @@ export async function processInboundMessageWithAi(input: {
       hasVisualReference: hasVisualReferenceForComposition,
       hasDirection: hasDirectionForComposition,
       tenantSlug: input.tenantSlug,
+      catalogEnabled: settings.assistant.catalogEnabled,
     })
     setCompositionSession((session) => ({
       ...session,
-      step: !hasBaseImage ? "awaiting_base_image" : hasVisualReferenceForComposition ? "product_selected" : "browsing_catalog",
+      step: !hasBaseImage
+        ? "awaiting_base_image"
+        : hasVisualReferenceForComposition
+          ? "product_selected"
+          : settings.assistant.catalogEnabled
+            ? "browsing_catalog"
+            : "awaiting_reference_image",
       selectedProducts: primaryReference
         ? upsertSessionProduct(session, toSessionProduct(primaryReference.item, primaryReference.color))
         : session.selectedProducts,
