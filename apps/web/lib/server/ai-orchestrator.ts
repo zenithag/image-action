@@ -211,6 +211,7 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
     "Se hasBaseImage=true, considere que ja existe uma imagem anterior utilizavel na conversa; nao peca uma nova imagem base sem necessidade.",
     "Nunca crie composicao apenas porque existe imagem anterior. Para create_composition_job, precisa haver imagem base, referencia visual e uma direcao clara do que aplicar ou alterar.",
     "A referencia visual pode ser um SKU/produto do catalogo ou uma imagem de referencia enviada pelo cliente.",
+    "Se o cliente ja enviou uma imagem de referencia, use essa referencia; nao peca produto do catalogo e nao envie link do catalogo.",
     "Se faltar referencia visual, pergunte qual SKU/produto ou imagem de referencia o cliente quer usar. Nao envie link do catalogo a menos que o cliente peca catalogo/produtos/opcoes.",
     "Se faltar direcao de montagem, pergunte o que o cliente quer fazer na imagem e onde aplicar a referencia.",
     "Nao force o cliente a seguir um fluxo linear. Ele pode mudar de assunto, pedir catalogo, enviar SKU, voltar para uma imagem anterior ou pedir outra composicao na mesma conversa.",

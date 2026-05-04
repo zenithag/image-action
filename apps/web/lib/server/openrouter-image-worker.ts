@@ -83,7 +83,10 @@ const supportedAspectRatios = [
 ] as const
 const environmentStructureGuardrail = [
   "REGRA OBRIGATORIA DE PRESERVACAO DO AMBIENTE:",
+  "A IMAGEM BASE/CENA enviada pelo cliente e a unica fonte permitida para o ambiente final.",
   "A imagem recebida e a base estrutural fixa. Nao modifique angulo de camera, perspectiva, enquadramento, layout, arquitetura, posicao de paredes, janelas, portas, teto, piso ou aberturas.",
+  "Nao crie uma nova casa, fachada, sala, quarto, loja, parede, paisagem ou cena parecida. Edite somente a cena real da imagem base.",
+  "Nao substitua o ambiente por uma renderizacao generica nem por uma composicao inspirada na referencia.",
   "Nao remova, nao desloque e nao redesenhe janelas, portas, quinas, vigas, sancas, rodapes, tomadas ou outros elementos estruturais existentes.",
   "Pode modificar somente os itens explicitamente solicitados: cor de parede, piso, teto, revestimentos, moveis, decoracao e objetos dentro do ambiente.",
   "Se o pedido for trocar cor de parede, aplique apenas a nova cor na parede indicada, mantendo textura, sombras, luz natural, objetos, aberturas e geometria originais.",
@@ -958,17 +961,17 @@ function getReferenceImageInstruction(referenceImageCount: number) {
 
   return [
     "A resposta obrigatoriamente deve conter uma nova imagem gerada no campo message.images. Nao responda apenas com texto.",
-    "Use a primeira imagem como foto do ambiente.",
+    "Use a IMAGEM 1 apenas como foto base/cena final.",
     referenceImageCount === 1
-      ? "Use a segunda imagem como referencia visual obrigatoria e exata do produto/material a aplicar."
-      : `Use as ${referenceImageCount} imagens seguintes como referencias visuais obrigatorias para montar a composicao final.`,
+      ? "Use a IMAGEM 2 apenas como referencia visual obrigatoria e exata do produto/material a aplicar; nunca use a IMAGEM 2 como cena, fundo ou ambiente final."
+      : `Use as ${referenceImageCount} imagens seguintes apenas como referencias visuais obrigatorias para montar a composicao final; nunca use essas referencias como cena, fundo ou ambiente final.`,
     "Quando houver varias referencias, combine todas conforme o briefing: uma pode representar material, outra produto, outra textura, outra movel ou objeto.",
     "Para revestimentos, replique fielmente o padrao geometrico, a orientacao, a cor, o relevo, a paginacao, as juntas, a escala relativa e o acabamento da imagem de referencia correspondente.",
     "Trate imagens de textura/revestimento como modulos/amostras repetiveis: repita o mesmo modulo de forma uniforme, com a mesma escala fisica em toda a mesma superficie.",
     "A escala dos modulos so pode mudar pela perspectiva natural do plano da parede; nao aumente nem reduza desenhos em pontos isolados, nao misture tamanhos diferentes e nao distorca o padrao.",
     "Alinhe as juntas e a grade do revestimento com as quinas, planos e linhas de fuga da parede para manter proporcao arquitetonica realista.",
     "Nao substitua por referencia parecida, nao simplifique o desenho e nao invente outro produto.",
-    "Preserve a estrutura da primeira imagem.",
+    "Preserve a estrutura, arquitetura, camera e layout da IMAGEM 1.",
   ].join(" ")
 }
 
@@ -1322,7 +1325,8 @@ async function compositeGeneratedSurface(job: CompositionJob, baseImage: BaseIma
 function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
   return [
     "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
-    "Edite a imagem base recebida pelo cliente para criar uma composicao visual realista.",
+    "Tarefa: editar a IMAGEM 1, que e a foto base/cena enviada pelo cliente, para criar uma composicao visual realista.",
+    "A cena final deve continuar reconhecivelmente a mesma foto da IMAGEM 1. A referencia visual serve somente para o material/produto/estilo solicitado.",
     getFrameInstruction(baseImage),
     environmentStructureGuardrail,
     surfaceSegmentationGuardrail,
@@ -1335,6 +1339,37 @@ function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
     `Modo: ${job.mode}.`,
     `Briefing do cliente: ${job.prompt}`,
   ].filter(Boolean).join("\n")
+}
+
+function buildOpenRouterImageContent(baseImage: BaseImage, referenceImageUrls: string[], prompt: string) {
+  const content: Array<Record<string, unknown>> = [
+    {
+      type: "text",
+      text: [
+        prompt,
+        getReferenceImageInstruction(referenceImageUrls.length),
+        "ORDEM DAS IMAGENS:",
+        "IMAGEM 1 = FOTO BASE/CENA FINAL. Preserve esta imagem como camera, arquitetura, fundo e composicao espacial.",
+        referenceImageUrls.length > 0
+          ? "IMAGEM 2 EM DIANTE = REFERENCIAS VISUAIS. Use apenas para produto, material, textura, cor, padrao ou objeto solicitado; nao use como ambiente final."
+          : "",
+      ].filter(Boolean).join("\n"),
+    },
+    { type: "text", text: "IMAGEM 1 - FOTO BASE/CENA FINAL DO CLIENTE. Esta cena deve ser preservada." },
+    { type: "image_url", image_url: { url: baseImage.dataUrl, detail: "high" } },
+  ]
+
+  referenceImageUrls.forEach((imageUrl, index) => {
+    content.push(
+      {
+        type: "text",
+        text: `IMAGEM ${index + 2} - REFERENCIA VISUAL. Use somente como referencia do material/produto/padrao; nao use como cena, fundo ou nova fachada.`,
+      },
+      { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+    )
+  })
+
+  return content
 }
 
 function buildLocalizedRenderPrompt(job: CompositionJob, baseImage: BaseImage) {
@@ -1799,17 +1834,7 @@ async function generateImageWithOpenRouter(provider: AiProvider, job: Compositio
   const model = profile?.modelId || defaultImageGenerationModel
   const fallbackModelIds = profile?.fallbackModelIds ?? []
   const referenceImageUrls = await getCatalogMaterialImages(job)
-  const content = [
-    {
-      type: "text",
-      text: [
-        prompt,
-        getReferenceImageInstruction(referenceImageUrls.length),
-      ].filter(Boolean).join("\n"),
-    },
-    { type: "image_url", image_url: { url: baseImage.dataUrl, detail: "high" } },
-    ...referenceImageUrls.map((imageUrl) => ({ type: "image_url", image_url: { url: imageUrl, detail: "high" } })),
-  ]
+  const content = buildOpenRouterImageContent(baseImage, referenceImageUrls, prompt)
   const models = getImageGenerationModels(model, fallbackModelIds)
   const failures: string[] = []
 

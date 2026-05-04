@@ -21,9 +21,18 @@ async def generate_composition(
     """
     base_b64 = base64.b64encode(base_image_bytes).decode()
 
-    content_parts = []
+    content_parts = [{
+        "type": "text",
+        "text": (
+            "ORDEM DAS IMAGENS: IMAGEM 1 = foto base/cena final enviada pelo cliente. "
+            "Preserve camera, perspectiva, arquitetura, layout, fundo e composicao espacial da IMAGEM 1. "
+            "IMAGEM 2 = referencia visual de produto/material, quando existir. "
+            "Use a referencia somente para material, textura, cor, padrao ou produto; nunca use a referencia como cena, fundo ou novo ambiente."
+        ),
+    }]
 
     # Base image
+    content_parts.append({"type": "text", "text": "IMAGEM 1 - FOTO BASE/CENA FINAL DO CLIENTE. Preserve esta cena."})
     content_parts.append({
         "type": "image_url",
         "image_url": {"url": f"data:image/jpeg;base64,{base_b64}"},
@@ -32,6 +41,7 @@ async def generate_composition(
     # Reference image (catalog item)
     if reference_image_bytes:
         ref_b64 = base64.b64encode(reference_image_bytes).decode()
+        content_parts.append({"type": "text", "text": "IMAGEM 2 - REFERENCIA VISUAL. Nao use como cena, fundo ou novo ambiente."})
         content_parts.append({
             "type": "image_url",
             "image_url": {"url": f"data:image/jpeg;base64,{ref_b64}"},
@@ -86,12 +96,13 @@ def _build_prompt(mode: str, input_payload: dict | None) -> str:
         tags = payload.get("tags", {})
 
         parts = [
-            f"Aplique {item_name} neste ambiente.",
+            f"Edite a IMAGEM 1, mantendo a mesma cena, e aplique {item_name} neste ambiente.",
             f"Descricao: {item_desc}." if item_desc else "",
             f"Cor: {tags.get('cor', '')}." if tags.get("cor") else "",
             f"Material: {tags.get('material', '')}." if tags.get("material") else "",
             f"Estilo: {tags.get('estilo', '')}." if tags.get("estilo") else "",
-            "Mantenha a perspectiva e iluminacao originais do ambiente.",
+            "Mantenha enquadramento, perspectiva, camera, arquitetura, layout, janelas, portas, iluminacao e sombras originais da IMAGEM 1.",
+            "Nao crie uma nova casa, fachada, sala, parede ou ambiente parecido; altere somente o item/superficie solicitado.",
             "Gere uma imagem fotorrealista com o produto aplicado.",
         ]
         return " ".join(p for p in parts if p)
@@ -99,9 +110,10 @@ def _build_prompt(mode: str, input_payload: dict | None) -> str:
     elif mode == "product":
         item_name = payload.get("item_name", "o produto")
         return (
-            f"Insira {item_name} nesta cena de forma natural e harmonizada. "
-            "Mantenha a iluminacao e perspectiva coerentes. "
+            f"Insira {item_name} na IMAGEM 1 de forma natural e harmonizada. "
+            "Mantenha a mesma cena, camera, iluminacao e perspectiva da IMAGEM 1. "
+            "Nao gere uma nova cena. "
             "Gere uma imagem fotorrealista."
         )
 
-    return "Gere uma composicao visual combinando estas imagens de forma fotorrealista."
+    return "Gere uma composicao visual editando a IMAGEM 1 e preservando a cena original; use as demais imagens apenas como referencia visual."
