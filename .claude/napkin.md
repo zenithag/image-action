@@ -25,6 +25,9 @@
 6. **[2026-04-28] UAZAPI diferencia telefone de JID**
    Do instead: normalizar apenas telefones e JIDs `@s.whatsapp.net`/`@c.us` para dígitos; preservar destinatários `@lid` e `@g.us` completos para não quebrar envio.
 
+7. **[2026-05-04] Worker do Dokploy precisa de deployment oficial**
+   Do instead: depois de criar/configurar `app-job-worker`, acionar `Deploy` no Dokploy e validar `applicationStatus = done`; `docker service create` manual roda no Swarm, mas deixa o app como `idle` no painel.
+
 ## Shell & Command Reliability
 1. **[2026-04-05] pnpm 10.30.0 é o package manager**
    Do instead: sempre usar `pnpm` (não npm/yarn). Workspace definido em `pnpm-workspace.yaml` com `apps/*` e `packages/*`.
@@ -54,8 +57,8 @@
 7. **[2026-04-28] WhatsApp novo começa em atendimento humano**
    Do instead: conversas recebidas após cadastro/conexão da instância entram com `handledBy: "operator"`; a IA só envia quando o operador devolver a conversa para IA ou quando o cliente iniciar com o gatilho `Como Fica`/`comofica` no começo da mensagem.
 
-8. **[2026-04-25] Referências do catálogo só vão quando o cliente pede; referência visual pode vir do cliente**
-   Do instead: no WhatsApp, enviar imagens/cards de produtos apenas em pedido explícito de catálogo/referências/mais opções ou quando a ação for `show_catalog_options`; para composição aceitar SKU/produto do catálogo ou imagem de referência enviada pelo cliente, sempre com imagem base e direção clara de aplicação.
+8. **[2026-05-01] Referência para composição pode ser SKU, imagem ou texto livre**
+   Do instead: no WhatsApp, enviar imagens/cards de produtos apenas em pedido explícito de catálogo/referências/mais opções ou quando a ação for `show_catalog_options`; para composição aceitar SKU/produto do catálogo, imagem de referência enviada pelo cliente ou referência textual sem SKU, sempre com imagem base e direção clara de aplicação.
 
 9. **[2026-05-01] Sync do WhatsApp não pode importar histórico anterior à conexão**
    Do instead: usar `syncStartedAt` como corte rígido; timestamps da UAZAPI podem vir como string, número em segundos ou milissegundos. Se mensagem sincronizada não tiver timestamp confiável, pular em vez de usar `new Date()`.

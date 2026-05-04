@@ -16,6 +16,9 @@ export type UazapiInstancePayload = {
   name?: string
   profileName?: string
   profilePicUrl?: string
+  owner?: string
+  adminField01?: string
+  adminField02?: string
 }
 
 export type UazapiResponseBody = {
@@ -34,6 +37,7 @@ export type UazapiResponseBody = {
     user?: string
   } | null
   name?: string
+  owner?: string
   token?: string
   qrcode?: string
   paircode?: string
@@ -418,9 +422,30 @@ export function getUazapiInstance(body: UazapiResponseBody) {
 export function getUazapiConnectionState(body: UazapiResponseBody) {
   const connected = body.status?.connected ?? body.connected ?? false
   const loggedIn = body.status?.loggedIn ?? body.loggedIn ?? false
-  const phoneNumber = body.status?.jid?.user ?? body.jid?.user
+  const phoneNumber = body.status?.jid?.user ?? body.jid?.user ?? body.instance?.owner ?? body.owner
 
   return { connected, loggedIn, phoneNumber }
+}
+
+export async function listUazapiInstances(provider: StoredProvider) {
+  assertUazapiProvider(provider)
+
+  const response = await fetch(appendUazapiPath(provider.baseUrl!, "/instance/all"), {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+      admintoken: provider.adminToken!,
+    },
+    signal: AbortSignal.timeout(15000),
+  })
+
+  const body = await readBody(response)
+
+  if (!response.ok) {
+    throw new UazapiError(getBodyMessage(body, `UAZAPI respondeu HTTP ${response.status}.`), response.status, body)
+  }
+
+  return Array.isArray(body) ? body as UazapiInstancePayload[] : []
 }
 
 export async function createUazapiInstance(provider: StoredProvider, tenantSlug: string, name: string) {
