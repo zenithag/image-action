@@ -39,6 +39,7 @@ export type TenantSettings = {
   }
   assistant: {
     enabled: boolean
+    catalogEnabled: boolean
     assistantName: string
     welcomeMessage: string
     modelProfileId: string

@@ -206,6 +206,7 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
     },
     assistant: {
       enabled: true,
+      catalogEnabled: true,
       assistantName: "Yá",
       welcomeMessage: "",
       modelProfileId: "conversation.default",
@@ -308,6 +309,7 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
     },
     assistant: {
       enabled: normalizeBoolean(next.assistant.enabled, existing.assistant.enabled),
+      catalogEnabled: normalizeBoolean(next.assistant.catalogEnabled, existing.assistant.catalogEnabled ?? true),
       assistantName: normalizeText(next.assistant.assistantName) || "Yá",
       welcomeMessage: normalizeText(next.assistant.welcomeMessage),
       modelProfileId: normalizeText(next.assistant.modelProfileId) || "conversation.default",
