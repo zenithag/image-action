@@ -9,8 +9,16 @@ import {
 import { processNextCompositionJob } from "@/lib/server/composition-processor"
 import { findInboxMessage } from "@/lib/server/inbox-store"
 import { findTenantInstance } from "@/lib/server/tenant-channel-instances-store"
+import { syncDueWhatsappInboxes } from "@/lib/server/whatsapp-inbox-sync"
 
 const MAX_JOBS_PER_PASS = 25
+const MIN_WHATSAPP_SYNC_CHECK_MS = Math.max(
+  3_000,
+  Number(process.env.APP_JOB_WHATSAPP_SYNC_CHECK_INTERVAL_SECONDS || 3) * 1000
+)
+
+let lastWhatsappSyncCheckAt = 0
+let whatsappSyncCheck: Promise<void> | null = null
 
 async function processCompositionQueue(tenantSlug: string) {
   for (let index = 0; index < MAX_JOBS_PER_PASS; index += 1) {
@@ -63,7 +71,36 @@ async function processAppJob() {
   return true
 }
 
+async function maybeSyncWhatsappInboxes() {
+  if (process.env.APP_JOB_ENABLE_WHATSAPP_BACKGROUND_SYNC === "false") {
+    return
+  }
+
+  const now = Date.now()
+  if (whatsappSyncCheck || now - lastWhatsappSyncCheckAt < MIN_WHATSAPP_SYNC_CHECK_MS) {
+    return
+  }
+
+  lastWhatsappSyncCheckAt = now
+  whatsappSyncCheck = syncDueWhatsappInboxes()
+    .then((result) => {
+      if (result.createdMessages > 0 || result.aiProcessedMessages > 0 || result.errors.length > 0) {
+        console.info("[app-job-worker] whatsapp inbox sync", result)
+      }
+    })
+    .catch((error: unknown) => {
+      console.error("[app-job-worker] whatsapp inbox sync failed", error)
+    })
+    .finally(() => {
+      whatsappSyncCheck = null
+    })
+
+  await whatsappSyncCheck
+}
+
 export async function processAppJobQueue() {
+  await maybeSyncWhatsappInboxes()
+
   let processedCount = 0
 
   for (let index = 0; index < MAX_JOBS_PER_PASS; index += 1) {
