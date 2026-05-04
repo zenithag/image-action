@@ -1131,6 +1131,7 @@ function formatCompositionMissingInputsReply(input: {
   hasBaseImage: boolean
   hasVisualReference: boolean
   hasDirection: boolean
+  tenantSlug?: string
 }) {
   if (!input.hasBaseImage) {
     if (input.hasVisualReference) {
@@ -1141,11 +1142,21 @@ function formatCompositionMissingInputsReply(input: {
   }
 
   if (!input.hasVisualReference && !input.hasDirection) {
-    return "Recebi a imagem. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada na imagem. Pode me mandar um SKU/produto do catálogo, enviar uma imagem de referência ou descrever a referência sem SKU."
+    return [
+      "Recebi a imagem. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada na imagem.",
+      input.tenantSlug
+        ? `Se quiser escolher no catálogo, aqui está o link: ${getPublicCatalogUrl(input.tenantSlug)}`
+        : "Você pode me mandar uma imagem de referência, descrever a referência ou informar um SKU/produto.",
+    ].join("\n\n")
   }
 
   if (!input.hasVisualReference) {
-    return "Entendi o que você quer fazer na imagem. Agora preciso da referência visual: pode me mandar o SKU/produto do catálogo, enviar uma imagem de referência ou descrever a referência sem SKU."
+    return [
+      "Entendi o que você quer fazer na imagem. Agora preciso da referência visual.",
+      input.tenantSlug
+        ? `Se quiser escolher no catálogo, aqui está o link: ${getPublicCatalogUrl(input.tenantSlug)}`
+        : "Você pode me mandar uma imagem de referência, descrever a referência ou informar um SKU/produto.",
+    ].join("\n\n")
   }
 
   return "Perfeito, já tenho a referência. Agora me diga exatamente o que você quer fazer na imagem e onde aplicar essa referência."
@@ -1931,6 +1942,7 @@ export async function processInboundMessageWithAi(input: {
     sessionReferenceImage ||
     freeTextReference
   )
+  const shouldShowCatalogLink = catalogLinkRequested && !hasVisualReferenceForComposition
   const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
   const hasPendingFreeTextDirection = Boolean(
     pendingFreeTextReference &&
@@ -1963,6 +1975,7 @@ export async function processInboundMessageWithAi(input: {
       hasBaseImage,
       hasVisualReference: hasVisualReferenceForComposition,
       hasDirection: hasDirectionForComposition,
+      tenantSlug: input.tenantSlug,
     })
     setCompositionSession((session) => ({
       ...session,
@@ -1977,7 +1990,27 @@ export async function processInboundMessageWithAi(input: {
     }))
   }
 
-  if (nextAction === "show_catalog_options") {
+  if (nextAction === "show_catalog_options" && hasVisualReferenceForComposition) {
+    nextAction = !hasBaseImage
+      ? "ask_for_base_image"
+      : hasDirectionForComposition
+        ? "create_composition_job"
+        : "ask_for_reference_image"
+    nextStateOverride = mapNextActionToState(nextAction)
+    reply = !hasBaseImage
+      ? "Já tenho a referência enviada por você. Agora me envie a imagem do ambiente ou produto em que ela deve ser aplicada."
+      : hasDirectionForComposition
+        ? "Já tenho a referência enviada por você. Vou preparar a composição usando essa referência na imagem base."
+        : "Já tenho a referência enviada por você. Agora me diga como ela deve ser aplicada na imagem."
+    setCompositionSession((session) => ({
+      ...session,
+      step: !hasBaseImage ? "awaiting_base_image" : hasDirectionForComposition ? "composing" : "product_selected",
+      pendingPrompt: hasDirectionForComposition ? compositionPromptOverride ?? inboundMessage.content : undefined,
+      pendingBaseChoice: false,
+    }))
+  }
+
+  if (nextAction === "show_catalog_options" && shouldShowCatalogLink) {
     reply = formatCatalogLinkReply(input.tenantSlug)
   }
 
