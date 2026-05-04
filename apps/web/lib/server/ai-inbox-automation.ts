@@ -20,6 +20,7 @@ import { hasCatalogReferenceImage } from "@/lib/server/catalog-reference-image"
 import { createCompositionJob, listCompositionJobs } from "@/lib/server/composition-jobs-store"
 import {
   appendAssistantInboxMessage,
+  createEmptyInboxCompositionSession,
   findInboxConversation,
   listInboxMessages,
   normalizeInboxCompositionSession,
@@ -58,11 +59,11 @@ function mapNextActionToState(nextAction: NextAction): InboxConversationState {
 
 function getDefaultReply(nextAction: NextAction) {
   if (nextAction === "ask_for_base_image") {
-    return "Me envie a imagem do ambiente ou produto que voce quer transformar."
+    return "Me envie a imagem do ambiente que voce quer transformar."
   }
 
   if (nextAction === "ask_for_reference_image") {
-    return "Recebi sua mensagem. Agora me diga qual estilo, produto ou referencia voce quer aplicar."
+    return "Recebi sua mensagem. Agora me envie ou descreva a referência que voce quer aplicar. A referência é o produto, material, cor, textura ou estilo que deve ser usado no ambiente."
   }
 
   if (nextAction === "show_catalog_options") {
@@ -77,7 +78,7 @@ function getDefaultReply(nextAction: NextAction) {
     return "Vou chamar um operador para continuar seu atendimento."
   }
 
-  return "Como posso ajudar com sua composicao visual?"
+  return "Como posso ajudar com sua composição visual?"
 }
 
 function getMessageMediaUrl(tenantSlug: string, message: InboxMessage) {
@@ -253,11 +254,11 @@ type ImagePairRoleChoice = "first_base" | "second_base"
 function getImagePairRoleChoice(text: string): ImagePairRoleChoice | null {
   const normalized = normalizeSearchText(text).trim()
 
-  if (/^(1|opcao 1|opção 1|primeira|a primeira|primeira cena|primeira e cena|primeira é cena)$/.test(normalized)) {
+  if (/^(1|opcao 1|opção 1|primeira|a primeira|primeira cena|primeira e cena|primeira é cena|primeiro ambiente|primeira e ambiente|primeira é ambiente)$/.test(normalized)) {
     return "first_base"
   }
 
-  if (/^(2|opcao 2|opção 2|segunda|a segunda|segunda cena|segunda e cena|segunda é cena)$/.test(normalized)) {
+  if (/^(2|opcao 2|opção 2|segunda|a segunda|segunda cena|segunda e cena|segunda é cena|segundo ambiente|segunda e ambiente|segunda é ambiente)$/.test(normalized)) {
     return "second_base"
   }
 
@@ -287,7 +288,7 @@ function getImagePairRoleChoice(text: string): ImagePairRoleChoice | null {
 function isImagePairRoleQuestion(content: string) {
   const normalized = normalizeSearchText(content)
 
-  return normalized.includes("qual e a cena") &&
+  return (normalized.includes("qual e o ambiente") || normalized.includes("qual e a cena")) &&
     normalized.includes("qual e a referencia")
 }
 
@@ -329,9 +330,10 @@ function getPendingImagePairRoleRequest(messages: InboxMessage[], currentMessage
 
 function formatImagePairRoleQuestion() {
   return [
-    "Recebi duas imagens. Qual é a cena e qual é a referência?",
-    "Responda 1 se a primeira imagem for a cena e a segunda for a referência.",
-    "Responda 2 se a primeira imagem for a referência e a segunda for a cena.",
+    "Recebi duas imagens. Qual é o ambiente e qual é a referência?",
+    "O ambiente é a foto real que será preservada como base. A referência é o produto, material, cor, textura ou estilo que deve ser aplicado.",
+    "Responda 1 se a primeira imagem for o ambiente e a segunda for a referência.",
+    "Responda 2 se a primeira imagem for a referência e a segunda for o ambiente.",
   ].join("\n\n")
 }
 
@@ -455,6 +457,7 @@ function findCompositionResultMessage(messages: InboxMessage[], job: Awaited<Ret
     message.contentType === "image" &&
     (
       message.mediaFileName === `composicao-${jobShortId}.png` ||
+      message.content.includes(`ID do processo: ${jobShortId}`) ||
       message.content.includes(`ID do job: ${jobShortId}`) ||
       message.mediaUrl === job.resultImageUrl ||
       message.imageUrl === job.resultImageUrl
@@ -484,8 +487,6 @@ function getExplicitCompositionBaseChoice(text: string): CompositionBaseChoice |
     "usar esta composicao",
     "composicao gerada",
     "composicao pronta",
-    "imagem nova",
-    "nova imagem",
     "resultado",
     "imagem gerada",
     "gerada",
@@ -776,7 +777,7 @@ function buildArtifactContext(input: {
     if (!job) return
 
     const label = index === 0 ? "última composição finalizada" : `composição anterior ${index + 1}`
-    lines.push(`Composição gerada disponível (${label}): job ${job.id.slice(0, 8)}.`)
+    lines.push(`Composição gerada disponível (${label}): processo ${job.id.slice(0, 8)}.`)
   })
 
   if (input.latestBaseImageMessage) {
@@ -788,7 +789,7 @@ function buildArtifactContext(input: {
   }
 
   if (input.latestCompletedJob?.resultImageUrl) {
-    lines.push(`Quando o cliente citar "composição", "resultado", "imagem gerada" ou "imagem pronta", use o job ${input.latestCompletedJob.id.slice(0, 8)}.`)
+    lines.push(`Quando o cliente citar "composição", "resultado", "imagem gerada" ou "imagem pronta", use o processo ${input.latestCompletedJob.id.slice(0, 8)}.`)
   }
 
   if (input.latestResultMessage) {
@@ -805,7 +806,7 @@ function buildArtifactContext(input: {
   }
 
   for (const change of input.session.changes.slice(0, 5)) {
-    lines.push(`Composição anterior: ${change.prompt}${change.jobId ? ` job ${change.jobId.slice(0, 8)}` : ""}, base ${change.base}, status ${change.status}.`)
+    lines.push(`Composição anterior: ${change.prompt}${change.jobId ? ` processo ${change.jobId.slice(0, 8)}` : ""}, base ${change.base}, status ${change.status}.`)
   }
 
   if (input.session.pendingPrompt) {
@@ -1233,15 +1234,16 @@ function formatCompositionMissingInputsReply(input: {
 }) {
   if (!input.hasBaseImage) {
     if (input.hasVisualReference) {
-      return "Já tenho a referência. Agora me envie a imagem do ambiente ou produto em que você quer aplicar essa referência e me diga como ela deve ser aplicada."
+      return "Já tenho a referência. Agora me envie a imagem do ambiente em que você quer aplicar essa referência e me diga como ela deve ser aplicada."
     }
 
-    return "Para criar a composição, primeiro me envie a imagem do ambiente ou produto que você quer transformar."
+    return "Para criar a composição, primeiro me envie a imagem do ambiente que você quer transformar."
   }
 
   if (!input.hasVisualReference && !input.hasDirection) {
     return [
-      "Recebi a imagem. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada na imagem.",
+      "Recebi a imagem do ambiente. Agora preciso saber qual é a referência que você quer usar e como ela deve ser aplicada.",
+      "A referência é o produto, material, cor, textura ou estilo que deve entrar no ambiente.",
       input.catalogEnabled && input.tenantSlug
         ? `Se quiser escolher no catálogo, aqui está o link: ${getPublicCatalogUrl(input.tenantSlug)}`
         : "Você pode me mandar uma imagem de referência ou descrever a referência que quer aplicar.",
@@ -1251,13 +1253,14 @@ function formatCompositionMissingInputsReply(input: {
   if (!input.hasVisualReference) {
     return [
       "Entendi o que você quer fazer na imagem. Agora preciso da referência visual.",
+      "A referência é o produto, material, cor, textura ou estilo que deve ser aplicado no ambiente.",
       input.catalogEnabled && input.tenantSlug
         ? `Se quiser escolher no catálogo, aqui está o link: ${getPublicCatalogUrl(input.tenantSlug)}`
         : "Você pode me mandar uma imagem de referência ou descrever a referência que quer aplicar.",
     ].join("\n\n")
   }
 
-  return "Perfeito, já tenho a referência. Agora me diga exatamente o que você quer fazer na imagem e onde aplicar essa referência."
+  return "Perfeito, já tenho a referência. Agora me diga exatamente o que você quer fazer no ambiente e onde aplicar essa referência."
 }
 
 function isColorEditRequest(text: string) {
@@ -1440,6 +1443,13 @@ function isNewTopicRequest(text: string) {
   const normalized = normalizeSearchText(text)
 
   return includesAny(normalized, [
+    "fazer uma nova imagem",
+    "criar uma nova imagem",
+    "gerar uma nova imagem",
+    "fazer nova imagem",
+    "criar nova imagem",
+    "gerar nova imagem",
+    "nova imagem",
     "comecar outro",
     "começar outro",
     "novo assunto",
@@ -1504,12 +1514,19 @@ export async function processInboundMessageWithAi(input: {
     return { ok: false, skipped: "conversation_not_found" }
   }
 
-  const contextResetTime = conversation.contextResetAt ? new Date(conversation.contextResetAt).getTime() : 0
+  const newImageRequest = isNewTopicRequest(inboundMessage.content)
+  const contextResetTime = newImageRequest
+    ? getMessageTime(inboundMessage.createdAt)
+    : conversation.contextResetAt
+      ? new Date(conversation.contextResetAt).getTime()
+      : 0
   const messages = contextResetTime > 0
     ? allMessages.filter((message) => new Date(message.createdAt).getTime() >= contextResetTime || message.id === inboundMessage.id)
     : allMessages
   const conversationMessages = messages.slice(-10)
-  let compositionSession = normalizeInboxCompositionSession(conversation.compositionSession)
+  let compositionSession = newImageRequest
+    ? createEmptyInboxCompositionSession(inboundMessage.createdAt)
+    : normalizeInboxCompositionSession(conversation.compositionSession)
   const pendingSessionPrompt = compositionSession.pendingPrompt?.trim()
   const previousMessage = getPreviousConversationMessage(messages, inboundMessage.id)
   const idleMs = previousMessage
@@ -1805,7 +1822,7 @@ export async function processInboundMessageWithAi(input: {
     nextAction = hasBaseImage ? "ask_for_reference_image" : "ask_for_base_image"
     reply = hasBaseImage
       ? "Neste atendimento vou usar uma referência enviada por você. Me mande a imagem de referência ou descreva a referência que quer aplicar."
-      : "Neste atendimento vou usar uma referência enviada por você. Me envie a cena que quer transformar e a referência que quer aplicar."
+      : "Neste atendimento vou usar uma referência enviada por você. Me envie o ambiente que quer transformar e a referência que quer aplicar."
   }
   let compositionJobId: string | undefined
   let compositionBaseChoice: CompositionBaseChoice | null = explicitBaseChoice
@@ -1901,7 +1918,25 @@ export async function processInboundMessageWithAi(input: {
     }))
   }
 
-  if (handoffRequestedByKeyword) {
+  if (newImageRequest) {
+    nextAction = "ask_for_base_image"
+    nextStateOverride = "awaiting_base_image"
+    reply = [
+      "Sem problema. Vou iniciar um novo processo e limpar o contexto anterior.",
+      "Me envie a imagem do ambiente que você quer transformar.",
+      "Depois me envie ou descreva a referência: produto, material, cor, textura ou estilo que deve ser aplicado.",
+    ].join("\n\n")
+    await updateInboxConversation(input.tenantSlug, input.conversationId, {
+      contextResetAt: inboundMessage.createdAt,
+      compositionSession: createEmptyInboxCompositionSession(inboundMessage.createdAt),
+      state: "awaiting_base_image",
+      status: "open",
+    })
+    setCompositionSession(() => ({
+      ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
+      step: "awaiting_base_image",
+    }))
+  } else if (handoffRequestedByKeyword) {
     nextAction = "handoff_to_operator"
     reply = "Vou encaminhar seu atendimento para um operador continuar daqui."
   } else if (hasAmbiguousRecentImagePair) {
@@ -1920,7 +1955,7 @@ export async function processInboundMessageWithAi(input: {
     if (pairDirection) {
       nextAction = "create_composition_job"
       compositionPromptOverride = pendingSessionPrompt || inboundMessage.content
-      reply = "Perfeito. Vou usar a imagem definida como cena e aplicar a referência nela conforme você pediu."
+      reply = "Perfeito. Vou usar a imagem definida como ambiente e aplicar a referência nela conforme você pediu."
       setCompositionSession((session) => ({
         ...session,
         step: "composing",
@@ -1930,7 +1965,7 @@ export async function processInboundMessageWithAi(input: {
     } else {
       nextAction = "ask_for_reference_image"
       nextStateOverride = "collecting_preferences"
-      reply = "Perfeito. Já sei qual imagem é a cena e qual é a referência. Agora me diga como essa referência deve ser aplicada na cena."
+      reply = "Perfeito. Já sei qual imagem é o ambiente e qual é a referência. Agora me diga como essa referência deve ser aplicada no ambiente."
       setCompositionSession((session) => ({
         ...session,
         step: "product_selected",
@@ -1942,8 +1977,8 @@ export async function processInboundMessageWithAi(input: {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
     reply = hasSpecificCompositionDirection(inboundMessage.content)
-      ? "Recebi a imagem de referência. Agora me envie a imagem do ambiente ou produto em que você quer aplicar essa referência."
-      : "Recebi a imagem de referência. Agora me envie a imagem do ambiente ou produto em que você quer aplicar essa referência e me diga como ela deve ser aplicada."
+      ? "Recebi a imagem de referência. Agora me envie a imagem do ambiente em que você quer aplicar essa referência."
+      : "Recebi a imagem de referência. Agora me envie a imagem do ambiente em que você quer aplicar essa referência e me diga como ela deve ser aplicada."
     setCompositionSession((session) => ({
       ...session,
       step: "awaiting_base_image",
@@ -2032,7 +2067,7 @@ export async function processInboundMessageWithAi(input: {
     nextAction = "ask_for_base_image"
     reply = [
       `Encontrei o produto ${skuReference.name}${skuReference.sku ? ` pelo SKU ${skuReference.sku}` : ""}.`,
-      "Agora me envie a imagem do ambiente ou produto que voce quer transformar para eu aplicar essa referencia.",
+      "Agora me envie a imagem do ambiente que voce quer transformar para eu aplicar essa referencia.",
     ].join("\n\n")
     setCompositionSession((session) => ({
       ...session,
@@ -2089,7 +2124,7 @@ export async function processInboundMessageWithAi(input: {
   } else if (sessionReferenceImage && !hasBaseImage && hasSpecificCompositionDirection(inboundMessage.content)) {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
-    reply = "Entendi como você quer aplicar a referência. Agora me envie a imagem do ambiente ou produto que você quer transformar."
+    reply = "Entendi como você quer aplicar a referência. Agora me envie a imagem do ambiente que você quer transformar."
     setCompositionSession((session) => ({
       ...session,
       step: "awaiting_base_image",
@@ -2117,7 +2152,7 @@ export async function processInboundMessageWithAi(input: {
   } else if (freeTextReference && !hasBaseImage) {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
-    reply = "Entendi a referência e como ela deve ser aplicada. Agora me envie a imagem do ambiente ou produto que você quer transformar."
+    reply = "Entendi a referência e como ela deve ser aplicada. Agora me envie a imagem do ambiente que você quer transformar."
     setCompositionSession((session) => ({
       ...session,
       step: "awaiting_base_image",
@@ -2156,6 +2191,7 @@ export async function processInboundMessageWithAi(input: {
       pendingBaseChoiceRequest,
     ])
   const shouldAskForCompositionInputs =
+    !newImageRequest &&
     nextAction !== "handoff_to_operator" &&
     !hasAmbiguousRecentImagePair &&
     !(clientReferenceImageMessage && !hasBaseImage) &&
@@ -2205,7 +2241,7 @@ export async function processInboundMessageWithAi(input: {
         : "ask_for_reference_image"
     nextStateOverride = mapNextActionToState(nextAction)
     reply = !hasBaseImage
-      ? "Já tenho a referência enviada por você. Agora me envie a imagem do ambiente ou produto em que ela deve ser aplicada."
+      ? "Já tenho a referência enviada por você. Agora me envie a imagem do ambiente em que ela deve ser aplicada."
       : hasDirectionForComposition
         ? "Já tenho a referência enviada por você. Vou preparar a composição usando essa referência na imagem base."
         : "Já tenho a referência enviada por você. Agora me diga como ela deve ser aplicada na imagem."
@@ -2254,7 +2290,7 @@ export async function processInboundMessageWithAi(input: {
 
     if (!compositionBase) {
       nextAction = "ask_for_base_image"
-      reply = "Para criar a composicao, me envie primeiro a imagem do ambiente ou produto que voce quer transformar."
+      reply = "Para criar a composição, me envie primeiro a imagem do ambiente que voce quer transformar."
       setCompositionSession((session) => ({
         ...session,
         step: "awaiting_base_image",
@@ -2376,8 +2412,8 @@ export async function processInboundMessageWithAi(input: {
         scheduleAppJobProcessing()
       }
       reply = result.created
-        ? `Criei a composicao usando a ${compositionBase.label} como base e ela entrou na fila. Vou preservar a estrutura do ambiente: angulo, perspectiva, janelas, portas e layout nao serao alterados. ID do job: ${result.job.id.slice(0, 8)}.`
-        : `Essa composicao ja esta na fila usando a ${compositionBase.label} como base. Vou preservar a estrutura do ambiente: angulo, perspectiva, janelas, portas e layout nao serao alterados. ID do job: ${result.job.id.slice(0, 8)}.`
+        ? `Criei a composição usando a ${compositionBase.label} como base e ela entrou na fila. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${result.job.id.slice(0, 8)}.`
+        : `Essa composição já está na fila usando a ${compositionBase.label} como base. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${result.job.id.slice(0, 8)}.`
     }
   }
 

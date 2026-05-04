@@ -802,7 +802,7 @@ function CompositionViewerModal({
                   {job.contactPhone && (
                     <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Telefone</span><span className="truncate font-mono text-xs text-foreground">{job.contactPhone}</span></div>
                   )}
-                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">ID do job</span><span className="font-mono">{job.id.slice(0, 8)}</span></div>
+                  <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">ID do processo</span><span className="font-mono">{job.id.slice(0, 8)}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Status</span><span className="font-bold text-primary">{statusConfig[job.status].label}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Modo</span><span className="rounded-full border border-border px-2 py-0.5 text-[10px]">{modeLabels[job.mode]}</span></div>
                   <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Origem</span><span>{job.source === "ai" ? "IA" : "Operador"}</span></div>

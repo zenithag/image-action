@@ -128,7 +128,7 @@ function MediaMessage({
               onClick={() => onSendToStudio(message, "base")}
               className="rounded-full border border-current/15 bg-background/75 px-2.5 py-1 text-[11px] font-semibold text-foreground/80 transition-colors hover:bg-background"
             >
-              Usar como cena
+              Usar como ambiente
             </button>
             <button
               type="button"

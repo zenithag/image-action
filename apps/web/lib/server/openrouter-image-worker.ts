@@ -85,10 +85,12 @@ const environmentStructureGuardrail = [
   "REGRA OBRIGATORIA DE PRESERVACAO DO AMBIENTE:",
   "A IMAGEM BASE/CENA enviada pelo cliente e a unica fonte permitida para o ambiente final.",
   "A imagem recebida e a base estrutural fixa. Nao modifique angulo de camera, perspectiva, enquadramento, layout, arquitetura, posicao de paredes, janelas, portas, teto, piso ou aberturas.",
+  "Tudo que nao foi explicitamente solicitado deve permanecer igual a foto base. Fora da area pedida, preserve objetos, materiais, cores, decoracao, iluminacao, sombras, reflexos e textura original.",
   "Nao crie uma nova casa, fachada, sala, quarto, loja, parede, paisagem ou cena parecida. Edite somente a cena real da imagem base.",
   "Nao substitua o ambiente por uma renderizacao generica nem por uma composicao inspirada na referencia.",
   "Nao remova, nao desloque e nao redesenhe janelas, portas, quinas, vigas, sancas, rodapes, tomadas ou outros elementos estruturais existentes.",
   "Pode modificar somente os itens explicitamente solicitados: cor de parede, piso, teto, revestimentos, moveis, decoracao e objetos dentro do ambiente.",
+  "Se o pedido for piso, altere somente o piso. Se for parede, altere somente as paredes indicadas. Se for teto, altere somente o teto. Nao redesenhe nem reinterprete o resto da imagem.",
   "Se o pedido for trocar cor de parede, aplique apenas a nova cor na parede indicada, mantendo textura, sombras, luz natural, objetos, aberturas e geometria originais.",
   "Preserve o quadro completo da foto original. Nao recorte, nao expanda, nao centralize novamente e nao transforme a imagem em formato quadrado.",
 ].join("\n")
@@ -1327,6 +1329,7 @@ function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
     "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
     "Tarefa: editar a IMAGEM 1, que e a foto base/cena enviada pelo cliente, para criar uma composicao visual realista.",
     "A cena final deve continuar reconhecivelmente a mesma foto da IMAGEM 1. A referencia visual serve somente para o material/produto/estilo solicitado.",
+    "Nao crie uma nova cena. Preserve tudo o que nao foi solicitado com maxima fidelidade, como se fosse uma edicao localizada sobre a foto original.",
     getFrameInstruction(baseImage),
     environmentStructureGuardrail,
     surfaceSegmentationGuardrail,
@@ -1350,6 +1353,7 @@ function buildOpenRouterImageContent(baseImage: BaseImage, referenceImageUrls: s
         getReferenceImageInstruction(referenceImageUrls.length),
         "ORDEM DAS IMAGENS:",
         "IMAGEM 1 = FOTO BASE/CENA FINAL. Preserve esta imagem como camera, arquitetura, fundo e composicao espacial.",
+        "A IMAGEM 1 nao pode ser recriada, substituida por outra cena ou alterada fora da area pedida.",
         referenceImageUrls.length > 0
           ? "IMAGEM 2 EM DIANTE = REFERENCIAS VISUAIS. Use apenas para produto, material, textura, cor, padrao ou objeto solicitado; nao use como ambiente final."
           : "",
@@ -1376,6 +1380,7 @@ function buildLocalizedRenderPrompt(job: CompositionJob, baseImage: BaseImage) {
   return [
     "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
     "Renderize uma versao da imagem base com a alteracao solicitada, mantendo alinhamento perfeito com a foto original.",
+    "Nunca transforme a imagem base em outro ambiente; altere apenas a superficie ou objeto solicitado.",
     getFrameInstruction(baseImage),
     environmentStructureGuardrail,
     surfaceSegmentationGuardrail,

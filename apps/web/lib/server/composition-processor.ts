@@ -154,7 +154,7 @@ function getCompositionCompletionCaption(job: CompositionJob, comparisonUrl: str
   return [
     job.catalogItemName ? `Sua composição de ${job.catalogItemName} ficou pronta.` : "Sua composição ficou pronta.",
     comparisonUrl ? `Comparativo: ${comparisonUrl}` : "",
-    `ID do job: ${job.id.slice(0, 8)}.`,
+    `ID do processo: ${job.id.slice(0, 8)}.`,
   ].filter(Boolean).join("\n")
 }
 
@@ -167,6 +167,7 @@ async function findCompositionResultInboxMessage(job: CompositionJob) {
     message.role === "assistant" &&
     (
       (message.content.includes(`ID do job: ${jobShortId}`) && message.content.includes("Sua composição")) ||
+      (message.content.includes(`ID do processo: ${jobShortId}`) && message.content.includes("Sua composição")) ||
       message.mediaFileName === `composicao-${jobShortId}.png`
     )
   )

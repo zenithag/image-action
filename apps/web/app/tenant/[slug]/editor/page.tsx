@@ -145,7 +145,7 @@ function ImageSlotCard({
               Envie uma imagem do Inbox ou do dispositivo
             </p>
             <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-              Abra uma imagem na conversa e escolha "Usar como cena" ou "Usar como referencia".
+              Abra uma imagem na conversa e escolha "Usar como ambiente" ou "Usar como referencia".
             </p>
             {onUpload && (
               <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">
@@ -570,7 +570,7 @@ export default function EditorPage({
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5 scrollbar-hide">
               <ImageSlotCard
-                title="1. Cena base"
+                title="1. Ambiente base"
                 description="Imagem principal que sera transformada."
                 image={baseImage}
                 onClear={() => setBaseImage(null)}
@@ -696,23 +696,23 @@ export default function EditorPage({
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
             <div className="flex flex-col gap-2">
               <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Cena base
+                Ambiente base
               </span>
               <div className="relative flex-1 overflow-hidden rounded-[14px] border border-border bg-card shadow-md">
                 {baseImage ? (
                   <SafeImage
                     src={baseImage.mediaUrl}
-                    alt={baseImage.caption || "Cena base"}
+                    alt={baseImage.caption || "Ambiente base"}
                     className="h-full w-full object-contain"
                     fallbackClassName="h-full w-full"
-                    fallbackLabel="Cena indisponivel"
+                    fallbackLabel="Ambiente indisponivel"
                     fallbackHint="Volte ao Inbox e envie novamente."
                   />
                 ) : (
                   <div className="grid h-full min-h-72 place-items-center text-center">
                     <div className="px-6">
                       <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <p className="mt-3 text-sm font-medium">Nenhuma cena base selecionada</p>
+                      <p className="mt-3 text-sm font-medium">Nenhum ambiente base selecionado</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Use uma imagem recebida no Inbox como ponto de partida.
                       </p>
@@ -721,7 +721,7 @@ export default function EditorPage({
                 )}
                 {baseImage && (
                   <div className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-1 text-[10.5px] font-semibold shadow-sm backdrop-blur">
-                    Cena do Inbox
+                    Ambiente do Inbox
                   </div>
                 )}
               </div>
@@ -790,7 +790,7 @@ export default function EditorPage({
                 ) : (
                   <div className="grid h-full min-h-72 place-items-center text-center text-muted-foreground">
                     <p className="max-w-xs px-6 text-sm">
-                      A pre-visualizacao aparece depois que a cena base for enviada do Inbox.
+                      A pre-visualizacao aparece depois que o ambiente base for enviado do Inbox.
                     </p>
                   </div>
                 )}
