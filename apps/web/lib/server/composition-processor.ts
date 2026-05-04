@@ -108,7 +108,7 @@ async function maybeAutoSendCompositionToWhatsapp(
     return { sent: false, reason: "whatsapp_disabled" }
   }
 
-  if (!settings.channels.autoSendCompositionsToWhatsapp && job.source !== "operator") {
+  if (job.source === "operator" && !settings.channels.autoSendCompositionsToWhatsapp) {
     return { sent: false, reason: "auto_send_disabled" }
   }
 

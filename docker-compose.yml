@@ -127,11 +127,43 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: dev-secret-change-me
       AUTH_TRUST_HOST: "true"
+      DATABASE_URL: postgresql://studio:studio_dev@postgres:5432/studio_app
       NODE_OPTIONS: --no-experimental-webstorage
       SEGMENTATION_SERVICE_URL: ${SEGMENTATION_SERVICE_URL:-}
       HOSTNAME: "0.0.0.0"
     depends_on:
+      postgres:
+        condition: service_healthy
       api-server:
+        condition: service_started
+      segmentation-service:
+        condition: service_started
+
+  app-job-worker:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    command: >
+      sh -c "node apps/web/server.js &
+      node apps/web/scripts/app-job-worker.mjs"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_WS_URL: http://localhost:8000
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: dev-secret-change-me
+      AUTH_TRUST_HOST: "true"
+      DATABASE_URL: postgresql://studio:studio_dev@postgres:5432/studio_app
+      NODE_OPTIONS: --no-experimental-webstorage
+      SEGMENTATION_SERVICE_URL: ${SEGMENTATION_SERVICE_URL:-}
+      HOSTNAME: "0.0.0.0"
+      PORT: 3001
+      APP_JOB_WORKER_URL: http://127.0.0.1:3001/api/internal/app-jobs/process
+      APP_JOB_WORKER_TOKEN: dev-secret-change-me
+      APP_JOB_WORKER_INTERVAL_SECONDS: ${APP_JOB_WORKER_INTERVAL_SECONDS:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
         condition: service_started
       segmentation-service:
         condition: service_started

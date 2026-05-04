@@ -64,11 +64,17 @@ async function processAppJob() {
 }
 
 export async function processAppJobQueue() {
+  let processedCount = 0
+
   for (let index = 0; index < MAX_JOBS_PER_PASS; index += 1) {
     const processed = await processAppJob()
 
     if (!processed) {
-      return
+      return processedCount
     }
+
+    processedCount += 1
   }
+
+  return processedCount
 }

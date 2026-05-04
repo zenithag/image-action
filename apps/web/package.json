@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "seed:superadmin": "node scripts/seed-superadmin.mjs",
+    "worker:app-jobs": "node scripts/app-job-worker.mjs",
     "start": "next start"
   },
   "dependencies": {
