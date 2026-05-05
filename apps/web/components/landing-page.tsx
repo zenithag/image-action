@@ -486,9 +486,9 @@ export function LandingPage() {
               </Reveal>
               <Reveal>
                 <div className="cf-hero-ctas">
-                  <button onClick={() => scrollTo("cta")} className="cf-btn cf-btn-primary">
+                  <a href="https://wa.me/5547992662170?text=Estou%20no%20site%20da%20COMO%20FICA%20e%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20da%20ferramenta" target="_blank" rel="noopener noreferrer" className="cf-btn cf-btn-primary">
                     Agendar demonstração
-                  </button>
+                  </a>
                   <button onClick={() => setVideoOpen(true)} className="cf-btn cf-btn-ghost cf-btn-play">
                     <span className="cf-play-circle">
                       <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M5.5 3.5l7 4.5-7 4.5V3.5z"/></svg>
@@ -552,26 +552,26 @@ export function LandingPage() {
             </Reveal>
             <div className="cf-steps">
               {[
-                { n: "PASSO 01", title: "A foto do ambiente", desc: "O cliente envia (ou o vendedor captura) uma foto da sala, parede, bancada ou fachada. Qualquer celular serve.", accent: true, icon: (
+                { n: "PASSO 01", title: "A foto do ambiente", desc: "O cliente envia (ou o vendedor captura) uma foto do ambiente, seja uma sala, parede, bancada ou fachada. Qualquer celular serve.", accent: true, icon: (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="3" />
                     <circle cx="8.5" cy="8.5" r="1.5" />
                     <path d="M21 15l-5-5L5 21" />
                   </svg>
                 )},
-                { n: "PASSO 02", title: "O produto da sua loja", desc: "Vendedor ou cliente seleciona o item no catálogo conectado: piso, porcelanato, tinta, módulo, sofá, revestimento.", accent: false, icon: (
+                { n: "PASSO 02", title: "O produto da sua loja", desc: "Vendedor ou cliente envia uma foto do produto ou seleciona o item no catálogo conectado: piso, porcelanato, tinta, sofá, revestimento...", accent: false, icon: (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
                     <line x1="3" y1="6" x2="21" y2="6" />
                     <path d="M16 10a4 4 0 01-8 0" />
                   </svg>
                 )},
-                { n: "PASSO 03", title: "A IA aplica com fidelidade", desc: "Em segundos, o produto é renderizado no ambiente real respeitando perspectiva, iluminação e escala. Sem aquele recorte falso de marketplace.", accent: false, icon: (
+                { n: "PASSO 03", title: "A IA aplica com fidelidade", desc: "Em segundos, o produto é inserido ao ambiente real, respeitando perspectiva, iluminação e escala. Sem aquele recorte falso de marketplace.", accent: false, icon: (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                 )},
-                { n: "PASSO 04", title: "A decisão acontece", desc: "O resultado volta com um link de comparação antes/depois. O cliente compartilha com a família, decide com mais segurança, e o vendedor fecha com argumento visual na mão.", accent: false, icon: (
+                { n: "PASSO 04", title: "A decisão acontece", desc: "O resultado volta com um link de comparação antes/depois. O cliente compartilha com a família, decide com mais segurança e rapidez, e o vendedor fecha com argumento visual na mão.", accent: false, icon: (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
                     <polyline points="22 4 12 14.01 9 11.01" />
@@ -597,17 +597,17 @@ export function LandingPage() {
             <Reveal className="cf-section-head">
               <div>
                 <p className="cf-tag">Por dentro da experiência</p>
-                <h2>Vídeo na <span className="accent">cabeça</span> do cliente, decisão na sua mão.</h2>
+                <h2>Imagem na <span className="accent">cabeça</span> do cliente, decisão na sua mão.</h2>
               </div>
-              <p className="cf-lede">O cliente nunca sai do WhatsApp. Você não muda fluxo, sistema, nem treinamento. Como Fica trabalha em segundo plano, vinculado ao seu catálogo.</p>
+              <p className="cf-lede">O cliente nunca sai do WhatsApp. Você não muda fluxo, sistema, nem treinamento. A Como Fica trabalha em segundo plano, vinculado ao seu catálogo.</p>
             </Reveal>
             <div className="cf-demo-grid">
               <div className="cf-demo-points">
                 {[
-                  { title: "Aplicação fiel ao ambiente", desc: "Sombras, perspectiva e proporção respeitam a foto do cliente. Sem aquele recorte falso de marketplace." },
+                  { title: "Aplicação fiel ao ambiente", desc: "Sombras, perspectivas e proporção da foto do cliente são respeitadas. Sem aquele recorte falso de marketplace." },
                   { title: "Catálogo ligado direto à venda", desc: "Cada produto enviado já vem com SKU, preço, condições e botão de \"comprar agora\". Pronto para conversão." },
                   { title: "Atendente vê tudo", desc: "Sua equipe acompanha o histórico no painel: foto enviada, produto testado, resultado e onde o cliente parou." },
-                  { title: "Link de comparação compartilhável", desc: "O cliente recebe um link com slider antes/depois. Manda no grupo da família e volta para fechar." },
+                  { title: "Link de comparação compartilhável", desc: "O cliente recebe um link com slider antes/depois. Manda no grupo da família e toma a decisão de compra mais rápido." },
                 ].map((pt, i) => (
                   <Reveal key={pt.title} className="cf-demo-point">
                     <div className="cf-num">{i + 1}</div>
@@ -751,7 +751,7 @@ export function LandingPage() {
                 { q: "Como vocês carregam meu catálogo?", a: "Aceitamos planilha, integração com Bling, Tray, Shopify, Nuvemshop, ou XML do seu ERP. Cada produto vira uma opção que o cliente pode aplicar na foto." },
                 { q: "Quanto tempo leva para colocar no ar?", a: "Lojas com catálogo organizado entram em até 24 horas. A configuração é feita por nossa equipe. Você não precisa instalar nada." },
                 { q: "E se a foto do cliente estiver ruim?", a: "O sistema avisa automaticamente: \u201CEssa foto está escura/desfocada/em ângulo difícil. Pode mandar outra?\u201D. Você não envia resultado de baixa qualidade para o cliente." },
-                { q: "Quanto custa?", a: "A cobrança é por foto processada, não por mensagem. Plano inicial a partir de R$ 290/mês para até 200 fotos. Acima disso, escala conforme o volume da loja. Sem custo de instalação." },
+                { q: "Quanto custa?", a: "Trabalhamos com planos personalizados para cada necessidade e tamanho de negócio. A cobrança é por foto processada, não por mensagem, e escala conforme o volume da sua loja. Fale conosco para receber uma proposta sob medida." },
                 { q: "É seguro? E a foto do cliente?", a: "Sim. Fotos são processadas em servidores no Brasil, criptografadas em trânsito e em repouso, e excluídas automaticamente após 90 dias. Em conformidade total com a LGPD." },
               ].map((item, i) => (
                 <Reveal key={i}>
@@ -773,7 +773,7 @@ export function LandingPage() {
                 <h2>Mostre como fica. <span className="accent">Venda com mais confiança.</span></h2>
                 <p className="cf-cta-sub">Veja a COMO FICA aplicada à realidade da sua loja em uma demonstração de 20 minutos. Sem compromisso, sem cartão, sem instalação.</p>
                 <div className="cf-cta-actions">
-                  <button className="cf-btn cf-btn-primary">Agendar demonstração</button>
+                  <a href="https://wa.me/5547992662170?text=Estou%20no%20site%20da%20COMO%20FICA%20e%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20da%20ferramenta" target="_blank" rel="noopener noreferrer" className="cf-btn cf-btn-primary">Agendar demonstração</a>
                 </div>
               </div>
             </Reveal>
@@ -811,7 +811,7 @@ export function LandingPage() {
             <div className="cf-foot-mark">como <span className="accent">fica.</span></div>
             <div className="cf-foot-bottom">
               <span>&copy; 2026 Como Fica</span>
-              <span>São Paulo · Brasil</span>
+              <span>Brasil</span>
             </div>
           </div>
         </footer>
