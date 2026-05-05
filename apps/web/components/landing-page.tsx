@@ -264,20 +264,166 @@ function AnimatedChat({
   )
 }
 
+/* ── Apps Carousel ── */
+const appsData = [
+  { title: "Pisos e Porcelanatos", desc: "Substitua o piso atual do cliente por qualquer item do seu mostruário.", img: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=600&h=450&fit=crop&q=80" },
+  { title: "Revestimentos e Azulejos", desc: "Aplique paginação real em parede de banheiro, cozinha ou área externa.", img: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=600&h=450&fit=crop&q=80" },
+  { title: "Tintas e Papéis de Parede", desc: "Pinte virtualmente qualquer parede em qualquer cor da sua linha.", img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=450&fit=crop&q=80" },
+  { title: "Móveis Planejados", desc: "Mostre cozinhas, dormitórios e closets renderizados no ambiente real do cliente.", img: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=600&h=450&fit=crop&q=80" },
+  { title: "Móveis e Decoração", desc: "Sofás, mesas, estantes e poltronas aplicados com escala correta.", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=450&fit=crop&q=80" },
+  { title: "Iluminação", desc: "Lustres, pendentes e arandelas posicionados na altura e contexto certos.", img: "https://images.unsplash.com/photo-1524484485831-a92ffc0de03f?w=600&h=450&fit=crop&q=80" },
+  { title: "Áreas Externas", desc: "Decks, jardins, churrasqueiras e mobiliário de varanda.", img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=450&fit=crop&q=80" },
+]
+
+function AppsCarousel() {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [canPrev, setCanPrev] = useState(false)
+  const [canNext, setCanNext] = useState(true)
+
+  const checkScroll = useCallback(() => {
+    const el = trackRef.current
+    if (!el) return
+    setCanPrev(el.scrollLeft > 4)
+    setCanNext(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
+  }, [])
+
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    el.addEventListener("scroll", checkScroll, { passive: true })
+    checkScroll()
+    return () => el.removeEventListener("scroll", checkScroll)
+  }, [checkScroll])
+
+  function scroll(dir: -1 | 1) {
+    const el = trackRef.current
+    if (!el) return
+    const cardW = el.querySelector<HTMLElement>(".cf-app-card")?.offsetWidth ?? 300
+    el.scrollBy({ left: dir * (cardW + 20), behavior: "smooth" })
+  }
+
+  return (
+    <div className="cf-carousel">
+      <div className="cf-carousel-track" ref={trackRef}>
+        {appsData.map((app) => (
+          <div key={app.title} className="cf-app-card">
+            <div className="cf-app-img" style={{ backgroundImage: `url(${app.img})` }} />
+            <div className="cf-app-body">
+              <h4>{app.title}</h4>
+              <p>{app.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="cf-carousel-nav">
+        <button className={`cf-carousel-btn${canPrev ? "" : " disabled"}`} onClick={() => scroll(-1)} aria-label="Anterior">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4l-5 5 5 5"/></svg>
+        </button>
+        <button className={`cf-carousel-btn${canNext ? "" : " disabled"}`} onClick={() => scroll(1)} aria-label="Próximo">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4l5 5-5 5"/></svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ── Hero Compare Slider ── */
+const heroScenes = [
+  {
+    label: "Porcelanato",
+    before: { gradient: "linear-gradient(160deg, #d6cfc7 0%, #bfb6ab 40%, #a89e92 100%)" },
+    after: { gradient: "linear-gradient(160deg, #f0e6d2 0%, #dcc8a0 40%, #c9a96e 100%)" },
+  },
+  {
+    label: "Pintura",
+    before: { gradient: "linear-gradient(160deg, #ededed 0%, #e0e0e0 40%, #d4d4d4 100%)" },
+    after: { gradient: "linear-gradient(160deg, #a8c49a 0%, #7da36e 40%, #5a7f5e 100%)" },
+  },
+  {
+    label: "Móveis planejados",
+    before: { gradient: "linear-gradient(160deg, #d4cfc6 0%, #c4bfb6 40%, #a39e95 100%)" },
+    after: { gradient: "linear-gradient(160deg, #f0dfc0 0%, #dcc4a0 40%, #c4956a 100%)" },
+  },
+]
+
+function HeroCompareSlider() {
+  const [idx, setIdx] = useState(0)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [pct, setPct] = useState(50)
+  const dragging = useRef(false)
+
+  const setX = useCallback((clientX: number) => {
+    const card = cardRef.current
+    if (!card) return
+    const rect = card.getBoundingClientRect()
+    let p = ((clientX - rect.left) / rect.width) * 100
+    p = Math.max(2, Math.min(98, p))
+    setPct(p)
+  }, [])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => { if (dragging.current) setX(e.clientX) }
+    const onUp = () => { dragging.current = false }
+    const onTouchMove = (e: TouchEvent) => { if (dragging.current) setX(e.touches[0].clientX) }
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    window.addEventListener("touchmove", onTouchMove, { passive: true })
+    window.addEventListener("touchend", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+      window.removeEventListener("touchmove", onTouchMove)
+      window.removeEventListener("touchend", onUp)
+    }
+  }, [setX])
+
+  const scene = heroScenes[idx]
+
+  return (
+    <div className="cf-hero-compare">
+      <div
+        ref={cardRef}
+        className="cf-hero-compare-card"
+        onMouseDown={(e) => { dragging.current = true; setX(e.clientX) }}
+        onTouchStart={(e) => { dragging.current = true; setX(e.touches[0].clientX) }}
+      >
+        <div className="cf-hero-compare-layer cf-hero-compare-before" style={{ background: scene.before.gradient }} />
+        <div className="cf-hero-compare-layer cf-hero-compare-after" style={{ background: scene.after.gradient, clipPath: `inset(0 0 0 ${pct}%)` }} />
+        <span className="cf-ph-tag cf-l">Antes</span>
+        <span className="cf-ph-tag cf-r">Depois</span>
+        <div className="cf-handle" style={{ left: `${pct}%` }}>
+          <div className="cf-knob">{"\u21C6"}</div>
+        </div>
+      </div>
+      <div className="cf-hero-compare-nav">
+        {heroScenes.map((s, i) => (
+          <button
+            key={s.label}
+            onClick={() => { setIdx(i); setPct(50) }}
+            className={`cf-hero-compare-tab${i === idx ? " active" : ""}`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── Chat data ── */
 const heroMessages: ChatMessage[] = [
-  { side: "in", text: "Oi! Vi essa poltrona no Instagram de voces. Sera que combina com a minha sala?", time: "14:02", delay: 1200 },
+  { side: "in", text: "Oi! Vi essa poltrona no Instagram de vocês. Será que combina com a minha sala?", time: "14:02", delay: 1200 },
   { side: "in", photo: "before", caption: "Foto da minha sala", time: "14:02", delay: 1800 },
-  { side: "out", text: "Claro! Qual produto voce quer testar? Posso aplicar na sua foto agora", time: "14:03", delay: 1400 },
+  { side: "out", text: "Claro! Qual produto você quer testar? Posso aplicar na sua foto agora.", time: "14:03", delay: 1400 },
   { side: "in", text: "A poltrona Linhares cor caramelo", time: "14:03", delay: 1000 },
-  { side: "out", photo: "after", caption: "Aqui esta! Linhares · caramelo", time: "14:03", delay: 2200 },
+  { side: "out", photo: "after", caption: "Aqui está! Linhares · caramelo", time: "14:03", delay: 2200 },
   { side: "out", link: { title: "Comparar antes & depois", url: "comofica.app/r/3a91", desc: "Toque para deslizar e ver o ambiente" }, time: "14:03", delay: 800 },
 ]
 
 const demoMessages: ChatMessage[] = [
   { side: "in", text: "Quero pintar a parede da TV de verde", time: "10:14", delay: 1000 },
   { side: "in", photo: "before", caption: "Parede atual", time: "10:14", delay: 1600 },
-  { side: "out", text: "Tenho 3 verdes que ficariam otimos. Te mando como cada um fica:", time: "10:14", delay: 1400 },
+  { side: "out", text: "Tenho 3 verdes que ficariam ótimos. Te mando como cada um fica:", time: "10:14", delay: 1400 },
   { side: "out", photo: "after", caption: "Verde Floresta · cod. AU-204", time: "10:14", photoStyle: { background: "linear-gradient(135deg, #5a7f5e, #3d5e42)" }, delay: 2000 },
   { side: "out", photo: "after", caption: "Salvia · cod. AU-208", time: "10:15", photoStyle: { background: "linear-gradient(135deg, #8aa37a, #6a8463)" }, delay: 1800 },
   { side: "in", text: "A Salvia ficou perfeita! Quanto sai pra essa parede?", time: "10:16", delay: 1200 },
@@ -286,6 +432,7 @@ const demoMessages: ChatMessage[] = [
 /* ── Main Landing Page ── */
 export function LandingPage() {
   const [navScrolled, setNavScrolled] = useState(false)
+  const [videoOpen, setVideoOpen] = useState(false)
 
   useEffect(() => {
     const onScroll = () => setNavScrolled(window.scrollY > 8)
@@ -311,15 +458,15 @@ export function LandingPage() {
             </button>
             <ul className="cf-nav-links">
               <li><button onClick={() => scrollTo("como")}>Como funciona</button></li>
-              <li><button onClick={() => scrollTo("demo")}>Demonstracao</button></li>
-              <li><button onClick={() => scrollTo("para-quem")}>Para quem e</button></li>
+              <li><button onClick={() => scrollTo("demo")}>Demonstração</button></li>
+              <li><button onClick={() => scrollTo("para-quem")}>Para quem é</button></li>
               <li><button onClick={() => scrollTo("perguntas")}>Perguntas</button></li>
             </ul>
             <div className="cf-nav-cta">
               <Link href="/login" className="cf-btn cf-btn-ghost cf-btn-sm">Entrar</Link>
               <button onClick={() => scrollTo("cta")} className="cf-btn cf-btn-wa cf-btn-sm">
                 <WaIcon className="cf-wa-ico" />
-                Comecar pelo WhatsApp
+                Começar pelo WhatsApp
               </button>
             </div>
           </div>
@@ -328,152 +475,67 @@ export function LandingPage() {
         {/* ══════ HERO ══════ */}
         <section className="cf-hero" id="cf-hero">
           <div className="cf-wrap">
-            <div className="cf-hero-top">
-              <div>
-                <Reveal>
-                  <div className="cf-eyebrow">
-                    <span className="cf-pulse" />
-                    Direto no WhatsApp da sua loja
-                  </div>
-                </Reveal>
-                <Reveal>
-                  <h1>
-                    Venda mais. <br />
-                    Mostre <span className="accent">como fica</span> antes de comprar.
-                  </h1>
-                </Reveal>
-              </div>
-              <div className="cf-hero-right">
-                <Reveal>
-                  <p>Ferramenta de IA que aplica seu produto na foto do ambiente do cliente. Sem app, sem cadastro. O cliente decide na hora, dentro do WhatsApp.</p>
-                </Reveal>
-                <Reveal>
-                  <button onClick={() => scrollTo("cta")} className="cf-btn cf-btn-wa">
-                    <WaIcon className="cf-wa-ico" />
-                    Comecar agora
+            <div className="cf-hero-copy">
+              <Reveal>
+                <h1>
+                  Mostre <span className="accent">como fica</span> antes de vender.
+                </h1>
+              </Reveal>
+              <Reveal>
+                <p className="cf-hero-sub">A pergunta que todo cliente faz antes de comprar acabamento, móvel ou revestimento agora tem resposta visual em segundos. A <strong>COMO FICA</strong> aplica o seu produto na foto do ambiente real do cliente e ajuda sua loja a transformar dúvida em decisão.</p>
+              </Reveal>
+              <Reveal>
+                <div className="cf-hero-ctas">
+                  <button onClick={() => scrollTo("cta")} className="cf-btn cf-btn-primary">
+                    Agendar demonstração
                   </button>
-                </Reveal>
-              </div>
+                  <button onClick={() => setVideoOpen(true)} className="cf-btn cf-btn-ghost cf-btn-play">
+                    <span className="cf-play-circle">
+                      <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M5.5 3.5l7 4.5-7 4.5V3.5z"/></svg>
+                    </span>
+                    Ver como funciona em 60s
+                  </button>
+                </div>
+              </Reveal>
             </div>
 
-            {/* Hero Stage */}
+            {/* Before/After compare slider */}
             <Reveal>
-              <div className="cf-hero-stage">
-                {/* ── Floating metric cards ── */}
-
-                {/* Top-left: Sparkline area chart + sales */}
-                <div className="cf-float-card cf-tl cf-card-enter cf-enter-1">
-                  <div className="cf-card-head">
-                    <div className="cf-lbl">Vendas / semana</div>
-                    <span className="cf-delta">+38%</span>
-                  </div>
-                  <div className="cf-big-n">R$ 48k</div>
-                  <div className="cf-sparkline">
-                    <svg viewBox="0 0 200 60" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--cf-accent)" stopOpacity=".3" />
-                          <stop offset="100%" stopColor="var(--cf-accent)" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path className="cf-spark-area" d="M0,52 C20,48 35,50 50,42 C65,34 75,38 95,28 C115,18 130,22 150,14 C170,8 185,10 200,4 L200,60 L0,60 Z" />
-                      <path className="cf-spark-line" d="M0,52 C20,48 35,50 50,42 C65,34 75,38 95,28 C115,18 130,22 150,14 C170,8 185,10 200,4" />
-                      <circle className="cf-spark-dot" cx="200" cy="4" r="4" />
-                      <circle className="cf-spark-pulse" cx="200" cy="4" r="4" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Top badge */}
-                <div className="cf-float-badge cf-top-badge cf-card-enter cf-enter-3">
-                  <span className="cf-live-dot" />
-                  Aplicado em minutos
-                </div>
-
-                {/* Top-right: Radial progress */}
-                <div className="cf-float-card cf-tr cf-card-enter cf-enter-2">
-                  <div className="cf-card-head">
-                    <div className="cf-lbl">Conversao</div>
-                    <span className="cf-delta">+24pp</span>
-                  </div>
-                  <div className="cf-radial-wrap">
-                    <svg className="cf-radial" viewBox="0 0 80 80">
-                      <circle className="cf-radial-bg" cx="40" cy="40" r="34" />
-                      <circle className="cf-radial-fg" cx="40" cy="40" r="34" />
-                    </svg>
-                    <div className="cf-radial-val">87<span>%</span></div>
-                  </div>
-                  <div className="cf-sub">decisao na 1a conversa</div>
-                </div>
-
-                {/* Bottom-left: Horizontal progress bars */}
-                <div className="cf-float-card cf-bl cf-card-enter cf-enter-4">
-                  <div className="cf-card-head">
-                    <div className="cf-lbl">Devolucoes</div>
-                    <span className="cf-delta" style={{ background: "#FEE2E2", color: "#991B1B" }}>{"\u2212"}61%</span>
-                  </div>
-                  <div className="cf-hbars">
-                    <div className="cf-hbar-row">
-                      <span className="cf-hbar-label">Antes</span>
-                      <div className="cf-hbar-track"><div className="cf-hbar-fill cf-hbar-muted" style={{ "--bar-w": "82%" } as React.CSSProperties} /></div>
-                      <span className="cf-hbar-val">82%</span>
-                    </div>
-                    <div className="cf-hbar-row">
-                      <span className="cf-hbar-label">Agora</span>
-                      <div className="cf-hbar-track"><div className="cf-hbar-fill cf-hbar-accent" style={{ "--bar-w": "32%" } as React.CSSProperties} /></div>
-                      <span className="cf-hbar-val">32%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom-right: Live counter + activity wave */}
-                <div className="cf-float-card cf-br cf-card-enter cf-enter-5">
-                  <div className="cf-card-head">
-                    <div className="cf-lbl">Tempo medio</div>
-                    <span className="cf-live-badge"><span className="cf-live-dot" /> ao vivo</span>
-                  </div>
-                  <div className="cf-big-n">12<span style={{ fontSize: 16, color: "var(--cf-muted)", fontWeight: 500 }}>s</span></div>
-                  <div className="cf-wave">
-                    <svg viewBox="0 0 200 40" preserveAspectRatio="none">
-                      <path className="cf-wave-path cf-wave-1" d="M0,20 Q25,5 50,20 T100,20 T150,20 T200,20" />
-                      <path className="cf-wave-path cf-wave-2" d="M0,20 Q25,35 50,20 T100,20 T150,20 T200,20" />
-                    </svg>
-                  </div>
-                  <div className="cf-sub">para devolver a foto editada</div>
-                </div>
-
-                {/* Phone mockup — animated */}
-                <div className="cf-phone-stage">
-                  <AnimatedChat
-                    messages={heroMessages}
-                    header={
-                      <div className="cf-wa-header">
-                        <span className="cf-wa-back">{"\u2039"}</span>
-                        <div className="cf-wa-avatar">CF</div>
-                        <div className="cf-wa-meta">
-                          <div className="cf-nm">Moveis Carvalho</div>
-                          <div className="cf-st">online · com ajuda do Como Fica</div>
-                        </div>
-                      </div>
-                    }
-                  />
-                </div>
-              </div>
+              <HeroCompareSlider />
             </Reveal>
 
-            {/* Stats row */}
-            <div className="cf-hero-meta">
-              {[
-                { n: "+38%", l: "conversao em vendas no WhatsApp" },
-                { n: "\u221261%", l: "devolucoes por arrependimento" },
-                { n: "~12s", l: "para devolver a foto editada" },
-                { n: "0", l: "apps para o cliente baixar" },
-              ].map((s) => (
-                <Reveal key={s.l} className="cf-stat">
-                  <div className="cf-n">{s.n}</div>
-                  <div className="cf-stat-l">{s.l}</div>
-                </Reveal>
-              ))}
+            {/* Credibility strip */}
+            <Reveal>
+              <div className="cf-hero-credibility">
+                Ferramenta de visualização para lojas de <strong>acabamentos</strong>, <strong>móveis planejados</strong> e <strong>móveis</strong>. Funciona no WhatsApp da sua loja, no atendimento presencial e nos seus canais digitais.
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* ══════ PROBLEM ══════ */}
+        <section className="cf-problem" id="problema">
+          <div className="cf-wrap">
+            <Reveal className="cf-problem-head">
+              <h2>Toda venda de ambiente trava na mesma pergunta.</h2>
+            </Reveal>
+            <div className="cf-problem-grid">
+              <div className="cf-problem-quotes">
+                {[
+                  "Será que esse piso combina com a minha sala?",
+                  "Como fica esse armário na minha cozinha?",
+                  "Esse tom de tinta vai escurecer o ambiente?",
+                  "Esse sofá cabe ali?",
+                ].map((q) => (
+                  <Reveal key={q}>
+                    <blockquote className="cf-problem-q">{q}</blockquote>
+                  </Reveal>
+                ))}
+              </div>
+              <Reveal className="cf-problem-body">
+                <p>Por décadas, a única resposta possível foi <strong>&ldquo;imagina aí&rdquo;</strong>. O cliente saía da loja para pensar, pedia opinião da família, comparava com o concorrente e muitas vezes não voltava.</p>
+                <p>A <strong>COMO FICA</strong> existe para responder essa pergunta visualmente, na hora, dentro do canal que sua loja já usa para vender.</p>
+              </Reveal>
             </div>
           </div>
         </section>
@@ -484,26 +546,42 @@ export function LandingPage() {
             <Reveal className="cf-section-head">
               <div>
                 <p className="cf-tag">Como funciona</p>
-                <h2>Quatro mensagens entre a <span className="accent">curiosidade</span> e a venda.</h2>
+                <h2>Quatro passos entre a <span className="accent">dúvida</span> e o fechamento.</h2>
               </div>
-              <p className="cf-lede">Tudo acontece dentro do WhatsApp da sua loja, o numero que o cliente ja conhece. Como Fica entra como assistente, processa a foto e devolve o resultado pronto para vender.</p>
+              <p className="cf-lede">Funciona no WhatsApp da loja, no atendimento presencial com tablet, ou integrado ao seu canal digital. O fluxo é o mesmo.</p>
             </Reveal>
             <div className="cf-steps">
               {[
-                { n: "PASSO 01 · CLIENTE", title: "Manda a foto do ambiente", desc: "O cliente fotografa a sala, a parede ou a bancada e envia para o WhatsApp da loja como faria com qualquer duvida.", wa: true },
-                { n: "PASSO 02 · CLIENTE", title: "Escolhe um produto da loja", desc: "O sistema lista os itens do seu catalogo. O cliente toca, escolhe a cor/variante, e confirma. Tudo direto no chat.", wa: false },
-                { n: "PASSO 03 · COMO FICA", title: "A IA aplica com perfeicao", desc: "Em segundos, o produto e renderizado no ambiente real do cliente respeitando perspectiva, iluminacao e escala.", wa: false },
-                { n: "PASSO 04 · CLIENTE RECEBE", title: "Resultado + link de comparacao", desc: "A imagem volta no WhatsApp, junto de um link com slider antes/depois para o cliente decidir e compartilhar com a familia.", wa: false },
+                { n: "PASSO 01", title: "A foto do ambiente", desc: "O cliente envia (ou o vendedor captura) uma foto da sala, parede, bancada ou fachada. Qualquer celular serve.", accent: true, icon: (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="3" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                )},
+                { n: "PASSO 02", title: "O produto da sua loja", desc: "Vendedor ou cliente seleciona o item no catálogo conectado: piso, porcelanato, tinta, módulo, sofá, revestimento.", accent: false, icon: (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <path d="M16 10a4 4 0 01-8 0" />
+                  </svg>
+                )},
+                { n: "PASSO 03", title: "A IA aplica com fidelidade", desc: "Em segundos, o produto é renderizado no ambiente real respeitando perspectiva, iluminação e escala. Sem aquele recorte falso de marketplace.", accent: false, icon: (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                )},
+                { n: "PASSO 04", title: "A decisão acontece", desc: "O resultado volta com um link de comparação antes/depois. O cliente compartilha com a família, decide com mais segurança, e o vendedor fecha com argumento visual na mão.", accent: false, icon: (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                )},
               ].map((step) => (
-                <Reveal key={step.n} className={`cf-step${step.wa ? " cf-wa-step" : ""}`}>
+                <Reveal key={step.n} className="cf-step">
                   <div className="cf-step-n">{step.n}</div>
-                  <div className={`cf-step-ico${step.wa ? " wa" : ""}`}>
-                    {step.wa ? <WaIcon className="cf-wa-ico" /> : (
-                      <svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <rect x="3" y="3" width="7" height="7" /><rect x="12" y="3" width="7" height="7" />
-                        <rect x="3" y="12" width="7" height="7" /><rect x="12" y="12" width="7" height="7" />
-                      </svg>
-                    )}
+                  <div className={`cf-step-ico${step.accent ? " accent" : ""}`}>
+                    {step.icon}
                   </div>
                   <h4>{step.title}</h4>
                   <p>{step.desc}</p>
@@ -518,18 +596,18 @@ export function LandingPage() {
           <div className="cf-wrap">
             <Reveal className="cf-section-head">
               <div>
-                <p className="cf-tag">Por dentro da experiencia</p>
-                <h2>Video na <span className="accent">cabeca</span> do cliente, decisao na sua mao.</h2>
+                <p className="cf-tag">Por dentro da experiência</p>
+                <h2>Vídeo na <span className="accent">cabeça</span> do cliente, decisão na sua mão.</h2>
               </div>
-              <p className="cf-lede">O cliente nunca sai do WhatsApp. Voce nao muda fluxo, sistema, nem treinamento. Como Fica trabalha em segundo plano, vinculado ao seu catalogo.</p>
+              <p className="cf-lede">O cliente nunca sai do WhatsApp. Você não muda fluxo, sistema, nem treinamento. Como Fica trabalha em segundo plano, vinculado ao seu catálogo.</p>
             </Reveal>
             <div className="cf-demo-grid">
               <div className="cf-demo-points">
                 {[
-                  { title: "Aplicacao fiel ao ambiente", desc: "Sombras, perspectiva e proporcao respeitam a foto do cliente. Sem aquele recorte falso de marketplace." },
-                  { title: "Catalogo ligado direto a venda", desc: "Cada produto enviado ja vem com SKU, preco, condicoes e botao de \"comprar agora\". Pronto para conversao." },
-                  { title: "Atendente ve tudo", desc: "Sua equipe acompanha o historico no painel: foto enviada, produto testado, resultado, e onde o cliente parou." },
-                  { title: "Link de comparacao compartilhavel", desc: "O cliente recebe um link com slider antes/depois. Manda no grupo da familia e volta para fechar." },
+                  { title: "Aplicação fiel ao ambiente", desc: "Sombras, perspectiva e proporção respeitam a foto do cliente. Sem aquele recorte falso de marketplace." },
+                  { title: "Catálogo ligado direto à venda", desc: "Cada produto enviado já vem com SKU, preço, condições e botão de \"comprar agora\". Pronto para conversão." },
+                  { title: "Atendente vê tudo", desc: "Sua equipe acompanha o histórico no painel: foto enviada, produto testado, resultado e onde o cliente parou." },
+                  { title: "Link de comparação compartilhável", desc: "O cliente recebe um link com slider antes/depois. Manda no grupo da família e volta para fechar." },
                 ].map((pt, i) => (
                   <Reveal key={pt.title} className="cf-demo-point">
                     <div className="cf-num">{i + 1}</div>
@@ -564,106 +642,90 @@ export function LandingPage() {
           <div className="cf-wrap">
             <Reveal className="cf-section-head">
               <div>
-                <p className="cf-tag">Link de comparacao</p>
-                <h2>O cliente desliza, decide, e <span className="accent">manda no grupo</span> da familia.</h2>
+                <p className="cf-tag">Link de comparação</p>
+                <h2>O cliente desliza, decide, e <span className="accent">manda no grupo</span> da família.</h2>
               </div>
-              <p className="cf-lede">Cada resposta gera um link unico com slider antes/depois. Aberto no celular, no notebook do filho, no tablet do marido. Sem app, sem login.</p>
+              <p className="cf-lede">Cada resposta gera um link único com slider antes/depois. Aberto no celular, no notebook do filho, no tablet do marido. Sem app, sem login.</p>
             </Reveal>
             <Reveal><CompareSlider /></Reveal>
           </div>
         </section>
 
-        {/* ══════ BENEFITS ══════ */}
+        {/* ══════ FOR WHO ══════ */}
         <section className="cf-benefits" id="para-quem">
           <div className="cf-wrap">
             <Reveal className="cf-section-head">
               <div>
-                <p className="cf-tag">Para quem e</p>
-                <h2>Feito para lojas onde o cliente <span className="accent">precisa imaginar</span> antes de comprar.</h2>
+                <p className="cf-tag">Para quem é</p>
+                <h2>Feita para quem vende <span className="accent">ambiente</span>, não só produto.</h2>
               </div>
-              <p className="cf-lede">Moveis, tintas, revestimentos, pisos, papeis de parede, eletros, decoracao. Onde a duvida &ldquo;sera que combina?&rdquo; trava a venda. Como Fica responde em segundos.</p>
+              <p className="cf-lede">A COMO FICA foi desenhada para três tipos de loja onde a dúvida visual mais trava a venda, e funciona em qualquer categoria onde o cliente precisa imaginar o resultado antes de comprar.</p>
             </Reveal>
-            <div className="cf-ben-grid">
-              <Reveal className="cf-ben-card dark">
-                <span className="cf-pill">Para a loja</span>
-                <h3>Mais conversao. Menos devolucao.</h3>
-                <p className="cf-ben-desc">Voce integra ao numero de WhatsApp da loja. Em 24h, sua equipe esta vendendo com visualizacao instantanea. Sem novo sistema, sem novo treinamento.</p>
-                <ul>
-                  <li><CheckIcon /> Integra com seu catalogo (planilha, Bling, Tray, Shopify)</li>
-                  <li><CheckIcon /> Painel para o atendente acompanhar o cliente</li>
-                  <li><CheckIcon /> Cobramos por foto processada, nao por mensagem</li>
-                  <li><CheckIcon /> Sob a sua marca, no seu numero oficial WhatsApp Business</li>
-                </ul>
-              </Reveal>
-              <Reveal className="cf-ben-card">
-                <span className="cf-pill">Para o cliente</span>
-                <h3>Ve na sala dele. Decide na hora.</h3>
-                <p className="cf-ben-desc">Sem app, sem cadastro, sem aprender nada novo. O cliente fala com a loja como sempre falou. E em segundos enxerga o produto na propria casa.</p>
-                <ul>
-                  <li><CheckIcon /> Tudo dentro do WhatsApp que ele ja usa</li>
-                  <li><CheckIcon /> Resposta visual em segundos, nao em horas</li>
-                  <li><CheckIcon /> Compara antes/depois com um deslize</li>
-                  <li><CheckIcon /> Compartilha o link no grupo da familia para opiniao</li>
-                </ul>
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        {/* ══════ USE CASES ══════ */}
-        <section className="cf-cases">
-          <div className="cf-wrap">
-            <Reveal className="cf-section-head">
-              <div>
-                <p className="cf-tag">Aplicacoes</p>
-                <h2>Onde Como Fica <span className="accent">trabalha</span>.</h2>
-              </div>
-              <p className="cf-lede">Qualquer categoria onde a duvida do cliente e &ldquo;sera que fica bom aqui?&rdquo;. Funciona em ambientes internos, externos, com moveis, acabamentos, eletros e mais.</p>
-            </Reveal>
-            <div className="cf-cases-grid">
+            <div className="cf-niche-grid">
               {[
-                { lbl: "moveis", cat: "Moveis e decoracao", title: "Sofas, poltronas, mesas, estantes", desc: "Aplique o produto na sala do cliente respeitando o espaco real.", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=450&fit=crop&q=80" },
-                { lbl: "tintas", cat: "Tintas e papeis", title: "Pintura de parede, papel de parede", desc: "Pinte virtualmente a parede do cliente em qualquer cor da sua linha.", img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=450&fit=crop&q=80" },
-                { lbl: "pisos", cat: "Revestimentos", title: "Pisos, azulejos, porcelanatos", desc: "Substitua o piso ou revestimento existente por qualquer item do seu mostruario.", img: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=600&h=450&fit=crop&q=80" },
-                { lbl: "cozinha", cat: "Cozinhas planejadas", title: "Bancadas, armarios, eletros", desc: "Mostre como o modulo, a cuba ou o forno cabem na cozinha real.", img: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=600&h=450&fit=crop&q=80" },
-                { lbl: "iluminacao", cat: "Iluminacao", title: "Lustres, pendentes, arandelas", desc: "Pendure a peca no ambiente do cliente e veja a escala antes de comprar.", img: "https://images.unsplash.com/photo-1524484485831-a92ffc0de03f?w=600&h=450&fit=crop&q=80" },
-                { lbl: "jardim", cat: "Areas externas", title: "Jardim, varanda, churrasqueira", desc: "Mobiliario de exterior, deck, piscina e plantas em qualquer area aberta.", img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=450&fit=crop&q=80" },
-              ].map((c) => (
-                <Reveal key={c.lbl} className="cf-case">
-                  <div className="cf-thumb" style={{ backgroundImage: `url(${c.img})`, backgroundSize: "cover", backgroundPosition: "center" }}><span className="cf-case-lbl">imagem · {c.lbl}</span></div>
-                  <div className="cf-case-body">
-                    <div className="cf-cat">{c.cat}</div>
-                    <h4>{c.title}</h4>
-                    <p>{c.desc}</p>
-                  </div>
+                {
+                  icon: (
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="10" height="10" rx="2" />
+                      <rect x="15" y="3" width="10" height="10" rx="2" />
+                      <rect x="3" y="15" width="10" height="10" rx="2" />
+                      <rect x="15" y="15" width="10" height="10" rx="2" />
+                    </svg>
+                  ),
+                  title: "Lojas de Acabamentos",
+                  desc: "Pisos, porcelanatos, revestimentos, tintas, papéis de parede. O cliente compara amostras, leva pra casa, volta na semana seguinte ainda em dúvida. Com a COMO FICA, ele vê o produto aplicado na sala dele em segundos e o vendedor fecha com a foto na tela.",
+                },
+                {
+                  icon: (
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 24V10l10-6 10 6v14" />
+                      <path d="M4 24h20" />
+                      <rect x="10" y="16" width="8" height="8" rx="1" />
+                      <line x1="14" y1="16" x2="14" y2="24" />
+                    </svg>
+                  ),
+                  title: "Móveis Planejados",
+                  desc: "Cozinhas, dormitórios, closets, home office. O projeto técnico não vende sozinho: o cliente precisa enxergar como o ambiente vai ficar. Mostre cores, texturas e composições no espaço real do cliente, antes de bater o martelo no contrato.",
+                },
+                {
+                  icon: (
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 18c0-2 1-3 3-3h14c2 0 3 1 3 3v2H4v-2z" />
+                      <path d="M6 15V12a2 2 0 012-2h12a2 2 0 012 2v3" />
+                      <path d="M4 20v2" /><path d="M24 20v2" />
+                      <path d="M2 18h2" /><path d="M24 18h2" />
+                    </svg>
+                  ),
+                  title: "Móveis e Decoração",
+                  desc: "Sofás, mesas, estantes, poltronas, iluminação. Acabou o \u201Cserá que cabe?\u201D e o \u201Cserá que combina?\u201D. Aplique o item na sala do cliente respeitando proporção e estilo, e ajude ele a decidir com confiança.",
+                },
+              ].map((niche) => (
+                <Reveal key={niche.title} className="cf-niche-card">
+                  <span className="cf-niche-icon">{niche.icon}</span>
+                  <h3>{niche.title}</h3>
+                  <p>{niche.desc}</p>
                 </Reveal>
               ))}
             </div>
+            <Reveal className="cf-niche-also">
+              A COMO FICA também é usada em <strong>marmorarias</strong>, <strong>esquadrias</strong>, <strong>iluminação</strong>, <strong>paisagismo</strong> e outros segmentos onde a venda depende de o cliente visualizar o produto no ambiente.
+            </Reveal>
           </div>
         </section>
 
-        {/* ══════ QUOTE ══════ */}
-        <section className="cf-quote-section">
+        {/* ══════ QUOTE (oculto por enquanto) ══════ */}
+
+        {/* ══════ APPLICATIONS ══════ */}
+        <section className="cf-apps" id="aplicacoes">
           <div className="cf-wrap">
-            <div className="cf-quote-grid">
-              <Reveal><p className="cf-label-tag">Depoimento</p></Reveal>
+            <Reveal className="cf-section-head">
               <div>
-                <Reveal>
-                  <blockquote className="cf-big-quote">
-                    &ldquo;O cliente que demorava <span className="accent">tres visitas</span> para fechar agora compra na primeira conversa. Mando a foto editada, ele mostra para o marido, e em 20 minutos a venda esta fechada.&rdquo;
-                  </blockquote>
-                </Reveal>
-                <Reveal>
-                  <div className="cf-quote-by">
-                    <div className="cf-av">P</div>
-                    <div className="cf-who">
-                      <div className="cf-who-n">Patricia Mendes</div>
-                      <div className="cf-who-r">Vendedora · Moveis Carvalho, Goiania</div>
-                    </div>
-                  </div>
-                </Reveal>
+                <p className="cf-tag">Aplicações</p>
+                <h2>Onde a <span className="accent">COMO FICA</span> é aplicada.</h2>
               </div>
-            </div>
+              <p className="cf-lede">Qualquer categoria onde a pergunta do cliente é &ldquo;será que fica bom aqui?&rdquo;.</p>
+            </Reveal>
+            <AppsCarousel />
           </div>
         </section>
 
@@ -673,19 +735,24 @@ export function LandingPage() {
             <Reveal className="cf-section-head">
               <div>
                 <p className="cf-tag">Perguntas</p>
-                <h2>Duvidas <span className="accent">frequentes</span>.</h2>
+                <h2>Perguntas que todo <span className="accent">lojista</span> faz.</h2>
               </div>
-              <p className="cf-lede">Se a sua nao esta aqui, escreve no nosso WhatsApp.</p>
+              <p className="cf-lede">Se a sua não está aqui, escreva no nosso WhatsApp.</p>
             </Reveal>
             <div className="cf-faq-list">
               {[
-                { q: "O cliente precisa baixar algum app?", a: "Nao. Tudo acontece dentro do WhatsApp que ele ja usa. A foto vai e volta como qualquer outra mensagem, so que agora com o produto da sua loja aplicado." },
-                { q: "Como voces integram com o WhatsApp da minha loja?", a: "Conectamos ao seu numero oficial do WhatsApp. Toda conversa continua sendo da sua loja, com o seu nome, o seu logo, o seu atendente. Como Fica entra como um assistente de imagem no fundo." },
-                { q: "Como voces carregam meu catalogo?", a: "Aceitamos planilha, integracao com Bling, Tray, Shopify, Nuvemshop, ou XML do seu ERP. Cada produto vira uma opcao que o cliente pode aplicar na foto." },
-                { q: "Quanto tempo leva para colocar no ar?", a: "Lojas com catalogo organizado entram em ate 24 horas. A configuracao e feita por nossa equipe. Voce nao precisa instalar nada." },
-                { q: "E se a foto do cliente estiver ruim?", a: "O sistema avisa automaticamente: \"essa foto esta escura/desfocada/em angulo dificil. Pode mandar outra?\". Voce nao envia resultado de baixa qualidade para o cliente." },
-                { q: "Quanto custa?", a: "A cobranca e por foto processada, nao por mensagem. Plano inicial a partir de R$ 290/mes para ate 200 fotos. Acima disso, escala conforme o volume da loja. Sem custo de instalacao." },
-                { q: "E seguro? E a foto do cliente?", a: "Sim. Fotos sao processadas em servidores no Brasil, criptografadas em transito e em repouso, e excluidas automaticamente apos 90 dias. Em conformidade total com a LGPD." },
+                { q: "Funciona só no WhatsApp ou também no atendimento presencial?", a: "Funciona nos três principais canais de venda da sua loja: WhatsApp, atendimento presencial (no tablet ou desktop do vendedor) e nos seus canais digitais. Você escolhe onde ativar." },
+                { q: "Minha loja é pequena. Faz sentido pra mim?", a: "Sim. A COMO FICA foi desenhada para reduzir a dependência de ter renderização paga, arquiteto interno ou equipe de design. Lojas pequenas e médias são justamente onde a ferramenta gera mais diferenciação." },
+                { q: "Meus vendedores vão saber usar?", a: "Sim. A operação do vendedor é \u201Ctirar foto, escolher produto, enviar\u201D. Quem usa WhatsApp consegue usar a COMO FICA. O treinamento inicial leva 30 minutos." },
+                { q: "A simulação fica realmente parecida com o resultado real?", a: "A IA respeita perspectiva, iluminação e escala da foto enviada. Em produtos como pisos, revestimentos e tintas, a fidelidade é alta o suficiente para servir como referência de decisão de compra. Para móveis e iluminação, mostramos posicionamento, proporção e composição do ambiente." },
+                { q: "E se o cliente comparar com o produto físico depois e achar diferente?", a: "A COMO FICA é uma ferramenta de decisão de compra, não substitui amostra física. A simulação reduz drasticamente o \u201Cerro de imaginação\u201D, que é onde a maior parte das frustrações acontece." },
+                { q: "O cliente precisa baixar algum app?", a: "Não. Tudo acontece dentro do WhatsApp que ele já usa. A foto vai e volta como qualquer outra mensagem, só que agora com o produto da sua loja aplicado." },
+                { q: "Como vocês integram com o WhatsApp da minha loja?", a: "Conectamos ao seu número oficial do WhatsApp. Toda conversa continua sendo da sua loja, com o seu nome, o seu logo, o seu atendente. Como Fica entra como um assistente de imagem no fundo." },
+                { q: "Como vocês carregam meu catálogo?", a: "Aceitamos planilha, integração com Bling, Tray, Shopify, Nuvemshop, ou XML do seu ERP. Cada produto vira uma opção que o cliente pode aplicar na foto." },
+                { q: "Quanto tempo leva para colocar no ar?", a: "Lojas com catálogo organizado entram em até 24 horas. A configuração é feita por nossa equipe. Você não precisa instalar nada." },
+                { q: "E se a foto do cliente estiver ruim?", a: "O sistema avisa automaticamente: \u201CEssa foto está escura/desfocada/em ângulo difícil. Pode mandar outra?\u201D. Você não envia resultado de baixa qualidade para o cliente." },
+                { q: "Quanto custa?", a: "A cobrança é por foto processada, não por mensagem. Plano inicial a partir de R$ 290/mês para até 200 fotos. Acima disso, escala conforme o volume da loja. Sem custo de instalação." },
+                { q: "É seguro? E a foto do cliente?", a: "Sim. Fotos são processadas em servidores no Brasil, criptografadas em trânsito e em repouso, e excluídas automaticamente após 90 dias. Em conformidade total com a LGPD." },
               ].map((item, i) => (
                 <Reveal key={i}>
                   <details className="cf-faq-item" open={i === 0}>
@@ -703,14 +770,10 @@ export function LandingPage() {
           <div className="cf-wrap">
             <Reveal>
               <div className="cf-cta-card">
-                <span className="cf-cta-pill"><span className="cf-pulse" /> Demo gratis · sem cartao</span>
-                <h2>Mande uma foto agora. <span className="accent">Veja como fica.</span></h2>
+                <h2>Mostre como fica. <span className="accent">Venda com mais confiança.</span></h2>
+                <p className="cf-cta-sub">Veja a COMO FICA aplicada à realidade da sua loja em uma demonstração de 20 minutos. Sem compromisso, sem cartão, sem instalação.</p>
                 <div className="cf-cta-actions">
-                  <Link href="/login" className="cf-btn cf-btn-wa">
-                    <WaIcon className="cf-wa-ico" />
-                    Entrar na plataforma
-                  </Link>
-                  <button className="cf-btn cf-btn-ghost cf-cta-ghost">Agendar demonstracao</button>
+                  <button className="cf-btn cf-btn-primary">Agendar demonstração</button>
                 </div>
               </div>
             </Reveal>
@@ -726,14 +789,14 @@ export function LandingPage() {
                   <span className="cf-mark" />
                   <span>Como Fica</span>
                 </div>
-                <p className="cf-foot-tag">Visualizacao de produto direto no WhatsApp da loja. O cliente envia foto, ve como fica, e decide na hora.</p>
+                <p className="cf-foot-tag">Visualização de produto direto no WhatsApp da loja. O cliente envia foto, vê como fica e decide na hora.</p>
               </div>
               <div>
                 <h5>Produto</h5>
                 <ul>
                   <li><button onClick={() => scrollTo("como")}>Como funciona</button></li>
-                  <li><button onClick={() => scrollTo("demo")}>Demonstracao</button></li>
-                  <li><button onClick={() => scrollTo("para-quem")}>Para quem e</button></li>
+                  <li><button onClick={() => scrollTo("demo")}>Demonstração</button></li>
+                  <li><button onClick={() => scrollTo("para-quem")}>Para quem é</button></li>
                 </ul>
               </div>
               <div>
@@ -742,17 +805,35 @@ export function LandingPage() {
               </div>
               <div>
                 <h5>Recursos</h5>
-                <ul><li><button>Documentacao API</button></li><li><button>Integracoes</button></li><li><button>LGPD</button></li><li><button>Status</button></li></ul>
+                <ul><li><button>Documentação API</button></li><li><button>Integrações</button></li><li><button>LGPD</button></li><li><button>Status</button></li></ul>
               </div>
             </div>
             <div className="cf-foot-mark">como <span className="accent">fica.</span></div>
             <div className="cf-foot-bottom">
               <span>&copy; 2026 Como Fica</span>
-              <span>Sao Paulo · Brasil</span>
+              <span>São Paulo · Brasil</span>
             </div>
           </div>
         </footer>
       </div>
+
+      {/* ══════ VIDEO MODAL ══════ */}
+      {videoOpen && (
+        <div className="cf-video-overlay" onClick={() => setVideoOpen(false)}>
+          <div className="cf-video-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="cf-video-close" onClick={() => setVideoOpen(false)}>&times;</button>
+            <div className="cf-video-container">
+              {/* Substituir src pelo embed do vídeo real */}
+              <iframe
+                src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen
+                title="Como funciona o Como Fica"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -840,11 +921,15 @@ const landingCSS = `
 .cf-btn {
   display: inline-flex; align-items: center; gap: 10px;
   padding: 14px 22px; font-size: 14px; font-weight: 500;
+  border: none; cursor: pointer;
   border-radius: 999px; white-space: nowrap; letter-spacing: -0.005em;
-  transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+  transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
-.cf-btn-primary { background: var(--cf-ink); color: var(--cf-bg); }
-.cf-btn-primary:hover { background: var(--cf-accent); transform: translateY(-1px); }
+.cf-btn.cf-btn-primary {
+  background-color: #00AF67 !important; color: #fff !important; font-weight: 600;
+  box-shadow: none;
+}
+.cf-btn.cf-btn-primary:hover { background-color: #009b5a !important; transform: translateY(-1px); }
 .cf-btn-wa { background: var(--cf-wa); color: #052e1c; font-weight: 600; }
 .cf-btn-wa:hover { background: #1ebe5a; transform: translateY(-1px); }
 .cf-btn-ghost { color: var(--cf-ink); border: 1px solid var(--cf-line); background: transparent; }
@@ -856,45 +941,59 @@ const landingCSS = `
 
 /* ── Hero ── */
 .cf-hero { padding: 120px 0 56px; position: relative; }
-.cf-hero-top { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; margin-bottom: 56px; }
-.cf-hero-right { display: flex; flex-direction: column; align-items: flex-end; gap: 24px; padding-bottom: 12px; }
-.cf-hero-right p { text-align: right; font-size: 16px; color: var(--cf-ink-soft); max-width: 36ch; line-height: 1.55; }
-.cf-eyebrow {
-  display: inline-flex; align-items: center; gap: 10px;
-  font-family: var(--cf-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--cf-muted); margin-bottom: 28px;
-  padding: 8px 14px; background: var(--cf-bg-2); border: 1px solid var(--cf-line); border-radius: 999px;
-}
-.cf-pulse {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--cf-wa);
-  box-shadow: 0 0 0 0 rgba(37,211,102,.55);
-  animation: cfPulse 1.8s ease-in-out infinite;
-}
-@keyframes cfPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(37,211,102,.5); }
-  50% { box-shadow: 0 0 0 8px rgba(37,211,102,0); }
-}
+.cf-hero-copy { max-width: 720px; margin-bottom: 56px; }
 .cf-hero h1 {
   font-weight: 700;
   font-size: clamp(36px, 5vw, 64px); line-height: 1.08;
   letter-spacing: -0.03em; text-wrap: balance;
+  margin-bottom: 28px;
+}
+.cf-hero-sub {
+  font-size: 17px; color: var(--cf-ink-soft); line-height: 1.6;
+  max-width: 60ch; text-wrap: pretty; margin-bottom: 36px;
+}
+.cf-hero-sub strong { color: var(--cf-ink); font-weight: 600; }
+.cf-hero-ctas { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.cf-btn-play {
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.cf-play-circle {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1.5px solid var(--cf-line); background: var(--cf-bg-2);
+  display: grid; place-items: center; transition: all .2s;
+}
+.cf-btn-play:hover .cf-play-circle {
+  border-color: var(--cf-accent); background: rgba(0,175,103,.06); color: var(--cf-accent);
 }
 
-/* ── Hero Stage ── */
-.cf-hero-stage {
-  position: relative;
-  background: linear-gradient(180deg, var(--cf-bg-2) 0%, #E5E7EB 100%);
-  border: 1px solid var(--cf-line); border-radius: 28px;
-  padding: 56px 32px 64px; overflow: hidden; min-height: 520px;
-  display: flex; align-items: center; justify-content: center;
+/* ── Hero Compare Slider ── */
+.cf-hero-compare { margin-bottom: 48px; }
+.cf-hero-compare-card {
+  border: 1px solid var(--cf-line); border-radius: 20px; overflow: hidden;
+  aspect-ratio: 21/9; position: relative; user-select: none; cursor: ew-resize;
+  box-shadow: 0 24px 48px -12px rgba(0,0,0,.08), 0 4px 12px -4px rgba(0,0,0,.04);
 }
-.cf-hero-stage::before {
-  content: ''; position: absolute; inset: 0;
-  background:
-    radial-gradient(circle at 20% 30%, rgba(0,175,103,.08), transparent 40%),
-    radial-gradient(circle at 85% 70%, rgba(37,211,102,.08), transparent 40%);
-  pointer-events: none;
+.cf-hero-compare-layer { position: absolute; inset: 0; transition: background .4s ease; }
+.cf-hero-compare-nav {
+  display: flex; justify-content: center; gap: 8px; margin-top: 16px;
 }
+.cf-hero-compare-tab {
+  padding: 8px 20px; border-radius: 999px; border: 1px solid var(--cf-line);
+  background: var(--cf-bg); font-size: 13px; font-weight: 500; color: var(--cf-muted);
+  cursor: pointer; transition: all .2s;
+}
+.cf-hero-compare-tab:hover { border-color: var(--cf-accent); color: var(--cf-ink); }
+.cf-hero-compare-tab.active {
+  background: var(--cf-accent); border-color: var(--cf-accent); color: #fff; font-weight: 600;
+}
+
+/* ── Hero Credibility Strip ── */
+.cf-hero-credibility {
+  text-align: center; font-size: 15px; color: var(--cf-ink-soft); line-height: 1.6;
+  padding: 24px 0; border-top: 1px solid var(--cf-line);
+  max-width: 680px; margin: 0 auto;
+}
+.cf-hero-credibility strong { color: var(--cf-ink); font-weight: 600; }
 .cf-phone-stage { position: relative; display: flex; justify-content: center; padding: 16px 0; }
 .cf-phone {
   width: 320px; border-radius: 38px; background: #111827; padding: 12px;
@@ -1181,15 +1280,52 @@ const landingCSS = `
   to { d: path("M0,20 Q25,5 50,20 T100,20 T150,20 T200,20"); }
 }
 
-/* ── Hero meta strip ── */
-.cf-hero-meta {
-  margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--cf-line);
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 40px; text-align: center;
+/* (hero-meta removed — replaced by credibility strip) */
+
+/* ── Problem ── */
+.cf-problem {
+  padding: 100px 0; border-top: 1px solid var(--cf-line);
 }
-.cf-stat .cf-n { font-weight: 700; font-size: 36px; line-height: 1.1; letter-spacing: -0.03em; }
-.cf-stat .cf-stat-l {
-  margin-top: 10px; font-family: var(--cf-mono); font-size: 11px;
-  letter-spacing: 0.04em; text-transform: uppercase; color: var(--cf-muted);
+.cf-problem-head {
+  margin-bottom: 56px;
+}
+.cf-problem-head h2 {
+  font-weight: 700; font-size: clamp(28px, 3.5vw, 44px);
+  line-height: 1.15; letter-spacing: -0.025em;
+  max-width: 18ch;
+}
+.cf-problem-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start;
+}
+.cf-problem-quotes {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.cf-problem-q {
+  position: relative;
+  padding: 20px 24px; border-radius: 14px;
+  background: var(--cf-bg-2); border: 1px solid var(--cf-line);
+  font-size: 17px; font-style: italic; color: var(--cf-ink-soft);
+  line-height: 1.5; letter-spacing: -0.01em;
+  transition: border-color .2s, background .2s;
+}
+.cf-problem-q::before {
+  content: '"'; position: absolute; top: 10px; left: 12px;
+  font-size: 32px; line-height: 1; color: var(--cf-accent); opacity: .35;
+  font-style: normal; font-weight: 700;
+}
+.cf-problem-q:hover {
+  border-color: var(--cf-accent); background: rgba(0,175,103,.03);
+}
+.cf-problem-body {
+  padding-top: 8px;
+}
+.cf-problem-body p {
+  font-size: 17px; line-height: 1.7; color: var(--cf-ink-soft);
+  margin-bottom: 20px; max-width: 48ch; text-wrap: pretty;
+}
+.cf-problem-body p:last-child { margin-bottom: 0; }
+.cf-problem-body strong {
+  color: var(--cf-ink); font-weight: 600;
 }
 
 /* ── Section head ── */
@@ -1214,10 +1350,14 @@ const landingCSS = `
 .cf-step:hover { background: var(--cf-bg-2); }
 .cf-step-n { font-family: var(--cf-mono); font-size: 11px; color: var(--cf-muted); letter-spacing: 0.06em; margin-bottom: 24px; }
 .cf-step-ico {
-  width: 44px; height: 44px; border-radius: 12px; background: var(--cf-accent); color: #fff;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--cf-bg-2); border: 1px solid var(--cf-line); color: var(--cf-accent);
   display: grid; place-items: center; margin-bottom: 22px;
+  transition: background .2s, border-color .2s;
 }
-.cf-step-ico.wa { background: var(--cf-wa); color: #052e1c; }
+.cf-step:hover .cf-step-ico { background: rgba(0,175,103,.06); border-color: var(--cf-accent); }
+.cf-step-ico.accent { background: var(--cf-accent); border-color: var(--cf-accent); color: #fff; }
+.cf-step:hover .cf-step-ico.accent { background: #009b5a; }
 .cf-step h4 { font-weight: 600; font-size: 17px; line-height: 1.3; letter-spacing: -0.015em; margin-bottom: 8px; }
 .cf-step p { font-size: 14px; color: var(--cf-ink-soft); line-height: 1.55; margin-top: auto; padding-top: 12px; }
 
@@ -1276,56 +1416,41 @@ const landingCSS = `
 .cf-ph-tag.cf-l { left: 18px; }
 .cf-ph-tag.cf-r { right: 18px; }
 
-/* ── Benefits ── */
+/* ── For Who (Niches) ── */
 .cf-benefits { padding: 100px 0; border-top: 1px solid var(--cf-line); }
-.cf-ben-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
-.cf-ben-card {
-  border: 1px solid var(--cf-line); border-radius: 18px; padding: 44px;
-  background: #fff; display: flex; flex-direction: column; min-height: 360px;
+.cf-niche-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-bottom: 48px; }
+.cf-niche-card {
+  border: 1px solid var(--cf-line); border-radius: 18px; padding: 36px 32px;
+  background: #fff; display: flex; flex-direction: column;
+  transition: transform .3s ease, border-color .2s, box-shadow .3s ease;
 }
-.cf-pill {
-  align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: var(--cf-bg-2);
-  font-family: var(--cf-mono); font-size: 11px; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--cf-ink-soft); margin-bottom: 24px;
+.cf-niche-card:hover {
+  transform: translateY(-4px); border-color: var(--cf-accent);
+  box-shadow: 0 12px 32px -8px rgba(0,175,103,.1);
 }
-.cf-ben-card h3 { font-weight: 700; font-size: 26px; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 16px; max-width: 16ch; }
-.cf-ben-card.dark {
-  background: var(--cf-ink); color: var(--cf-bg); border-color: var(--cf-ink);
+.cf-niche-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 14px;
+  background: var(--cf-bg-2); border: 1px solid var(--cf-line);
+  color: var(--cf-accent); margin-bottom: 20px;
+  transition: background .2s, border-color .2s;
 }
-.cf-ben-card.dark .cf-pill { background: color-mix(in oklab, var(--cf-bg) 14%, transparent); color: var(--cf-bg); }
-.cf-ben-desc { font-size: 15px; line-height: 1.55; }
-.cf-ben-card.dark .cf-ben-desc { color: color-mix(in oklab, var(--cf-bg) 78%, transparent); }
-.cf-ben-card:not(.dark) .cf-ben-desc { color: var(--cf-ink-soft); }
-.cf-ben-card ul { margin-top: auto; display: grid; gap: 14px; padding-top: 28px; }
-.cf-ben-card li { font-size: 15px; display: grid; grid-template-columns: 18px 1fr; gap: 12px; color: var(--cf-ink-soft); line-height: 1.5; }
-.cf-ben-card.dark li { color: color-mix(in oklab, var(--cf-bg) 78%, transparent); }
-.cf-ben-card li svg { color: var(--cf-accent); }
-.cf-ben-card.dark li svg { color: var(--cf-accent-soft); }
-
-/* ── Cases ── */
-.cf-cases { padding: 100px 0; border-top: 1px solid var(--cf-line); }
-.cf-cases-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
-.cf-case {
-  border: 1px solid var(--cf-line); border-radius: 16px; overflow: hidden;
-  background: #fff; transition: transform .3s ease, border-color .2s, box-shadow .3s ease;
+.cf-niche-card:hover .cf-niche-icon {
+  background: rgba(0,175,103,.06); border-color: var(--cf-accent);
 }
-.cf-case:hover { box-shadow: 0 12px 32px -8px rgba(0,0,0,.1); }
-.cf-case:hover { transform: translateY(-4px); border-color: var(--cf-ink); }
-.cf-thumb {
-  aspect-ratio: 4/3; background: var(--cf-bg-2); position: relative;
-  border-bottom: 1px solid var(--cf-line); overflow: hidden;
-  transition: transform .4s ease;
+.cf-niche-card h3 {
+  font-weight: 700; font-size: 22px; letter-spacing: -0.02em;
+  line-height: 1.2; margin-bottom: 14px;
 }
-.cf-case:hover .cf-thumb { transform: scale(1.04); }
-.cf-case-lbl {
-  position: absolute; top: 14px; left: 14px; font-family: var(--cf-mono); font-size: 10px;
-  color: var(--cf-muted); background: #fff; border: 1px solid var(--cf-line);
-  padding: 5px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.06em;
+.cf-niche-card p {
+  font-size: 15px; color: var(--cf-ink-soft); line-height: 1.65; text-wrap: pretty;
 }
-.cf-case-body { padding: 20px 22px 24px; }
-.cf-cat { font-family: var(--cf-mono); font-size: 11px; color: var(--cf-muted); letter-spacing: 0.06em; text-transform: uppercase; }
-.cf-case h4 { font-weight: 600; font-size: 16px; letter-spacing: -0.01em; line-height: 1.3; margin-top: 8px; }
-.cf-case p { font-size: 14px; color: var(--cf-ink-soft); margin-top: 8px; line-height: 1.5; }
+.cf-niche-also {
+  text-align: center; font-size: 15px; color: var(--cf-ink-soft); line-height: 1.6;
+  padding: 24px 0; border-top: 1px solid var(--cf-line);
+  max-width: 720px; margin: 0 auto;
+}
+.cf-niche-also strong { color: var(--cf-ink); font-weight: 600; }
 
 /* ── Quote ── */
 .cf-quote-section { padding: 100px 0; border-top: 1px solid var(--cf-line); }
@@ -1343,9 +1468,62 @@ const landingCSS = `
 .cf-who-n { font-weight: 600; font-size: 14px; }
 .cf-who-r { font-size: 13px; color: var(--cf-muted); margin-top: 2px; }
 
+/* ── Applications ── */
+.cf-apps { padding: 100px 0; border-top: 1px solid var(--cf-line); }
+
+/* Carousel */
+.cf-carousel { position: relative; }
+.cf-carousel-track {
+  display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -ms-overflow-style: none;
+  padding-bottom: 4px;
+  /* fade edges */
+  mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
+}
+.cf-carousel-track::-webkit-scrollbar { display: none; }
+.cf-app-card {
+  flex: 0 0 280px; scroll-snap-align: start;
+  border: 1px solid var(--cf-line); border-radius: 16px; overflow: hidden;
+  background: #fff; transition: transform .3s ease, border-color .2s, box-shadow .3s ease;
+}
+.cf-app-card:hover {
+  transform: translateY(-4px); border-color: var(--cf-ink);
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.1);
+}
+.cf-app-img {
+  aspect-ratio: 4/3; background-size: cover; background-position: center;
+  border-bottom: 1px solid var(--cf-line);
+  transition: transform .4s ease; overflow: hidden;
+}
+.cf-app-card:hover .cf-app-img { transform: scale(1.04); }
+.cf-app-body { padding: 18px 20px 22px; }
+.cf-app-card h4 {
+  font-weight: 600; font-size: 15px; letter-spacing: -0.01em;
+  line-height: 1.3; margin-bottom: 6px;
+}
+.cf-app-card p { font-size: 13px; color: var(--cf-ink-soft); line-height: 1.5; }
+
+/* Carousel navigation */
+.cf-carousel-nav {
+  display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;
+}
+.cf-carousel-btn {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--cf-line); background: var(--cf-bg);
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--cf-ink); transition: all .2s;
+}
+.cf-carousel-btn:hover {
+  border-color: var(--cf-ink); background: var(--cf-ink); color: var(--cf-bg);
+}
+.cf-carousel-btn.disabled {
+  opacity: .3; pointer-events: none;
+}
+
 /* ── FAQ ── */
 .cf-faq { padding: 100px 0; border-top: 1px solid var(--cf-line); }
-.cf-faq-list { border-top: 1px solid var(--cf-line); }
+.cf-faq-list { border-top: 1px solid var(--cf-line); display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }
 .cf-faq-item { border-bottom: 1px solid var(--cf-line); padding: 24px 0; cursor: pointer; }
 .cf-faq-item summary {
   list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 32px;
@@ -1387,6 +1565,11 @@ const landingCSS = `
   line-height: 1.1; letter-spacing: -0.03em; max-width: 18ch;
 }
 .cf-cta-card h2 .accent { color: var(--cf-accent-soft); }
+.cf-cta-sub {
+  position: relative; margin-top: 20px; font-size: 17px;
+  color: color-mix(in oklab, var(--cf-bg) 78%, transparent);
+  line-height: 1.6; max-width: 48ch;
+}
 .cf-cta-actions { position: relative; margin-top: 40px; display: flex; gap: 14px; flex-wrap: wrap; }
 .cf-cta-ghost { color: var(--cf-bg) !important; border-color: color-mix(in oklab, var(--cf-bg) 30%, transparent) !important; }
 .cf-cta-ghost:hover { border-color: var(--cf-bg) !important; }
@@ -1413,28 +1596,57 @@ const landingCSS = `
   letter-spacing: 0.04em; text-transform: uppercase; flex-wrap: wrap; gap: 16px;
 }
 
+/* ── Video Modal ── */
+.cf-video-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.75); backdrop-filter: blur(4px);
+  display: grid; place-items: center;
+  animation: cfFadeIn .2s ease;
+}
+@keyframes cfFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.cf-video-modal {
+  position: relative; width: 90vw; max-width: 960px;
+  animation: cfScaleIn .25s cubic-bezier(.18,.89,.32,1.15);
+}
+@keyframes cfScaleIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+.cf-video-close {
+  position: absolute; top: -44px; right: 0;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,.15); border: none; cursor: pointer;
+  color: #fff; font-size: 22px; line-height: 1;
+  display: grid; place-items: center;
+  transition: background .2s;
+}
+.cf-video-close:hover { background: rgba(255,255,255,.3); }
+.cf-video-container {
+  position: relative; width: 100%; aspect-ratio: 16/9;
+  border-radius: 16px; overflow: hidden;
+  background: #000; box-shadow: 0 32px 64px rgba(0,0,0,.4);
+}
+.cf-video-container iframe {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: none;
+}
+
 /* ── Responsive ── */
 @media (max-width: 920px) {
   .cf-nav-links { display: none; }
   .cf-hero { padding: 120px 0 48px; }
-  .cf-hero-top { grid-template-columns: 1fr; gap: 24px; margin-bottom: 40px; }
-  .cf-hero-right { align-items: flex-start; }
-  .cf-hero-right p { text-align: left; }
-  .cf-hero-stage { padding: 32px 16px; min-height: auto; }
-  .cf-float-card { display: none; }
-  .cf-float-badge { display: none; }
-  .cf-hero-meta { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  .cf-hero-copy { margin-bottom: 40px; }
+  .cf-hero-compare-card { aspect-ratio: 16/9; }
   .cf-steps { grid-template-columns: 1fr 1fr; }
   .cf-demo-grid { grid-template-columns: 1fr; gap: 32px; }
-  .cf-ben-grid { grid-template-columns: 1fr; }
-  .cf-cases-grid { grid-template-columns: 1fr; }
+  .cf-niche-grid { grid-template-columns: 1fr; }
+  .cf-faq-list { grid-template-columns: 1fr; }
   .cf-quote-grid { grid-template-columns: 1fr; gap: 24px; }
+  .cf-problem-grid { grid-template-columns: 1fr; gap: 32px; }
+  .cf-app-card { flex: 0 0 260px; }
   .cf-section-head { grid-template-columns: 1fr; gap: 16px; }
   .cf-foot-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
   .cf-cta-card { padding: 56px 32px; }
-  .cf-ben-card { padding: 32px; }
+  .cf-niche-card { padding: 28px 24px; }
 }
 @media (max-width: 560px) {
   .cf-steps { grid-template-columns: 1fr; }
+  .cf-app-card { flex: 0 0 240px; }
 }
 `
