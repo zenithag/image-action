@@ -1,28 +1,25 @@
-import { PlatformOverview } from "@/components/organisms/platform-overview"
-import Link from "next/link"
+import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-import { Button } from "@/components/ui/button"
+import { LandingPage } from "@/components/landing-page"
+import { auth } from "@/lib/auth"
+import { getDefaultDashboardPath } from "@/lib/auth-routing"
 
-export default function HomePage() {
-  return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 md:px-8 md:py-10">
-        <PlatformOverview />
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href="/superadmin">Abrir superadmin</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/tenant/decor-labs">Dashboard tenant</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/tenant/decor-labs/inbox">Abrir inbox</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/tenant/decor-labs/catalog">Abrir catalogo</Link>
-          </Button>
-        </div>
-      </div>
-    </main>
-  )
+export const metadata: Metadata = {
+  title: "Como Fica — Visualize antes de comprar, direto no WhatsApp",
+  description:
+    "Ferramenta de IA que aplica seu produto na foto do ambiente do cliente. Sem app, sem cadastro. O cliente decide na hora, dentro do WhatsApp.",
+}
+
+export default async function HomePage() {
+  const session = await auth()
+
+  if (session?.user) {
+    const dashboardPath = getDefaultDashboardPath(session.user)
+    if (dashboardPath !== "/") {
+      redirect(dashboardPath)
+    }
+  }
+
+  return <LandingPage />
 }
