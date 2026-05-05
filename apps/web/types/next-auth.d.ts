@@ -6,6 +6,7 @@ declare module "next-auth" {
     user: {
       id: string
       tenantId: string | null
+      tenantSlug: string | null
       roles: string[]
       name?: string | null
       email?: string | null

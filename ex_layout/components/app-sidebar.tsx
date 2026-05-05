@@ -1,0 +1,204 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useTheme } from "next-themes"
+import {
+  MessageSquare,
+  LayoutGrid,
+  Image,
+  Users,
+  Settings,
+  BarChart3,
+  Building2,
+  Globe,
+  Zap,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Moon,
+  Smartphone,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const tenantNavItems = [
+  { href: "/tenant/inbox", label: "Inbox", icon: MessageSquare, badge: 12 },
+  { href: "/tenant/catalog", label: "Catálogo", icon: LayoutGrid },
+  { href: "/tenant/compositions", label: "Composições", icon: Image },
+  { href: "/tenant/contacts", label: "Contatos", icon: Users },
+  { href: "/tenant/whatsapp", label: "WhatsApp", icon: Smartphone },
+  { href: "/tenant/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/tenant/settings", label: "Configurações", icon: Settings },
+]
+
+const superadminNavItems = [
+  { href: "/superadmin", label: "Tenants", icon: Building2 },
+  { href: "/superadmin/domains", label: "Domínios", icon: Globe },
+  { href: "/superadmin/usage", label: "Uso & Custos", icon: BarChart3 },
+  { href: "/superadmin/channels", label: "Canais", icon: Zap },
+]
+
+interface AppSidebarProps {
+  variant?: "tenant" | "superadmin"
+  collapsed?: boolean
+  onToggle?: () => void
+}
+
+export function AppSidebar({ variant = "tenant", collapsed = false, onToggle = () => {} }: AppSidebarProps) {
+  const pathname = usePathname()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(collapsed)
+  const navItems = variant === "superadmin" ? superadminNavItems : tenantNavItems
+
+  const handleToggle = () => {
+    setIsCollapsed(!isCollapsed)
+    onToggle()
+  }
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  return (
+    <aside
+      className={cn(
+        "relative flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out",
+        isCollapsed ? "w-[60px]" : "w-64"
+      )}
+    >
+      {/* Toggle button */}
+      <button
+        onClick={handleToggle}
+        aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+        className="absolute -right-3 top-[52px] z-10 flex h-6 w-6 items-center justify-center rounded-full border border-sidebar-border bg-sidebar text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+      >
+        {isCollapsed ? (
+          <ChevronRight className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronLeft className="h-3.5 w-3.5" />
+        )}
+      </button>
+
+      {/* Logo */}
+      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3.5 overflow-hidden">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
+          <Zap className="h-4 w-4 text-primary-foreground" />
+        </div>
+        <span
+          className={cn(
+            "text-lg font-semibold text-sidebar-foreground whitespace-nowrap transition-all duration-300",
+            isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+          )}
+        >
+          VisualFlow
+        </span>
+      </div>
+
+      {/* Tenant info */}
+      {variant === "tenant" && (
+        <div className="border-b border-sidebar-border p-3 overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+              <Building2 className="h-4 w-4" />
+            </div>
+            <div
+              className={cn(
+                "flex-1 truncate transition-all duration-300",
+                isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              )}
+            >
+              <p className="text-sm font-medium text-sidebar-foreground">Loja Demo</p>
+              <p className="text-xs text-muted-foreground">demo.visualflow.app</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nav */}
+      <nav className="flex-1 space-y-1 p-2 overflow-hidden">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={collapsed ? item.label : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              )}
+            >
+              <item.icon className="h-5 w-5 shrink-0" />
+              <span
+                className={cn(
+                  "flex-1 whitespace-nowrap transition-all duration-300",
+                  isCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"
+                )}
+              >
+                {item.label}
+              </span>
+              {"badge" in item && item.badge && !isCollapsed && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                  {item.badge}
+                </span>
+              )}
+              {"badge" in item && item.badge && collapsed && (
+                <span className="absolute left-7 top-1 flex h-2 w-2 rounded-full bg-primary" />
+              )}
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="border-t border-sidebar-border p-2 space-y-1 overflow-hidden">
+        {/* Theme toggle */}
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          title={mounted ? (theme === "dark" ? "Modo claro" : "Modo escuro") : "Alternar tema"}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+          )}
+        >
+          {mounted ? (
+            theme === "dark" ? (
+              <Sun className="h-5 w-5 shrink-0" />
+            ) : (
+              <Moon className="h-5 w-5 shrink-0" />
+            )
+          ) : (
+            <Sun className="h-5 w-5 shrink-0 opacity-0" />
+          )}
+          <span
+            className={cn(
+              "whitespace-nowrap transition-all duration-300",
+              isCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"
+            )}
+          >
+            {mounted ? (theme === "dark" ? "Modo Claro" : "Modo Escuro") : "Tema"}
+          </span>
+        </button>
+
+        {/* User */}
+        <div className="flex items-center gap-3 rounded-lg px-2.5 py-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+            JD
+          </div>
+          <div
+            className={cn(
+              "flex-1 truncate transition-all duration-300",
+              isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+            )}
+          >
+            <p className="text-sm font-medium text-sidebar-foreground">João Demo</p>
+            <p className="text-xs text-muted-foreground">Operador</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+  )
+}

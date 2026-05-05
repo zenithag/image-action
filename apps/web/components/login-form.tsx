@@ -1,27 +1,65 @@
 "use client"
 
 import { useState } from "react"
-import { Eye, EyeOff, MessageSquare, ArrowRight, Loader2, Sun, Moon } from "lucide-react"
-import { useTheme } from "next-themes"
 import { signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff, MessageSquare, ArrowRight, Sun, Moon } from "lucide-react"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export function LoginForm() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const { theme, setTheme } = useTheme()
+type LoginFormProps = {
+  callbackUrl?: string
+  errorMessage?: string | null
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    // For now, let's trigger the Zitadel sign in since that's what's configured
-    // In a real email/pass setup, we would use signIn("credentials", { email, password })
-    await signIn("zitadel", { callbackUrl: "/" })
-    setIsLoading(false)
+const credentialPresets = [
+  {
+    label: "Superadmin",
+    email: "cardoso.tads@gmail.com",
+    password: "Admin123!",
+  },
+  {
+    label: "Tenant Decor Labs",
+    email: "operador@decorlabs.local",
+    password: "Tenant123!",
+  },
+]
+
+export function LoginForm({
+  callbackUrl = "/auth/post-login",
+  errorMessage = null,
+}: LoginFormProps) {
+  const [showPassword, setShowPassword] = useState(false)
+  const [email, setEmail] = useState("cardoso.tads@gmail.com")
+  const [password, setPassword] = useState("Admin123!")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(errorMessage)
+  const { theme, setTheme } = useTheme()
+  const router = useRouter()
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      callbackUrl,
+      redirect: false,
+    })
+
+    setIsSubmitting(false)
+
+    if (result?.error) {
+      setSubmitError("Credenciais invalidas. Use o e-mail e a senha do ambiente local.")
+      return
+    }
+
+    router.replace(result?.url ?? callbackUrl)
+    router.refresh()
   }
 
   return (
@@ -132,6 +170,29 @@ export function LoginForm() {
             </p>
           </div>
 
+          <div className="space-y-3 rounded-3xl border border-border/60 bg-card/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Perfis de teste
+            </p>
+            <div className="grid gap-2">
+              {credentialPresets.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setEmail(preset.email)
+                    setPassword(preset.password)
+                    setSubmitError(null)
+                  }}
+                  className="rounded-2xl border border-border/60 px-3 py-3 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
+                >
+                  <p className="text-sm font-semibold text-foreground">{preset.label}</p>
+                  <p className="text-xs text-muted-foreground">{preset.email}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
@@ -140,10 +201,11 @@ export function LoginForm() {
               </Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="voce@empresa.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 required
                 autoComplete="email"
                 className="h-12 bg-card text-foreground placeholder:text-muted-foreground border-border/50 focus:border-primary px-4"
@@ -165,10 +227,11 @@ export function LoginForm() {
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   required
                   autoComplete="current-password"
                   className="h-12 bg-card pr-12 text-foreground placeholder:text-muted-foreground border-border/50 focus:border-primary px-4"
@@ -189,42 +252,21 @@ export function LoginForm() {
 
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="h-12 w-full gap-3 text-base font-bold shadow-lg shadow-primary/20 transition-all hover:translate-y-[-1px] active:translate-y-[1px]"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Entrando...
-                </>
-              ) : (
-                <>
-                  Entrar com E-mail
-                  <ArrowRight className="h-5 w-5" />
-                </>
-              )}
+              <>
+                {isSubmitting ? "Entrando..." : "Entrar com E-mail"}
+                <ArrowRight className="h-5 w-5" />
+              </>
             </Button>
 
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border/50" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-background px-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                  Ou continue com
-                </span>
-              </div>
-            </div>
+            {submitError ? (
+              <p className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {submitError}
+              </p>
+            ) : null}
 
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => signIn("zitadel", { callbackUrl: "/" })}
-              className="h-12 w-full gap-3 text-base font-semibold border-border/50 hover:bg-accent transition-all"
-            >
-              <img src="https://avatars.githubusercontent.com/u/52563376?s=200&v=4" alt="Zitadel" className="h-5 w-5" />
-              Entrar com Zitadel
-            </Button>
           </form>
 
           {/* Divider */}

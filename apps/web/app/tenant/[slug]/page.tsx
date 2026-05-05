@@ -59,6 +59,7 @@ const hourlyData = [
 // Cores neutras para os gráficos
 const CHART_COLORS = {
   green: "#00AF67",      // Nova cor primária padronizada
+  teal: "#14b8a6",       // Verde-azulado para gráficos secundários
   slate: "#64748b",     // Cinza-azulado
   amber: "#f59e0b",     // Âmbar/dourado
   stone: "#78716c",     // Cinza-quente

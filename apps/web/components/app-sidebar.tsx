@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
+import { useSession, signOut } from "next-auth/react"
 import {
   MessageSquare,
   LayoutGrid,
@@ -22,7 +23,14 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const tenantNavItems = [
+interface NavItem {
+  href: string
+  label: string
+  icon: typeof MessageSquare
+  badge?: number
+}
+
+const tenantNavItems: NavItem[] = [
   { href: "/tenant/inbox", label: "Inbox", icon: MessageSquare, badge: 12 },
   { href: "/tenant/catalog", label: "Catálogo", icon: LayoutGrid },
   { href: "/tenant/compositions", label: "Composições", icon: ImageIcon },
@@ -32,7 +40,7 @@ const tenantNavItems = [
   { href: "/tenant/settings", label: "Configurações", icon: Settings },
 ]
 
-const superadminNavItems = [
+const superadminNavItems: NavItem[] = [
   { href: "/superadmin", label: "Tenants", icon: Building2 },
   { href: "/superadmin/domains", label: "Domínios", icon: Globe },
   { href: "/superadmin/usage", label: "Uso & Custos", icon: BarChart3 },
@@ -49,8 +57,17 @@ interface AppSidebarProps {
 export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug }: AppSidebarProps) {
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
+  const { data: session } = useSession()
   const [mounted, setMounted] = useState(false)
   const navItems = variant === "superadmin" ? superadminNavItems : tenantNavItems
+  const userName = session?.user?.name || "Usuário"
+  const userRole = session?.user?.roles?.includes("superadmin") ? "Superadmin" : "Tenant"
+  const initials = userName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("")
 
   useEffect(() => {
     setMounted(true)
@@ -182,7 +199,7 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
         {/* User */}
         <div className="flex items-center gap-3 rounded-lg px-2.5 py-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-            JD
+            {initials || "VF"}
           </div>
           <div
             className={cn(
@@ -190,10 +207,25 @@ export function AppSidebar({ variant = "tenant", collapsed, onToggle, tenantSlug
               collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
             )}
           >
-            <p className="text-sm font-medium text-foreground">João Demo</p>
-            <p className="text-xs text-muted-foreground">Operador</p>
+            <p className="text-sm font-medium text-foreground">{userName}</p>
+            <p className="text-xs text-muted-foreground">{userRole}</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-primary/5 hover:text-primary"
+        >
+          <Zap className="h-5 w-5 shrink-0" />
+          <span
+            className={cn(
+              "whitespace-nowrap transition-all duration-300",
+              collapsed ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"
+            )}
+          >
+            Sair
+          </span>
+        </button>
       </div>
     </aside>
   )
