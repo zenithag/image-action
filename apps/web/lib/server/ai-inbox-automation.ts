@@ -318,11 +318,11 @@ function getPendingImagePairRoleRequest(messages: InboxMessage[], currentMessage
     return null
   }
 
-  const inboundMessagesAfterQuestion = previousMessages
+  const assistantRepliesAfterQuestion = previousMessages
     .slice(questionIndex + 1)
-    .filter((message) => message.direction === "inbound")
+    .filter((message) => message.direction === "outbound" && message.role === "assistant")
 
-  if (inboundMessagesAfterQuestion.length > 0) {
+  if (assistantRepliesAfterQuestion.length > 0) {
     return null
   }
 
@@ -645,11 +645,11 @@ function getPendingPreviousCompositionChoiceRequest(messages: InboxMessage[], cu
     return null
   }
 
-  const inboundMessagesAfterQuestion = previousMessages
+  const assistantRepliesAfterQuestion = previousMessages
     .slice(questionIndex + 1)
-    .filter((message) => message.direction === "inbound")
+    .filter((message) => message.direction === "outbound" && message.role === "assistant")
 
-  if (inboundMessagesAfterQuestion.length > 0) {
+  if (assistantRepliesAfterQuestion.length > 0) {
     return null
   }
 
@@ -2337,6 +2337,7 @@ export async function processInboundMessageWithAi(input: {
     ])
   const shouldAskForCompositionInputs =
     !newImageRequest &&
+    !previousCompositionChoiceAnswer &&
     nextAction !== "handoff_to_operator" &&
     !hasAmbiguousRecentImagePair &&
     !(clientReferenceImageMessage && !hasBaseImage) &&
