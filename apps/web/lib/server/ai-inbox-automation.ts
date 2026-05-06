@@ -1511,7 +1511,25 @@ function hasSpecificCompositionDirection(text: string | null | undefined) {
   return hasAction && hasPlacement
 }
 
-function classificationProvidesCompositionDirection(classification: AiClassificationResult) {
+function hasSubstantiveCompositionText(text: string | null | undefined) {
+  const normalized = normalizeSearchText(text || "").trim()
+
+  return Boolean(
+    normalized &&
+    normalized !== "imagem recebida" &&
+    normalized !== "foto" &&
+    normalized !== "imagem"
+  )
+}
+
+function classificationProvidesCompositionDirection(
+  classification: AiClassificationResult,
+  text: string | null | undefined,
+) {
+  if (!hasSubstantiveCompositionText(text)) {
+    return false
+  }
+
   const missingInputs = classification.missing_inputs.map((input) => normalizeSearchText(input))
   const isMissingDirection = missingInputs.some((input) => (
     input.includes("direction") ||
@@ -2364,13 +2382,19 @@ export async function processInboundMessageWithAi(input: {
   )
   const shouldShowCatalogLink = catalogLinkRequested && !hasVisualReferenceForComposition
   const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
-  const semanticDirectionFromClassifier = !isOnlyAutoStartTrigger && classificationProvidesCompositionDirection(classification)
+  const semanticDirectionText = compositionPromptOverride ?? inboundMessage.content
+  const semanticDirectionFromClassifier = !isOnlyAutoStartTrigger &&
+    classificationProvidesCompositionDirection(classification, semanticDirectionText)
+  const storedPendingDirection = Boolean(
+    hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest]) ||
+    hasSubstantiveCompositionText(pendingSessionPrompt || pendingBaseChoiceRequest)
+  )
   const hasPendingFreeTextDirection = Boolean(
     pendingFreeTextReference &&
-    hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest])
+    storedPendingDirection
   )
   const hasDirectionForComposition = currentMessageHasVisualReference
-    ? currentMessageHasDirection || hasPendingFreeTextDirection || semanticDirectionFromClassifier
+    ? currentMessageHasDirection || storedPendingDirection || hasPendingFreeTextDirection || semanticDirectionFromClassifier
     : hasCompositionDirection([
       compositionPromptOverride,
       inboundMessage.content,
