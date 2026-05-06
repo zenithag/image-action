@@ -1499,6 +1499,9 @@ function hasVisualCompositionAction(normalizedText: string) {
     "inclui",
     "inclua",
     "incluir",
+    "insere",
+    "insira",
+    "inserir",
     "instala",
     "instale",
     "instalar",
@@ -1512,6 +1515,9 @@ function hasVisualCompositionAction(normalizedText: string) {
     "substitua",
     "substituir",
     "tirar",
+    "complementa",
+    "complemente",
+    "complementar",
     "transformar",
     "troque",
     "trocar",
@@ -1569,11 +1575,21 @@ function hasSubstantiveCompositionText(text: string | null | undefined) {
   )
 }
 
+function isReferenceOnlyText(text: string | null | undefined) {
+  const normalized = normalizeSearchText(text || "").trim()
+
+  if (!normalized) {
+    return false
+  }
+
+  return /^(referencia|referência|ref|imagem de referencia|foto de referencia|essa e a referencia|esta e a referencia|essa eh a referencia|esta eh a referencia|essa referencia|esta referencia)$/.test(normalized)
+}
+
 function classificationProvidesCompositionDirection(
   classification: AiClassificationResult,
   text: string | null | undefined,
 ) {
-  if (!hasSubstantiveCompositionText(text)) {
+  if (!hasSubstantiveCompositionText(text) || isReferenceOnlyText(text)) {
     return false
   }
 
@@ -2467,10 +2483,14 @@ export async function processInboundMessageWithAi(input: {
   const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
   const semanticDirectionText = compositionPromptOverride ?? inboundMessage.content
   const semanticDirectionFromClassifier = !isOnlyAutoStartTrigger &&
+    !(clientReferenceImageMessage && !currentMessageHasDirection) &&
     classificationProvidesCompositionDirection(classification, semanticDirectionText)
   const storedPendingDirection = Boolean(
     hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest]) ||
-    hasSubstantiveCompositionText(pendingSessionPrompt || pendingBaseChoiceRequest)
+    (
+      hasSubstantiveCompositionText(pendingSessionPrompt || pendingBaseChoiceRequest) &&
+      !isReferenceOnlyText(pendingSessionPrompt || pendingBaseChoiceRequest)
+    )
   )
   const hasPendingFreeTextDirection = Boolean(
     pendingFreeTextReference &&
@@ -2525,6 +2545,23 @@ export async function processInboundMessageWithAi(input: {
       pendingPrompt: hasDirectionForComposition
         ? compositionPromptOverride ?? inboundMessage.content
         : undefined,
+      pendingBaseChoice: false,
+    }))
+  }
+
+  if (
+    clientReferenceImageMessage &&
+    hasBaseImage &&
+    !currentMessageHasDirection &&
+    !storedPendingDirection
+  ) {
+    nextAction = "ask_for_reference_image"
+    nextStateOverride = "collecting_preferences"
+    reply = "Recebi a referência. Agora me diga qual alteração você quer fazer na composição e onde essa referência deve ser aplicada."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "product_selected",
+      pendingPrompt: undefined,
       pendingBaseChoice: false,
     }))
   }
