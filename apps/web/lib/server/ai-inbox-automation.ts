@@ -1402,26 +1402,7 @@ function hasOpenStructuredTask(
 
 function isActionableVisualInstruction(text: string) {
   const normalized = normalizeSearchText(text)
-  const hasAction = includesAny(normalized, [
-    "adicionar",
-    "apagar",
-    "aplica",
-    "aplicar",
-    "alterar",
-    "coloca",
-    "colocar",
-    "criar",
-    "edita",
-    "editar",
-    "gerar",
-    "mudar",
-    "pintar",
-    "remover",
-    "render",
-    "substituir",
-    "tirar",
-    "trocar",
-  ])
+  const hasAction = hasVisualCompositionAction(normalized)
   const hasTarget = includesAny(normalized, [
     "ambiente",
     "cadeira",
@@ -1450,24 +1431,24 @@ function isActionableVisualInstruction(text: string) {
   return hasAction && hasTarget
 }
 
-function hasSpecificCompositionDirection(text: string | null | undefined) {
-  const normalized = normalizeSearchText(text || "")
-  const compact = normalized.trim()
-
-  if (!compact || compact === "imagem recebida") {
-    return false
-  }
-
-  const hasAction = includesAny(normalized, [
+function hasVisualCompositionAction(normalizedText: string) {
+  return includesAny(normalizedText, [
+    "adicionar",
+    "adiciona",
+    "adicione",
+    "apagar",
     "aplica",
     "aplique",
     "aplicar",
-    "adiciona",
-    "adicione",
-    "adicionar",
+    "alterar",
     "coloca",
     "coloque",
     "colocar",
+    "criar",
+    "deixar",
+    "edita",
+    "editar",
+    "gerar",
     "inclui",
     "inclua",
     "incluir",
@@ -1478,14 +1459,31 @@ function hasSpecificCompositionDirection(text: string | null | undefined) {
     "mudar",
     "pintar",
     "revestir",
+    "remover",
+    "render",
     "simular",
     "substitua",
     "substituir",
+    "tirar",
+    "transformar",
     "troque",
     "trocar",
     "usar",
     "use",
-  ])
+  ]) || /\b(?:por|poe|posiciona|posicione|posicionar|encosta|encoste|encostar|encostado)\b/.test(
+    normalizedText,
+  )
+}
+
+function hasSpecificCompositionDirection(text: string | null | undefined) {
+  const normalized = normalizeSearchText(text || "")
+  const compact = normalized.trim()
+
+  if (!compact || compact === "imagem recebida") {
+    return false
+  }
+
+  const hasAction = hasVisualCompositionAction(normalized)
   const hasPlacement = includesAny(normalized, [
     "ambiente",
     "area",
