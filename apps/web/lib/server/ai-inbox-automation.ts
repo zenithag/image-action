@@ -1780,7 +1780,8 @@ export async function processInboundMessageWithAi(input: {
   const currentImageAsClientReference = inboundMessage.contentType === "image" &&
     (
       compositionSession.step === "awaiting_reference_image" ||
-      isClientReferenceImageInstruction(inboundMessage.content)
+      isClientReferenceImageInstruction(inboundMessage.content) ||
+      Boolean(compositionSession.preferredBase && hasSpecificCompositionDirection(inboundMessage.content))
   )
   const clientReferenceImageMessage = currentImageAsClientReference ? inboundMessage : null
   const imagePairBaseMessage = imagePairRoleChoice && recentBaseImageMessages.length >= 2
@@ -2467,11 +2468,11 @@ export async function processInboundMessageWithAi(input: {
 
   if (
     nextAction === "create_composition_job" &&
-    inboundMessage.contentType === "text" &&
     latestCompletedCompositionJob?.resultImageUrl &&
     effectiveLatestBaseImageMessage &&
     !compositionBaseChoice &&
-    !isPendingBaseChoiceAnswer
+    !isPendingBaseChoiceAnswer &&
+    (inboundMessage.contentType === "text" || compositionSession.preferredBase)
   ) {
     compositionBaseChoice = inferCompositionBaseChoice({
       text: inboundMessage.content,
