@@ -422,6 +422,7 @@ type CompositionBase = {
   message?: InboxMessage
   imageUrl?: string
   label: string
+  choice: CompositionBaseChoice
 }
 
 function getLatestCompletedCompositionJob(jobs: Awaited<ReturnType<typeof listCompositionJobs>>, conversationId: string) {
@@ -755,7 +756,7 @@ function getCompletedJobCompositionBase(input: {
   latestResultMessage: InboxMessage | null
   latestCompletedJob: Awaited<ReturnType<typeof getLatestCompletedCompositionJob>>
   tenantSlug: string
-}) {
+}): CompositionBase | null {
   if (!input.latestCompletedJob?.resultImageUrl) {
     return null
   }
@@ -766,6 +767,44 @@ function getCompletedJobCompositionBase(input: {
       ? getMessageMediaUrl(input.tenantSlug, input.latestResultMessage)
       : input.latestCompletedJob.resultImageUrl,
     label: "imagem gerada",
+    choice: "result",
+  } satisfies CompositionBase
+}
+
+function getOriginalCompositionBase(input: {
+  latestBaseImageMessage: InboxMessage | null
+  latestCompletedJob: Awaited<ReturnType<typeof getLatestCompletedCompositionJob>>
+  tenantSlug: string
+}): CompositionBase | null {
+  if (input.latestBaseImageMessage) {
+    return {
+      message: input.latestBaseImageMessage,
+      imageUrl: getMessageMediaUrl(input.tenantSlug, input.latestBaseImageMessage),
+      label: "imagem original",
+      choice: "original",
+    } satisfies CompositionBase
+  }
+
+  if (input.latestCompletedJob?.baseImageUrl) {
+    return {
+      imageUrl: input.latestCompletedJob.baseImageUrl,
+      label: "imagem original",
+      choice: "original",
+    } satisfies CompositionBase
+  }
+
+  return null
+}
+
+function getSessionCompositionBase(session: InboxCompositionSession): CompositionBase | null {
+  if (!session.baseImage?.imageUrl) {
+    return null
+  }
+
+  return {
+    imageUrl: session.baseImage.imageUrl,
+    label: session.baseImage.label || (session.baseImage.kind === "result" ? "imagem gerada" : "imagem original"),
+    choice: session.baseImage.kind === "result" ? "result" : "original",
   } satisfies CompositionBase
 }
 
@@ -774,20 +813,28 @@ async function resolveCompositionBase(input: {
   latestBaseImageMessage: InboxMessage | null
   latestResultMessage: InboxMessage | null
   latestCompletedJob: Awaited<ReturnType<typeof getLatestCompletedCompositionJob>>
+  session: InboxCompositionSession
   tenantSlug: string
 }) {
   const resultBase = getCompletedJobCompositionBase(input)
+  const originalBase = getOriginalCompositionBase(input)
 
   if (input.choice === "result" && resultBase && await isCompositionBaseAvailable(resultBase)) {
     return resultBase
   }
 
-  if (input.latestBaseImageMessage) {
-    return {
-      message: input.latestBaseImageMessage,
-      imageUrl: getMessageMediaUrl(input.tenantSlug, input.latestBaseImageMessage),
-      label: "imagem original",
-    } satisfies CompositionBase
+  if (input.choice === "original" && originalBase) {
+    return originalBase
+  }
+
+  if (originalBase) {
+    return originalBase
+  }
+
+  const sessionBase = getSessionCompositionBase(input.session)
+
+  if (sessionBase) {
+    return sessionBase
   }
 
   if (resultBase && await isCompositionBaseAvailable(resultBase)) {
@@ -1452,6 +1499,9 @@ function hasVisualCompositionAction(normalizedText: string) {
     "inclui",
     "inclua",
     "incluir",
+    "insere",
+    "insira",
+    "inserir",
     "instala",
     "instale",
     "instalar",
@@ -1465,6 +1515,9 @@ function hasVisualCompositionAction(normalizedText: string) {
     "substitua",
     "substituir",
     "tirar",
+    "complementa",
+    "complemente",
+    "complementar",
     "transformar",
     "troque",
     "trocar",
@@ -1511,7 +1564,35 @@ function hasSpecificCompositionDirection(text: string | null | undefined) {
   return hasAction && hasPlacement
 }
 
-function classificationProvidesCompositionDirection(classification: AiClassificationResult) {
+function hasSubstantiveCompositionText(text: string | null | undefined) {
+  const normalized = normalizeSearchText(text || "").trim()
+
+  return Boolean(
+    normalized &&
+    normalized !== "imagem recebida" &&
+    normalized !== "foto" &&
+    normalized !== "imagem"
+  )
+}
+
+function isReferenceOnlyText(text: string | null | undefined) {
+  const normalized = normalizeSearchText(text || "").trim()
+
+  if (!normalized) {
+    return false
+  }
+
+  return /^(referencia|referência|ref|imagem de referencia|foto de referencia|essa e a referencia|esta e a referencia|essa eh a referencia|esta eh a referencia|essa referencia|esta referencia)$/.test(normalized)
+}
+
+function classificationProvidesCompositionDirection(
+  classification: AiClassificationResult,
+  text: string | null | undefined,
+) {
+  if (!hasSubstantiveCompositionText(text) || isReferenceOnlyText(text)) {
+    return false
+  }
+
   const missingInputs = classification.missing_inputs.map((input) => normalizeSearchText(input))
   const isMissingDirection = missingInputs.some((input) => (
     input.includes("direction") ||
@@ -1837,7 +1918,8 @@ export async function processInboundMessageWithAi(input: {
     pendingBaseChoiceRequest &&
     baseChoiceAnswer
   )
-  const hasBaseImage = Boolean(effectiveLatestBaseImageMessage)
+  const hasSessionBaseImage = Boolean(compositionSession.baseImage?.imageUrl)
+  const hasBaseImage = Boolean(effectiveLatestBaseImageMessage || hasSessionBaseImage)
   const hasAmbiguousRecentImagePair = inboundMessage.contentType === "image" &&
     !clientReferenceImageMessage &&
     recentBaseImageMessages.length >= 2 &&
@@ -2092,18 +2174,53 @@ export async function processInboundMessageWithAi(input: {
       step: "awaiting_base_image",
     }))
   } else if (previousCompositionChoiceAnswer === "result" || previousCompositionChoiceAnswer === "original") {
-    nextAction = "reply_in_chat"
-    nextStateOverride = "idle"
-    reply = previousCompositionChoiceAnswer === "result"
-      ? "Perfeito. Vou continuar usando a imagem gerada como base. Agora me diga o que você quer alterar ou qual referência quer aplicar."
-      : "Perfeito. Vou continuar usando a imagem original como base. Agora me diga o que você quer alterar ou qual referência quer aplicar."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "completed",
-      preferredBase: previousCompositionChoiceAnswer,
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
+    const selectedBase = previousCompositionChoiceAnswer === "result"
+      ? getCompletedJobCompositionBase({
+        latestResultMessage: latestCompositionResultMessage,
+        latestCompletedJob: latestCompletedCompositionJob,
+        tenantSlug: input.tenantSlug,
+      })
+      : getOriginalCompositionBase({
+        latestBaseImageMessage: effectiveLatestBaseImageMessage,
+        latestCompletedJob: latestCompletedCompositionJob,
+        tenantSlug: input.tenantSlug,
+      })
+
+    if (!selectedBase?.imageUrl) {
+      nextAction = "ask_for_base_image"
+      nextStateOverride = "awaiting_base_image"
+      reply = "Não consegui recuperar essa imagem como base. Me envie a imagem do ambiente para começar uma nova composição."
+      setCompositionSession(() => ({
+        ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
+        step: "awaiting_base_image",
+      }))
+    } else {
+      const nextSession: InboxCompositionSession = {
+        ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
+        step: "awaiting_reference_image",
+        baseImage: {
+          kind: selectedBase.choice === "result" ? "result" : "base",
+          messageId: selectedBase.message?.id,
+          imageUrl: selectedBase.imageUrl,
+          label: selectedBase.label,
+          createdAt: selectedBase.message?.createdAt ?? latestCompletedCompositionJob?.completedAt ?? latestCompletedCompositionJob?.createdAt ?? inboundMessage.createdAt,
+        },
+      }
+
+      nextAction = "ask_for_reference_image"
+      nextStateOverride = "collecting_preferences"
+      reply = [
+        `Perfeito. Vou começar uma nova composição usando a ${selectedBase.label} como base e limpar o contexto anterior.`,
+        "Agora me envie ou descreva a referência e me diga o que você quer fazer nessa nova composição.",
+      ].join("\n\n")
+      await updateInboxConversation(input.tenantSlug, input.conversationId, {
+        contextResetAt: inboundMessage.createdAt,
+        compositionSession: nextSession,
+        state: "collecting_preferences",
+        status: "open",
+      })
+      setCompositionSession(() => nextSession)
+    }
   } else if (newImageRequest) {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
@@ -2364,13 +2481,23 @@ export async function processInboundMessageWithAi(input: {
   )
   const shouldShowCatalogLink = catalogLinkRequested && !hasVisualReferenceForComposition
   const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
-  const semanticDirectionFromClassifier = !isOnlyAutoStartTrigger && classificationProvidesCompositionDirection(classification)
+  const semanticDirectionText = compositionPromptOverride ?? inboundMessage.content
+  const semanticDirectionFromClassifier = !isOnlyAutoStartTrigger &&
+    !(clientReferenceImageMessage && !currentMessageHasDirection) &&
+    classificationProvidesCompositionDirection(classification, semanticDirectionText)
+  const storedPendingDirection = Boolean(
+    hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest]) ||
+    (
+      hasSubstantiveCompositionText(pendingSessionPrompt || pendingBaseChoiceRequest) &&
+      !isReferenceOnlyText(pendingSessionPrompt || pendingBaseChoiceRequest)
+    )
+  )
   const hasPendingFreeTextDirection = Boolean(
     pendingFreeTextReference &&
-    hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest])
+    storedPendingDirection
   )
   const hasDirectionForComposition = currentMessageHasVisualReference
-    ? currentMessageHasDirection || hasPendingFreeTextDirection || semanticDirectionFromClassifier
+    ? currentMessageHasDirection || storedPendingDirection || hasPendingFreeTextDirection || semanticDirectionFromClassifier
     : hasCompositionDirection([
       compositionPromptOverride,
       inboundMessage.content,
@@ -2418,6 +2545,23 @@ export async function processInboundMessageWithAi(input: {
       pendingPrompt: hasDirectionForComposition
         ? compositionPromptOverride ?? inboundMessage.content
         : undefined,
+      pendingBaseChoice: false,
+    }))
+  }
+
+  if (
+    clientReferenceImageMessage &&
+    hasBaseImage &&
+    !currentMessageHasDirection &&
+    !storedPendingDirection
+  ) {
+    nextAction = "ask_for_reference_image"
+    nextStateOverride = "collecting_preferences"
+    reply = "Recebi a referência. Agora me diga qual alteração você quer fazer na composição e onde essa referência deve ser aplicada."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "product_selected",
+      pendingPrompt: undefined,
       pendingBaseChoice: false,
     }))
   }
@@ -2494,6 +2638,7 @@ export async function processInboundMessageWithAi(input: {
       latestBaseImageMessage: effectiveLatestBaseImageMessage,
       latestResultMessage: latestCompositionResultMessage,
       latestCompletedJob: latestCompletedCompositionJob,
+      session: compositionSession,
       tenantSlug: input.tenantSlug,
     })
 
@@ -2584,7 +2729,7 @@ export async function processInboundMessageWithAi(input: {
         const product = primaryReference
           ? toSessionProduct(primaryReference.item, primaryReference.color)
           : session.selectedProducts[0]
-        const base: "original" | "result" = compositionBaseChoice === "result" ? "result" : "original"
+        const base: "original" | "result" = compositionBase.choice
         const status: "queued" | "failed" = result.job.status === "failed" ? "failed" : "queued"
 
         return {
