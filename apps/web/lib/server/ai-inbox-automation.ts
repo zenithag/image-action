@@ -1511,6 +1511,28 @@ function hasSpecificCompositionDirection(text: string | null | undefined) {
   return hasAction && hasPlacement
 }
 
+function classificationProvidesCompositionDirection(classification: AiClassificationResult) {
+  const missingInputs = classification.missing_inputs.map((input) => normalizeSearchText(input))
+  const isMissingDirection = missingInputs.some((input) => (
+    input.includes("direction") ||
+    input.includes("direcao") ||
+    input.includes("instru") ||
+    input.includes("onde") ||
+    input.includes("how_to_apply") ||
+    input.includes("composition_direction")
+  ))
+
+  if (classification.intent !== "visual_edit" || isMissingDirection) {
+    return false
+  }
+
+  if (classification.next_action === "create_composition_job") {
+    return true
+  }
+
+  return classification.source === "openrouter" && classification.confidence >= 0.6
+}
+
 function hasCompositionDirection(texts: Array<string | null | undefined>) {
   return texts.some(hasSpecificCompositionDirection)
 }
@@ -2321,18 +2343,19 @@ export async function processInboundMessageWithAi(input: {
   )
   const shouldShowCatalogLink = catalogLinkRequested && !hasVisualReferenceForComposition
   const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
+  const semanticDirectionFromClassifier = classificationProvidesCompositionDirection(classification)
   const hasPendingFreeTextDirection = Boolean(
     pendingFreeTextReference &&
     hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest])
   )
   const hasDirectionForComposition = currentMessageHasVisualReference
-    ? currentMessageHasDirection || hasPendingFreeTextDirection
+    ? currentMessageHasDirection || hasPendingFreeTextDirection || semanticDirectionFromClassifier
     : hasCompositionDirection([
       compositionPromptOverride,
       inboundMessage.content,
       pendingSessionPrompt,
       pendingBaseChoiceRequest,
-    ])
+    ]) || semanticDirectionFromClassifier
   const shouldAskForCompositionInputs =
     !newImageRequest &&
     !previousCompositionChoiceAnswer &&
@@ -2373,6 +2396,25 @@ export async function processInboundMessageWithAi(input: {
       pendingPrompt: hasDirectionForComposition
         ? compositionPromptOverride ?? inboundMessage.content
         : undefined,
+      pendingBaseChoice: false,
+    }))
+  }
+
+  if (
+    nextAction !== "handoff_to_operator" &&
+    nextAction !== "create_composition_job" &&
+    classification.intent === "visual_edit" &&
+    hasBaseImage &&
+    hasVisualReferenceForComposition &&
+    hasDirectionForComposition
+  ) {
+    nextAction = "create_composition_job"
+    nextStateOverride = mapNextActionToState(nextAction)
+    reply = "Perfeito. Já tenho o ambiente, a referência e o que deve ser feito. Vou colocar essa composição na fila."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "composing",
+      pendingPrompt: undefined,
       pendingBaseChoice: false,
     }))
   }
