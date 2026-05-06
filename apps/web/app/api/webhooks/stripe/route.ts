@@ -11,6 +11,7 @@ import {
   recordAbacatePayWebhookEvent,
   upsertTenantBillingSubscription,
 } from "@/lib/server/billing-store"
+import { attachReferralToTenant, grantReferralConversionCredits } from "@/lib/server/commercial-benefits-store"
 import { grantTenantManualTokens } from "@/lib/server/token-ledger-store"
 import { findTenant, updateTenant } from "@/lib/server/tenants-store"
 
@@ -125,6 +126,15 @@ async function processStripeEvent(event: StripeEvent) {
       status: "active",
       planCode,
     })
+
+    const referralCode = normalizeText(metadata.referralCode)
+    if (referralCode) {
+      await attachReferralToTenant({
+        referralCode,
+        referredTenantId: tenant.id,
+        referredTenantSlug: tenant.slug,
+      })
+    }
   }
 
   if (tenant && event.type === "invoice.payment_succeeded") {
@@ -135,6 +145,13 @@ async function processStripeEvent(event: StripeEvent) {
       createdBy: "stripe",
       referenceId: event.id,
     })
+
+    if (tenant) {
+      await grantReferralConversionCredits({
+        referredTenantSlug: tenant.slug,
+        subscriptionReferenceId: subscription.subscriptionId || subscription.checkoutId || event.id,
+      })
+    }
   }
 
   if (tenant && status === "cancelled") {

@@ -89,7 +89,9 @@ function normalizeEntry(value: unknown): TenantTokenLedgerEntry | null {
     description: normalizeText(item.description),
     referenceType: (
       item.referenceType === "composition_job" ||
-      item.referenceType === "admin_adjustment"
+      item.referenceType === "admin_adjustment" ||
+      item.referenceType === "coupon" ||
+      item.referenceType === "referral"
     ) ? item.referenceType : item.referenceType === "plan" ? "plan" : undefined,
     referenceId: normalizeText(item.referenceId) || undefined,
     createdBy: normalizeText(item.createdBy) || undefined,
@@ -278,6 +280,7 @@ export async function grantTenantManualTokens(input: {
   amount: number
   description?: string
   createdBy?: string
+  referenceType?: TokenLedgerReferenceType
   referenceId?: string
 }) {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
@@ -296,7 +299,7 @@ export async function grantTenantManualTokens(input: {
       amount: Math.round(input.amount),
       balanceAfter: nextBalance,
       description: input.description?.trim() || "Crédito manual liberado pelo superadmin.",
-      referenceType: "admin_adjustment",
+      referenceType: input.referenceType ?? "admin_adjustment",
       referenceId: input.referenceId,
       createdBy: input.createdBy || "superadmin",
     })

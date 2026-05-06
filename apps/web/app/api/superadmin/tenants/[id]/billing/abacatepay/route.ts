@@ -10,6 +10,7 @@ import {
   upsertTenantBillingSubscription,
 } from "@/lib/server/billing-store"
 import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
+import { attachReferralToTenant } from "@/lib/server/commercial-benefits-store"
 import { findTenant } from "@/lib/server/tenants-store"
 
 export const runtime = "nodejs"
@@ -24,6 +25,7 @@ type CheckoutPayload = {
   taxId?: unknown
   cellphone?: unknown
   planCode?: unknown
+  referralCode?: unknown
 }
 
 function normalizeText(value: unknown) {
@@ -77,6 +79,7 @@ export async function POST(request: Request, context: RouteContext) {
     const email = normalizeText(payload?.email || tenant.contactEmail).toLowerCase()
     const name = normalizeText(payload?.name || tenant.contactName || tenant.name)
     const planCode = normalizePlanCode(payload?.planCode, tenant.planCode)
+    const referralCode = normalizeText(payload?.referralCode)
 
     if (!email) {
       return NextResponse.json({ error: "Informe o email do cliente antes de gerar o checkout." }, { status: 400 })
@@ -103,8 +106,16 @@ export async function POST(request: Request, context: RouteContext) {
         tenantId: tenant.id,
         tenantSlug: tenant.slug,
         planCode,
+        referralCode,
       },
     })
+    if (referralCode) {
+      await attachReferralToTenant({
+        referralCode,
+        referredTenantId: tenant.id,
+        referredTenantSlug: tenant.slug,
+      })
+    }
     const subscription = await upsertTenantBillingSubscription({
       tenantId: tenant.id,
       tenantSlug: tenant.slug,

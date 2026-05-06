@@ -63,6 +63,7 @@ export type InboxCompositionSession = {
   baseImage?: InboxCompositionSessionImage
   referenceImage?: InboxCompositionSessionImage
   workingImage?: InboxCompositionSessionImage
+  preferredBase?: "original" | "result"
   selectedProducts: InboxCompositionSessionProduct[]
   pendingPrompt?: string
   pendingBaseChoice?: boolean

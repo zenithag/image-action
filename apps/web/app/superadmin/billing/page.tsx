@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
-import { CheckCircle2, Copy, CreditCard, ExternalLink, Loader2, PackagePlus, RefreshCw, Save } from "lucide-react"
+import { CheckCircle2, Copy, CreditCard, ExternalLink, Gift, Loader2, PackagePlus, RefreshCw, Save, Ticket, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { PublicAbacatePaySettings, PublicStripeSettings } from "@/lib/billing-types"
+import type { CreditCoupon, CreditCouponRedemption, ReferralProgramSettings, TenantReferral } from "@/lib/commercial-benefits-types"
 import type { TenantPlanCode } from "@/lib/tenant-types"
 import { cn } from "@/lib/utils"
 
@@ -16,6 +17,16 @@ const planLabels: Record<TenantPlanCode, string> = {
 }
 
 const planCodes: TenantPlanCode[] = ["starter", "pro", "enterprise"]
+
+type CouponsPayload = {
+  coupons: CreditCoupon[]
+  redemptions: CreditCouponRedemption[]
+}
+
+type ReferralsPayload = {
+  settings: ReferralProgramSettings
+  referrals: TenantReferral[]
+}
 
 async function requestJson<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init })
@@ -38,9 +49,19 @@ function formatMoney(cents: number) {
 export default function SuperadminBillingPage() {
   const [settings, setSettings] = useState<PublicAbacatePaySettings | null>(null)
   const [stripeSettings, setStripeSettings] = useState<PublicStripeSettings | null>(null)
+  const [couponsPayload, setCouponsPayload] = useState<CouponsPayload | null>(null)
+  const [referralsPayload, setReferralsPayload] = useState<ReferralsPayload | null>(null)
   const [apiKey, setApiKey] = useState("")
   const [stripeSecretKey, setStripeSecretKey] = useState("")
   const [stripeWebhookSecret, setStripeWebhookSecret] = useState("")
+  const [couponForm, setCouponForm] = useState({
+    code: "",
+    creditAmount: 25,
+    expiresAt: "",
+    maxRedemptions: "",
+    maxRedemptionsPerTenant: 1,
+    notes: "",
+  })
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [creatingProduct, setCreatingProduct] = useState<TenantPlanCode | null>(null)
@@ -53,12 +74,16 @@ export default function SuperadminBillingPage() {
     setError(null)
 
     try {
-      const [abacatePayload, stripePayload] = await Promise.all([
+      const [abacatePayload, stripePayload, couponsData, referralsData] = await Promise.all([
         requestJson<PublicAbacatePaySettings>("/api/superadmin/billing/abacatepay"),
         requestJson<PublicStripeSettings>("/api/superadmin/billing/stripe"),
+        requestJson<CouponsPayload>("/api/superadmin/billing/coupons"),
+        requestJson<ReferralsPayload>("/api/superadmin/billing/referrals"),
       ])
       setSettings(abacatePayload)
       setStripeSettings(stripePayload)
+      setCouponsPayload(couponsData)
+      setReferralsPayload(referralsData)
       setApiKey("")
       setStripeSecretKey("")
       setStripeWebhookSecret("")
@@ -181,6 +206,84 @@ export default function SuperadminBillingPage() {
     if (!stripeSettings?.webhookUrl) return
     await navigator.clipboard.writeText(stripeSettings.webhookUrl)
     setNotice("URL do webhook Stripe copiada.")
+  }
+
+  async function createCoupon() {
+    if (isSaving) return
+
+    setIsSaving(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      await requestJson<CreditCoupon>("/api/superadmin/billing/coupons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...couponForm,
+          code: couponForm.code.trim(),
+          maxRedemptions: couponForm.maxRedemptions ? Number(couponForm.maxRedemptions) : undefined,
+          expiresAt: couponForm.expiresAt || undefined,
+        }),
+      })
+      const couponsData = await requestJson<CouponsPayload>("/api/superadmin/billing/coupons")
+      setCouponsPayload(couponsData)
+      setCouponForm({
+        code: "",
+        creditAmount: 25,
+        expiresAt: "",
+        maxRedemptions: "",
+        maxRedemptionsPerTenant: 1,
+        notes: "",
+      })
+      setNotice("Cupom criado.")
+    } catch (couponError) {
+      setError(couponError instanceof Error ? couponError.message : "Não foi possível criar o cupom.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function toggleCoupon(coupon: CreditCoupon) {
+    setError(null)
+    setNotice(null)
+
+    try {
+      const updated = await requestJson<CreditCoupon>(`/api/superadmin/billing/coupons/${encodeURIComponent(coupon.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: coupon.status === "active" ? "inactive" : "active" }),
+      })
+      setCouponsPayload((current) => current ? {
+        ...current,
+        coupons: current.coupons.map((item) => item.id === updated.id ? updated : item),
+      } : current)
+      setNotice(updated.status === "active" ? "Cupom ativado." : "Cupom pausado.")
+    } catch (couponError) {
+      setError(couponError instanceof Error ? couponError.message : "Não foi possível atualizar o cupom.")
+    }
+  }
+
+  async function saveReferralSettings() {
+    if (!referralsPayload || isSaving) return
+
+    setIsSaving(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const settingsData = await requestJson<ReferralProgramSettings>("/api/superadmin/billing/referrals", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(referralsPayload.settings),
+      })
+      setReferralsPayload({ ...referralsPayload, settings: settingsData })
+      setNotice("Programa de indicação salvo.")
+    } catch (referralError) {
+      setError(referralError instanceof Error ? referralError.message : "Não foi possível salvar o programa de indicação.")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   function updatePlan(planCode: TenantPlanCode, patch: Partial<PublicAbacatePaySettings["plans"][TenantPlanCode]>) {
@@ -548,6 +651,159 @@ export default function SuperadminBillingPage() {
               })}
             </div>
 
+            <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="rounded-[10px] border border-border bg-card">
+                <div className="flex items-center gap-2 border-b border-border px-6 py-4">
+                  <Ticket className="h-4 w-4 text-primary" />
+                  <div>
+                    <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Cupons de créditos</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">Cupons adicionam créditos de composição ao tenant.</p>
+                  </div>
+                </div>
+                <div className="grid gap-4 p-6 md:grid-cols-2">
+                  <Field label="Código">
+                    <input
+                      value={couponForm.code}
+                      onChange={(event) => setCouponForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
+                      placeholder="BONUS25"
+                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm uppercase focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </Field>
+                  <Field label="Créditos">
+                    <input
+                      type="number"
+                      min={1}
+                      value={couponForm.creditAmount}
+                      onChange={(event) => setCouponForm((current) => ({ ...current, creditAmount: Number(event.target.value) }))}
+                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </Field>
+                  <Field label="Validade">
+                    <input
+                      type="datetime-local"
+                      value={couponForm.expiresAt}
+                      onChange={(event) => setCouponForm((current) => ({ ...current, expiresAt: event.target.value }))}
+                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </Field>
+                  <Field label="Limite total">
+                    <input
+                      type="number"
+                      min={0}
+                      value={couponForm.maxRedemptions}
+                      onChange={(event) => setCouponForm((current) => ({ ...current, maxRedemptions: event.target.value }))}
+                      placeholder="Sem limite"
+                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </Field>
+                  <Field label="Usos por tenant">
+                    <input
+                      type="number"
+                      min={1}
+                      value={couponForm.maxRedemptionsPerTenant}
+                      onChange={(event) => setCouponForm((current) => ({ ...current, maxRedemptionsPerTenant: Number(event.target.value) }))}
+                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </Field>
+                  <Field label="Observação">
+                    <input
+                      value={couponForm.notes}
+                      onChange={(event) => setCouponForm((current) => ({ ...current, notes: event.target.value }))}
+                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Button onClick={createCoupon} disabled={isSaving || !couponForm.code.trim()}>
+                      <Gift className="mr-2 h-4 w-4" />
+                      Criar cupom
+                    </Button>
+                  </div>
+                </div>
+                <div className="divide-y divide-border border-t border-border">
+                  {couponsPayload?.coupons.length ? couponsPayload.coupons.slice(0, 8).map((coupon) => {
+                    const uses = couponsPayload.redemptions.filter((redemption) => redemption.couponId === coupon.id).length
+                    return (
+                      <div key={coupon.id} className="grid gap-3 px-6 py-4 md:grid-cols-[1fr_120px_120px_auto] md:items-center">
+                        <div>
+                          <p className="font-mono text-sm font-semibold text-foreground">{coupon.code}</p>
+                          <p className="text-xs text-muted-foreground">{coupon.notes || "Sem observação"}</p>
+                        </div>
+                        <div className="text-sm text-foreground">{coupon.creditAmount} créditos</div>
+                        <div className="text-sm text-muted-foreground">{uses}{coupon.maxRedemptions ? `/${coupon.maxRedemptions}` : ""} usos</div>
+                        <Button variant="outline" size="sm" onClick={() => void toggleCoupon(coupon)}>
+                          {coupon.status === "active" ? "Pausar" : "Ativar"}
+                        </Button>
+                      </div>
+                    )
+                  }) : (
+                    <div className="px-6 py-8 text-sm text-muted-foreground">Nenhum cupom criado ainda.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[10px] border border-border bg-card">
+                <div className="flex items-center gap-2 border-b border-border px-6 py-4">
+                  <Users className="h-4 w-4 text-primary" />
+                  <div>
+                    <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Programa de indicação</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">Indicação convertida gera bônus único de créditos para quem indicou.</p>
+                  </div>
+                </div>
+                {referralsPayload ? (
+                  <div className="space-y-4 p-6">
+                    <label className="flex h-11 items-center gap-3 rounded-[10px] border border-input bg-muted/20 px-4 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={referralsPayload.settings.enabled}
+                        onChange={(event) => setReferralsPayload((current) => current ? {
+                          ...current,
+                          settings: { ...current.settings, enabled: event.target.checked },
+                        } : current)}
+                      />
+                      <span>Programa ativo</span>
+                    </label>
+                    <Field label="Créditos por indicação convertida">
+                      <input
+                        type="number"
+                        min={1}
+                        value={referralsPayload.settings.defaultCreditAmount}
+                        onChange={(event) => setReferralsPayload((current) => current ? {
+                          ...current,
+                          settings: { ...current.settings, defaultCreditAmount: Number(event.target.value) },
+                        } : current)}
+                        className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </Field>
+                    <Button onClick={saveReferralSettings} disabled={isSaving}>
+                      <Save className="mr-2 h-4 w-4" />
+                      Salvar indicações
+                    </Button>
+                    <div className="grid grid-cols-3 gap-3 pt-2">
+                      <ReferralMetric label="Pendentes" value={referralsPayload.referrals.filter((item) => item.status === "pending" && item.referredTenantSlug).length} />
+                      <ReferralMetric label="Convertidas" value={referralsPayload.referrals.filter((item) => item.status === "converted").length} />
+                      <ReferralMetric label="Créditos" value={referralsPayload.referrals.reduce((total, item) => total + item.creditsGranted, 0)} />
+                    </div>
+                    <div className="divide-y divide-border rounded-[10px] border border-border">
+                      {referralsPayload.referrals.slice(0, 6).map((referral) => (
+                        <div key={referral.id} className="px-4 py-3 text-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-medium text-foreground">{referral.referrerTenantSlug}</span>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] uppercase text-muted-foreground">{referral.status}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            indicado: {referral.referredTenantSlug || "link disponível"} · créditos: {referral.creditsGranted}
+                          </p>
+                        </div>
+                      ))}
+                      {referralsPayload.referrals.length === 0 && (
+                        <div className="px-4 py-6 text-sm text-muted-foreground">Nenhuma indicação registrada ainda.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
             <div className="rounded-[10px] border border-border bg-card p-5 text-sm text-muted-foreground">
               <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
                 <ExternalLink className="h-4 w-4 text-primary" />
@@ -570,5 +826,14 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
       {children}
     </label>
+  )
+}
+
+function ReferralMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[10px] border border-border bg-muted/20 p-3">
+      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-bold text-foreground">{value}</p>
+    </div>
   )
 }
