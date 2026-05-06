@@ -10,6 +10,7 @@ import {
   recordAbacatePayWebhookEvent,
   upsertTenantBillingSubscription,
 } from "@/lib/server/billing-store"
+import { attachReferralToTenant, grantReferralConversionCredits } from "@/lib/server/commercial-benefits-store"
 import { grantTenantManualTokens } from "@/lib/server/token-ledger-store"
 import { findTenant, updateTenant } from "@/lib/server/tenants-store"
 
@@ -46,6 +47,7 @@ type AbacateWebhookPayload = {
       tenantId?: string
       tenantSlug?: string
       planCode?: string
+      referralCode?: string
     }
   }
 }
@@ -122,11 +124,20 @@ async function processSubscriptionEvent(payload: AbacateWebhookPayload, eventId:
 
   if (tenant && status === "active" && event !== "billing.failed") {
     const tokensIncluded = await getTokensForSubscription(subscription.planCode)
+    const referralCode = normalizeText(payload.data?.metadata?.referralCode)
 
     await updateTenant(tenant.id, {
       status: "active",
       planCode: subscription.planCode,
     })
+
+    if (referralCode) {
+      await attachReferralToTenant({
+        referralCode,
+        referredTenantId: tenant.id,
+        referredTenantSlug: tenant.slug,
+      })
+    }
 
     await grantTenantManualTokens({
       tenantSlug: tenant.slug,
@@ -134,6 +145,11 @@ async function processSubscriptionEvent(payload: AbacateWebhookPayload, eventId:
       description: `Crédito da assinatura AbacatePay ${subscription.planCode}.`,
       createdBy: "abacatepay",
       referenceId: eventId,
+    })
+
+    await grantReferralConversionCredits({
+      referredTenantSlug: tenant.slug,
+      subscriptionReferenceId: subscription.subscriptionId || subscription.checkoutId || eventId,
     })
   }
 

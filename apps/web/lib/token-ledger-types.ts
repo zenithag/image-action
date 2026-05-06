@@ -7,7 +7,7 @@ export type TokenLedgerEntryType =
   | "refund"
   | "admin_adjustment"
 
-export type TokenLedgerReferenceType = "plan" | "composition_job" | "admin_adjustment"
+export type TokenLedgerReferenceType = "plan" | "composition_job" | "admin_adjustment" | "coupon" | "referral"
 
 export type TenantTokenAccount = {
   tenantSlug: string

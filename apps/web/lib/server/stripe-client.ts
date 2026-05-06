@@ -116,6 +116,7 @@ export async function createStripeSubscriptionCheckout(settings: StripeSettings,
   tenantId: string
   tenantSlug: string
   planCode: string
+  referralCode?: string
   successUrl: string
   cancelUrl: string
 }) {
@@ -131,10 +132,12 @@ export async function createStripeSubscriptionCheckout(settings: StripeSettings,
     "metadata[tenantSlug]": input.tenantSlug,
     "metadata[planCode]": input.planCode,
     "metadata[externalId]": input.externalId,
+    "metadata[referralCode]": input.referralCode,
     "subscription_data[metadata][tenantId]": input.tenantId,
     "subscription_data[metadata][tenantSlug]": input.tenantSlug,
     "subscription_data[metadata][planCode]": input.planCode,
     "subscription_data[metadata][externalId]": input.externalId,
+    "subscription_data[metadata][referralCode]": input.referralCode,
   })
 
   if (!session.url) {

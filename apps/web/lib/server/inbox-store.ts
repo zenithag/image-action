@@ -313,6 +313,7 @@ export function normalizeInboxCompositionSession(value: unknown): InboxCompositi
     baseImage: normalizeSessionImage(value.baseImage),
     referenceImage: normalizeSessionImage(value.referenceImage),
     workingImage: normalizeSessionImage(value.workingImage),
+    preferredBase: value.preferredBase === "original" || value.preferredBase === "result" ? value.preferredBase : undefined,
     selectedProducts,
     pendingPrompt: typeof value.pendingPrompt === "string" ? value.pendingPrompt : undefined,
     pendingBaseChoice: value.pendingBaseChoice === true,

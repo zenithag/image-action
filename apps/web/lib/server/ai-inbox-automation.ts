@@ -5,6 +5,7 @@ import type { NextAction } from "@studio/contracts"
 
 import type { CatalogItem } from "@/lib/catalog-types"
 import type { CompositionJobReference, CompositionMode } from "@/lib/composition-types"
+import type { AiClassificationResult } from "@/lib/ai-types"
 import type {
   InboxCompositionSession,
   InboxCompositionSessionProduct,
@@ -415,6 +416,7 @@ function shouldUseLatestResultByDefault(text: string, session: InboxCompositionS
 }
 
 type CompositionBaseChoice = "original" | "result"
+type PreviousCompositionChoice = CompositionBaseChoice | "new"
 
 type CompositionBase = {
   message?: InboxMessage
@@ -512,6 +514,10 @@ function inferCompositionBaseChoice(input: {
     return explicitChoice
   }
 
+  if (input.session.preferredBase) {
+    return input.session.preferredBase
+  }
+
   if (!input.latestCompletedJob?.resultImageUrl) {
     return "original"
   }
@@ -585,6 +591,78 @@ function isBaseChoiceQuestion(content: string) {
   return normalized.includes("original") &&
     normalized.includes("nova") &&
     normalized.includes("base")
+}
+
+function getPreviousCompositionChoiceAnswer(text: string): PreviousCompositionChoice | null {
+  const normalized = normalizeSearchText(text).trim()
+
+  if (/^(1|opcao 1|opção 1|gerada|a gerada|imagem gerada|resultado|ultimo resultado|último resultado|ultima|última|usar gerada|usar a gerada)$/.test(normalized)) {
+    return "result"
+  }
+
+  if (/^(2|opcao 2|opção 2|original|a original|imagem original|foto original|usar original|usar a original)$/.test(normalized)) {
+    return "original"
+  }
+
+  if (/^(3|opcao 3|opção 3|novo|nova|novo processo|nova composicao|nova composição|comecar novo|começar novo|comecar de novo|começar de novo)$/.test(normalized)) {
+    return "new"
+  }
+
+  return null
+}
+
+function isPreviousCompositionChoiceQuestion(content: string) {
+  const normalized = normalizeSearchText(content)
+
+  return normalized.includes("encontrei uma composicao anterior") &&
+    normalized.includes("usar a imagem gerada") &&
+    normalized.includes("usar a imagem original") &&
+    normalized.includes("comecar um novo processo")
+}
+
+function getPendingPreviousCompositionChoiceRequest(messages: InboxMessage[], currentMessageId: string, currentContent = "") {
+  const previousMessages = messages.filter((message) => message.id !== currentMessageId)
+  let questionIndex = -1
+
+  for (let index = previousMessages.length - 1; index >= 0; index -= 1) {
+    const message = previousMessages[index]
+
+    if (
+      message.direction === "outbound" &&
+      message.role === "assistant" &&
+      isPreviousCompositionChoiceQuestion(message.content)
+    ) {
+      questionIndex = index
+      break
+    }
+  }
+
+  if (questionIndex === -1) {
+    return null
+  }
+
+  if (currentContent && !getPreviousCompositionChoiceAnswer(currentContent)) {
+    return null
+  }
+
+  const inboundMessagesAfterQuestion = previousMessages
+    .slice(questionIndex + 1)
+    .filter((message) => message.direction === "inbound")
+
+  if (inboundMessagesAfterQuestion.length > 0) {
+    return null
+  }
+
+  return previousMessages[questionIndex].content
+}
+
+function formatPreviousCompositionChoiceQuestion() {
+  return [
+    "Encontrei uma composição anterior. Você quer continuar com ela ou começar uma nova?",
+    "1. Usar a imagem gerada como base",
+    "2. Usar a imagem original como base",
+    "3. Começar um novo processo",
+  ].join("\n")
 }
 
 function getPendingBaseChoiceRequest(messages: InboxMessage[], currentMessageId: string, currentContent = "") {
@@ -1571,8 +1649,6 @@ export async function processInboundMessageWithAi(input: {
       status: "open",
       state: conversation.state,
     })
-
-    return { ok: true, skipped: "ai_handoff_triggered" }
   }
 
   if (!settings.assistant.enabled) {
@@ -1717,6 +1793,19 @@ export async function processInboundMessageWithAi(input: {
     input.conversationId,
   )
   const latestCompositionResultMessage = findCompositionResultMessage(messages, latestCompletedCompositionJob)
+  const pendingPreviousCompositionChoiceRequest = getPendingPreviousCompositionChoiceRequest(
+    messages,
+    input.message.id,
+    input.message.content,
+  )
+  const previousCompositionChoiceAnswer = pendingPreviousCompositionChoiceRequest
+    ? getPreviousCompositionChoiceAnswer(input.message.content)
+    : null
+  const shouldAskPreviousCompositionChoice = Boolean(
+    autoStartRequested &&
+    latestCompletedCompositionJob?.resultImageUrl &&
+    !pendingPreviousCompositionChoiceRequest
+  )
   const explicitBaseChoice = getExplicitCompositionBaseChoice(input.message.content)
   const baseChoiceAnswer = getCompositionBaseChoiceAnswer(input.message.content)
   const pendingBaseChoiceRequest = getPendingBaseChoiceRequest(messages, input.message.id, input.message.content)
@@ -1798,24 +1887,36 @@ export async function processInboundMessageWithAi(input: {
     catalogReferences: catalogReferenceItems,
   })
 
-  const classification = await classifyInboundMessage({
-    tenantSlug: input.tenantSlug,
-    text: input.message.content,
-    mediaTypes: input.message.contentType === "text" ? [] : [input.message.contentType],
-    conversationState: effectiveConversationState,
-    catalogContext: [
-      productReference ? `Produto citado diretamente: ${productReference.name}${productReference.sku ? ` SKU ${productReference.sku}` : ""} - ${productReference.description}` : "",
-      colorReferences.length > 0 ? formatCatalogColorReferences(colorReferences) : "",
-    ].filter(Boolean).join("\n"),
-    artifactContext,
-    hasBaseImage,
-    recentMessages: conversationMessages.map((message) => ({
-      role: message.role,
-      content: formatMessageForAiContext(message, effectiveLatestBaseImageMessage?.id),
-    })),
-    modelProfileId: settings.assistant.modelProfileId,
-    systemPrompt: getAssistantSystemPrompt(settings),
-  })
+  const directClassification: AiClassificationResult = {
+    intent: "visual_edit",
+    mode: "interior",
+    next_action: "reply_in_chat",
+    confidence: 1,
+    needs_human_review: false,
+    missing_inputs: [],
+    rationale: "Regra deterministica do fluxo de composição.",
+    source: "heuristic",
+  }
+  const classification = shouldAskPreviousCompositionChoice || previousCompositionChoiceAnswer
+    ? directClassification
+    : await classifyInboundMessage({
+      tenantSlug: input.tenantSlug,
+      text: input.message.content,
+      mediaTypes: input.message.contentType === "text" ? [] : [input.message.contentType],
+      conversationState: effectiveConversationState,
+      catalogContext: [
+        productReference ? `Produto citado diretamente: ${productReference.name}${productReference.sku ? ` SKU ${productReference.sku}` : ""} - ${productReference.description}` : "",
+        colorReferences.length > 0 ? formatCatalogColorReferences(colorReferences) : "",
+      ].filter(Boolean).join("\n"),
+      artifactContext,
+      hasBaseImage,
+      recentMessages: conversationMessages.map((message) => ({
+        role: message.role,
+        content: formatMessageForAiContext(message, effectiveLatestBaseImageMessage?.id),
+      })),
+      modelProfileId: settings.assistant.modelProfileId,
+      systemPrompt: getAssistantSystemPrompt(settings),
+    })
   let nextAction = classification.next_action
   let reply = classification.reply?.trim() || getDefaultReply(nextAction)
   if (!settings.assistant.catalogEnabled && nextAction === "show_catalog_options") {
@@ -1853,6 +1954,7 @@ export async function processInboundMessageWithAi(input: {
         label: "imagem enviada pelo cliente",
         createdAt: imagePairBaseMessage.createdAt,
       },
+      preferredBase: undefined,
       referenceImage: {
         kind: "reference",
         messageId: imagePairReferenceMessage.id,
@@ -1888,6 +1990,7 @@ export async function processInboundMessageWithAi(input: {
         label: "imagem enviada pelo cliente",
         createdAt: effectiveLatestBaseImageMessage.createdAt,
       },
+      preferredBase: undefined,
       referenceImage: {
         kind: "reference",
         messageId: inferredReferenceImageMessage.id,
@@ -1914,17 +2017,59 @@ export async function processInboundMessageWithAi(input: {
         createdAt: inboundMessage.createdAt,
       },
       workingImage: undefined,
+      preferredBase: undefined,
       pendingBaseChoice: false,
     }))
   }
 
-  if (newImageRequest) {
+  if (shouldAskPreviousCompositionChoice) {
+    nextAction = "reply_in_chat"
+    nextStateOverride = "awaiting_selection"
+    reply = formatPreviousCompositionChoiceQuestion()
+    setCompositionSession((session) => ({
+      ...session,
+      step: "awaiting_base_choice",
+      pendingPrompt: undefined,
+      pendingBaseChoice: true,
+    }))
+  } else if (previousCompositionChoiceAnswer === "new") {
+    nextAction = "ask_for_base_image"
+    nextStateOverride = "awaiting_base_image"
+    reply = [
+      "Perfeito. Vou começar um novo processo e limpar o contexto anterior.",
+      "Me envie a imagem do ambiente que você quer transformar.",
+      "Depois me envie ou descreva a referência: produto, material, cor, textura, estilo ou outra imagem que sirva como inspiração para aplicar nesse ambiente.",
+    ].join("\n\n")
+    await updateInboxConversation(input.tenantSlug, input.conversationId, {
+      contextResetAt: inboundMessage.createdAt,
+      compositionSession: createEmptyInboxCompositionSession(inboundMessage.createdAt),
+      state: "awaiting_base_image",
+      status: "open",
+    })
+    setCompositionSession(() => ({
+      ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
+      step: "awaiting_base_image",
+    }))
+  } else if (previousCompositionChoiceAnswer === "result" || previousCompositionChoiceAnswer === "original") {
+    nextAction = "reply_in_chat"
+    nextStateOverride = "idle"
+    reply = previousCompositionChoiceAnswer === "result"
+      ? "Perfeito. Vou continuar usando a imagem gerada como base. Agora me diga o que você quer alterar ou qual referência quer aplicar."
+      : "Perfeito. Vou continuar usando a imagem original como base. Agora me diga o que você quer alterar ou qual referência quer aplicar."
+    setCompositionSession((session) => ({
+      ...session,
+      step: "completed",
+      preferredBase: previousCompositionChoiceAnswer,
+      pendingPrompt: undefined,
+      pendingBaseChoice: false,
+    }))
+  } else if (newImageRequest) {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
     reply = [
       "Sem problema. Vou iniciar um novo processo e limpar o contexto anterior.",
       "Me envie a imagem do ambiente que você quer transformar.",
-      "Depois me envie ou descreva a referência: produto, material, cor, textura ou estilo que deve ser aplicado.",
+      "Depois me envie ou descreva a referência: produto, material, cor, textura, estilo ou outra imagem que sirva como inspiração para aplicar nesse ambiente.",
     ].join("\n\n")
     await updateInboxConversation(input.tenantSlug, input.conversationId, {
       contextResetAt: inboundMessage.createdAt,
@@ -2390,6 +2535,7 @@ export async function processInboundMessageWithAi(input: {
               createdAt: compositionBase.message.createdAt,
             }
             : session.baseImage,
+          preferredBase: undefined,
           selectedProducts: product ? upsertSessionProduct(session, product) : session.selectedProducts,
           pendingPrompt: undefined,
           pendingBaseChoice: false,

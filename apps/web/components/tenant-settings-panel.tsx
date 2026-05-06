@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { Loader2, Save, Upload } from "lucide-react"
+import { Copy, Gift, Loader2, Save, Upload } from "lucide-react"
 
 import { SafeImage } from "@/components/safe-image"
 import { Button } from "@/components/ui/button"
 import type { AiModelProfile } from "@/lib/ai-types"
 import type { CatalogItem } from "@/lib/catalog-types"
+import type { TenantReferralProgram } from "@/lib/commercial-benefits-types"
 import type { TenantSettings, TenantSettingsTeamMember, TenantSettingsTeamMemberRole } from "@/lib/tenant-settings-types"
 import type { TenantTokenSnapshot } from "@/lib/token-ledger-types"
 import { normalizeTenantBrandingSnapshot } from "@/lib/tenant-branding"
@@ -205,7 +206,10 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [modelProfiles, setModelProfiles] = useState<AiModelProfile[]>([])
   const [tokenSnapshot, setTokenSnapshot] = useState<TenantTokenSnapshot | null>(null)
+  const [referralProgram, setReferralProgram] = useState<TenantReferralProgram | null>(null)
   const [catalogCategories, setCatalogCategories] = useState<string[]>([])
+  const [couponCode, setCouponCode] = useState("")
+  const [isRedeemingCoupon, setIsRedeemingCoupon] = useState(false)
 
   function emitBrandingUpdate(nextSettings: TenantSettings) {
     if (typeof window === "undefined") {
@@ -252,9 +256,10 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
     setError(null)
 
     try {
-      const [settingsData, tokensData, catalogItems] = await Promise.all([
+      const [settingsData, tokensData, referralData, catalogItems] = await Promise.all([
         requestJson<TenantSettings>(`/api/tenant/${tenantSlug}/settings`, { cache: "no-store" }),
         requestJson<TenantTokenSnapshot>(`/api/tenant/${tenantSlug}/billing/tokens`, { cache: "no-store" }),
+        requestJson<TenantReferralProgram>(`/api/tenant/${tenantSlug}/billing/referrals`, { cache: "no-store" }),
         requestJson<CatalogItem[]>(`/api/tenant/${tenantSlug}/catalog/items`, { cache: "no-store" }),
       ])
       const categories = getCatalogCategories(catalogItems)
@@ -266,6 +271,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
         },
       })
       setTokenSnapshot(tokensData)
+      setReferralProgram(referralData)
       setCatalogCategories(categories)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Erro ao carregar configuracoes.")
@@ -373,6 +379,35 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  async function redeemCoupon() {
+    const code = couponCode.trim()
+    if (!code || isRedeemingCoupon) return
+
+    setIsRedeemingCoupon(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const payload = await requestJson<{ tokenSnapshot: TenantTokenSnapshot }>(`/api/tenant/${tenantSlug}/billing/coupons`, {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      })
+      setTokenSnapshot(payload.tokenSnapshot)
+      setCouponCode("")
+      setNotice("Cupom aplicado. Créditos adicionados ao saldo.")
+    } catch (couponError) {
+      setError(couponError instanceof Error ? couponError.message : "Não foi possível aplicar o cupom.")
+    } finally {
+      setIsRedeemingCoupon(false)
+    }
+  }
+
+  async function copyReferralUrl() {
+    if (!referralProgram?.referralUrl) return
+    await navigator.clipboard.writeText(referralProgram.referralUrl)
+    setNotice("Link de indicação copiado.")
   }
 
   return (
@@ -842,6 +877,69 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                   </div>
                   {tokenSnapshot && (
                     <div className="mt-6 space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-xl border border-border bg-background p-4">
+                          <div className="flex items-center gap-2">
+                            <Gift className="h-4 w-4 text-primary" />
+                            <h4 className="font-display text-base font-bold">Aplicar cupom</h4>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">Cupons liberam créditos extras para composições.</p>
+                          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+                            <TextInput
+                              value={couponCode}
+                              onChange={(event) => setCouponCode(event.target.value)}
+                              placeholder="CODIGO"
+                              className="uppercase"
+                            />
+                            <Button type="button" onClick={redeemCoupon} disabled={!couponCode.trim() || isRedeemingCoupon}>
+                              {isRedeemingCoupon ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              Aplicar
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-border bg-background p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <h4 className="font-display text-base font-bold">Indicações</h4>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Indicações convertidas liberam créditos extras uma única vez.
+                              </p>
+                            </div>
+                            <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase", referralProgram?.settings.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                              {referralProgram?.settings.enabled ? "ativo" : "pausado"}
+                            </span>
+                          </div>
+                          <div className="mt-4 rounded-lg border border-border bg-card p-3">
+                            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Link de indicação</p>
+                            <div className="mt-2 flex gap-2">
+                              <input
+                                readOnly
+                                value={referralProgram?.referralUrl ?? ""}
+                                className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 font-mono text-xs text-foreground"
+                              />
+                              <Button type="button" variant="outline" size="sm" onClick={copyReferralUrl} disabled={!referralProgram?.referralUrl}>
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                            <div className="rounded-lg border border-border bg-card p-3">
+                              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Convertidas</p>
+                              <p className="mt-1 text-xl font-bold text-foreground">
+                                {referralProgram?.referrals.filter((referral) => referral.status === "converted").length ?? 0}
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-card p-3">
+                              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Créditos recebidos</p>
+                              <p className="mt-1 text-xl font-bold text-foreground">
+                                {referralProgram?.referrals.reduce((total, referral) => total + referral.creditsGranted, 0) ?? 0}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       {tokenSnapshot.isExhausted ? (
                         <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
                           Os tokens deste tenant acabaram. Novas composições ficam bloqueadas até receber crédito adicional.
@@ -852,7 +950,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         </div>
                       ) : null}
 
-                      <div className="grid gap-4 md:grid-cols-4">
+                      <div className="grid gap-4 md:grid-cols-5">
                         <div className="rounded-xl border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Saldo</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.balance}</p>
@@ -860,6 +958,10 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         <div className="rounded-xl border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano incluído</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.includedTokens}</p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-background p-4">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Bônus</p>
+                          <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.bonusTokens}</p>
                         </div>
                         <div className="rounded-xl border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Consumidos</p>
