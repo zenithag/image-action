@@ -1631,7 +1631,9 @@ export async function processInboundMessageWithAi(input: {
     ? Math.max(0, getMessageTime(inboundMessage.createdAt) - getMessageTime(previousMessage.createdAt))
     : 0
   const isStaleConversationGap = idleMs >= STALE_CONVERSATION_MS
-  const autoStartRequested = isComoFicaAutoStartRequest(inboundMessage.content)
+  const autoStartTrigger = getComoFicaTriggerMatch(inboundMessage.content)
+  const autoStartRequested = Boolean(autoStartTrigger)
+  const isOnlyAutoStartTrigger = Boolean(autoStartTrigger?.isOnlyTrigger)
   const settings = await getTenantSettings(input.tenantSlug)
 
   if (conversation.handledBy !== "ai" && !autoStartRequested) {
@@ -1822,7 +1824,7 @@ export async function processInboundMessageWithAi(input: {
     ? getPreviousCompositionChoiceAnswer(input.message.content)
     : null
   const shouldAskPreviousCompositionChoice = Boolean(
-    autoStartRequested &&
+    isOnlyAutoStartTrigger &&
     latestCompletedCompositionJob?.resultImageUrl &&
     !pendingPreviousCompositionChoiceRequest
   )
@@ -2051,6 +2053,24 @@ export async function processInboundMessageWithAi(input: {
       step: "awaiting_base_choice",
       pendingPrompt: undefined,
       pendingBaseChoice: true,
+    }))
+  } else if (isOnlyAutoStartTrigger) {
+    nextAction = "ask_for_base_image"
+    nextStateOverride = "awaiting_base_image"
+    reply = [
+      "Vamos começar um processo de composição.",
+      "Me envie a imagem do ambiente que você quer transformar.",
+      "Depois me envie ou descreva a referência: produto, material, cor, textura, estilo ou outra imagem que sirva como inspiração para aplicar nesse ambiente.",
+    ].join("\n\n")
+    await updateInboxConversation(input.tenantSlug, input.conversationId, {
+      contextResetAt: inboundMessage.createdAt,
+      compositionSession: createEmptyInboxCompositionSession(inboundMessage.createdAt),
+      state: "awaiting_base_image",
+      status: "open",
+    })
+    setCompositionSession(() => ({
+      ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
+      step: "awaiting_base_image",
     }))
   } else if (previousCompositionChoiceAnswer === "new") {
     nextAction = "ask_for_base_image"
@@ -2343,7 +2363,7 @@ export async function processInboundMessageWithAi(input: {
   )
   const shouldShowCatalogLink = catalogLinkRequested && !hasVisualReferenceForComposition
   const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
-  const semanticDirectionFromClassifier = classificationProvidesCompositionDirection(classification)
+  const semanticDirectionFromClassifier = !isOnlyAutoStartTrigger && classificationProvidesCompositionDirection(classification)
   const hasPendingFreeTextDirection = Boolean(
     pendingFreeTextReference &&
     hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest])
@@ -2358,6 +2378,7 @@ export async function processInboundMessageWithAi(input: {
     ]) || semanticDirectionFromClassifier
   const shouldAskForCompositionInputs =
     !newImageRequest &&
+    !isOnlyAutoStartTrigger &&
     !previousCompositionChoiceAnswer &&
     nextAction !== "handoff_to_operator" &&
     !hasAmbiguousRecentImagePair &&
@@ -2403,6 +2424,7 @@ export async function processInboundMessageWithAi(input: {
   if (
     nextAction !== "handoff_to_operator" &&
     nextAction !== "create_composition_job" &&
+    !isOnlyAutoStartTrigger &&
     classification.intent === "visual_edit" &&
     hasBaseImage &&
     hasVisualReferenceForComposition &&
