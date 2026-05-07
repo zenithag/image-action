@@ -52,7 +52,7 @@ export function LoginForm({
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
       {/* Left panel — branding */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 lg:flex lg:w-1/2">
+      <div className="relative hidden flex-col justify-center overflow-hidden bg-sidebar p-12 lg:flex lg:w-1/2">
         {/* Grid pattern */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -93,37 +93,6 @@ export function LoginForm({
             </p>
           </div>
 
-          {/* Stats */}
-          <div className="flex gap-12 pt-4">
-            {[
-              { value: "10k+", label: "Conversas/dia" },
-              { value: "99.9%", label: "Uptime" },
-              { value: "< 1s", label: "Resposta" },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <p className="text-3xl font-bold text-sidebar-foreground">{stat.value}</p>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bottom quote */}
-        <div className="relative">
-          <div className="rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-6 backdrop-blur-sm">
-            <p className="text-base leading-relaxed text-sidebar-foreground italic">
-              &ldquo;Reduzimos o tempo de resposta em 70% e aumentamos a satisfação dos nossos clientes de forma significativa.&rdquo;
-            </p>
-            <div className="mt-4 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-full bg-primary/20 ring-1 ring-primary/30 overflow-hidden flex items-center justify-center font-bold text-primary">
-                AB
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-sidebar-foreground">Ana Beatriz</p>
-                <p className="text-xs text-muted-foreground">Head de Atendimento, Decor Labs</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
