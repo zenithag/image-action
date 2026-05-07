@@ -330,19 +330,19 @@ function AppsCarousel() {
 /* ── Hero Compare Slider ── */
 const heroScenes = [
   {
+    label: "Móveis planejados",
+    before: { src: "/images/compare/planejados/antes.jpg" },
+    after: { src: "/images/compare/planejados/depois.png" },
+  },
+  {
     label: "Porcelanato",
-    before: { gradient: "linear-gradient(160deg, #d6cfc7 0%, #bfb6ab 40%, #a89e92 100%)" },
-    after: { gradient: "linear-gradient(160deg, #f0e6d2 0%, #dcc8a0 40%, #c9a96e 100%)" },
+    before: { src: "/images/compare/porcelanato/antes.jpg" },
+    after: { src: "/images/compare/porcelanato/depois.png" },
   },
   {
     label: "Pintura",
-    before: { gradient: "linear-gradient(160deg, #ededed 0%, #e0e0e0 40%, #d4d4d4 100%)" },
-    after: { gradient: "linear-gradient(160deg, #a8c49a 0%, #7da36e 40%, #5a7f5e 100%)" },
-  },
-  {
-    label: "Móveis planejados",
-    before: { gradient: "linear-gradient(160deg, #d4cfc6 0%, #c4bfb6 40%, #a39e95 100%)" },
-    after: { gradient: "linear-gradient(160deg, #f0dfc0 0%, #dcc4a0 40%, #c4956a 100%)" },
+    before: { src: "/images/compare/tinta/antes.jpg" },
+    after: { src: "/images/compare/tinta/depois.png" },
   },
 ]
 
@@ -387,8 +387,8 @@ function HeroCompareSlider() {
         onMouseDown={(e) => { dragging.current = true; setX(e.clientX) }}
         onTouchStart={(e) => { dragging.current = true; setX(e.touches[0].clientX) }}
       >
-        <div className="cf-hero-compare-layer cf-hero-compare-before" style={{ background: scene.before.gradient }} />
-        <div className="cf-hero-compare-layer cf-hero-compare-after" style={{ background: scene.after.gradient, clipPath: `inset(0 0 0 ${pct}%)` }} />
+        <img src={scene.before.src} alt="Antes" className="cf-hero-compare-layer cf-hero-compare-before" draggable={false} />
+        <img src={scene.after.src} alt="Depois" className="cf-hero-compare-layer cf-hero-compare-after" style={{ clipPath: `inset(0 0 0 ${pct}%)` }} draggable={false} />
         <span className="cf-ph-tag cf-l">Antes</span>
         <span className="cf-ph-tag cf-r">Depois</span>
         <div className="cf-handle" style={{ left: `${pct}%` }}>
@@ -485,16 +485,16 @@ export function LandingPage() {
                 <p className="cf-hero-sub">A pergunta que todo cliente faz antes de comprar acabamento, móvel ou revestimento agora tem resposta visual em segundos. A <strong>COMO FICA</strong> aplica o seu produto na foto do ambiente real do cliente e ajuda sua loja a transformar dúvida em decisão.</p>
               </Reveal>
               <Reveal>
-                <div className="cf-hero-ctas">
+                <div className="cf-hero-ctas" style={{ marginTop: '2rem' }}>
                   <a href="https://wa.me/5547992662170?text=Estou%20no%20site%20da%20COMO%20FICA%20e%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20da%20ferramenta" target="_blank" rel="noopener noreferrer" className="cf-btn cf-btn-primary">
                     Agendar demonstração
                   </a>
-                  <button onClick={() => setVideoOpen(true)} className="cf-btn cf-btn-ghost cf-btn-play">
+                  {/* <button onClick={() => setVideoOpen(true)} className="cf-btn cf-btn-ghost cf-btn-play">
                     <span className="cf-play-circle">
                       <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M5.5 3.5l7 4.5-7 4.5V3.5z"/></svg>
                     </span>
                     Ver como funciona em 60s
-                  </button>
+                  </button> */}
                 </div>
               </Reveal>
             </div>
@@ -799,14 +799,6 @@ export function LandingPage() {
                   <li><button onClick={() => scrollTo("para-quem")}>Para quem é</button></li>
                 </ul>
               </div>
-              <div>
-                <h5>Empresa</h5>
-                <ul><li><button>Sobre</button></li><li><button>Cases</button></li><li><button>Carreiras</button></li></ul>
-              </div>
-              <div>
-                <h5>Recursos</h5>
-                <ul><li><button>Documentação API</button></li><li><button>Integrações</button></li><li><button>LGPD</button></li><li><button>Status</button></li></ul>
-              </div>
             </div>
             <div className="cf-foot-mark">como <span className="accent">fica.</span></div>
             <div className="cf-foot-bottom">
@@ -973,7 +965,7 @@ const landingCSS = `
   aspect-ratio: 21/9; position: relative; user-select: none; cursor: ew-resize;
   box-shadow: 0 24px 48px -12px rgba(0,0,0,.08), 0 4px 12px -4px rgba(0,0,0,.04);
 }
-.cf-hero-compare-layer { position: absolute; inset: 0; transition: background .4s ease; }
+.cf-hero-compare-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cf-hero-compare-nav {
   display: flex; justify-content: center; gap: 8px; margin-top: 16px;
 }
