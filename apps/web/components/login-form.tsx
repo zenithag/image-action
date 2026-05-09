@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, MessageSquare, ArrowRight, Sun, Moon } from "lucide-react"
+import { Eye, EyeOff, ArrowRight, Sun, Moon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -68,13 +68,8 @@ export function LoginForm({
         <div className="pointer-events-none absolute -right-20 top-1/3 h-64 w-64 rounded-full bg-primary/8 blur-3xl" />
 
         {/* Logo */}
-        <div className="relative flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <MessageSquare className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
-            ComoFica
-          </span>
+        <div className="relative mb-12">
+          <img src="/logo-horizontal-azul.svg" alt="ComoFica" className="h-10 w-auto" />
         </div>
 
         {/* Center content */}
@@ -108,11 +103,8 @@ export function LoginForm({
         </button>
 
         {/* Mobile logo */}
-        <div className="mb-12 flex items-center gap-3 lg:hidden">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <MessageSquare className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold text-foreground">ComoFica</span>
+        <div className="mb-12 lg:hidden">
+          <img src="/logo-horizontal-azul.svg" alt="ComoFica" className="h-10 w-auto" />
         </div>
 
         <div className="w-full max-w-sm space-y-10">
