@@ -330,14 +330,14 @@ function AppsCarousel() {
 /* ── Hero Compare Slider ── */
 const heroScenes = [
   {
-    label: "Móveis planejados",
-    before: { src: "/images/compare/planejados/antes.jpg" },
-    after: { src: "/images/compare/planejados/depois.png" },
-  },
-  {
     label: "Porcelanato",
     before: { src: "/images/compare/porcelanato/antes.jpg" },
     after: { src: "/images/compare/porcelanato/depois.png" },
+  },
+  {
+    label: "Móveis planejados",
+    before: { src: "/images/compare/planejados/antes.jpg" },
+    after: { src: "/images/compare/planejados/depois.png" },
   },
   {
     label: "Pintura",
@@ -453,8 +453,7 @@ export function LandingPage() {
         <nav className={`cf-nav${navScrolled ? " scrolled" : ""}`}>
           <div className="cf-wrap cf-nav-inner">
             <button onClick={() => scrollTo("cf-hero")} className="cf-brand">
-              <span className="cf-mark" />
-              <span>Como Fica</span>
+              <img src="/logo-horizontal-azul.svg" alt="Como Fica" className="cf-logo-img" />
             </button>
             <ul className="cf-nav-links">
               <li><button onClick={() => scrollTo("como")}>Como funciona</button></li>
@@ -786,8 +785,7 @@ export function LandingPage() {
             <div className="cf-foot-grid">
               <div>
                 <div className="cf-brand" style={{ fontSize: 22 }}>
-                  <span className="cf-mark" />
-                  <span>Como Fica</span>
+                  <img src="/logo-horizontal-azul.svg" alt="Como Fica" className="cf-logo-img" />
                 </div>
                 <p className="cf-foot-tag">Visualização de produto direto no WhatsApp da loja. O cliente envia foto, vê como fica e decide na hora.</p>
               </div>
@@ -800,7 +798,7 @@ export function LandingPage() {
                 </ul>
               </div>
             </div>
-            <div className="cf-foot-mark">como <span className="accent">fica.</span></div>
+            <div className="cf-foot-mark"><img src="/logo-horizontal-azul.svg" alt="Como Fica" className="cf-foot-mark-img" /></div>
             <div className="cf-foot-bottom">
               <span>&copy; 2026 Como Fica</span>
               <span>Brasil</span>
@@ -887,18 +885,8 @@ const landingCSS = `
   font-size: 18px; font-weight: 600; letter-spacing: -0.02em;
   white-space: nowrap; flex-shrink: 0;
 }
-.cf-mark {
-  width: 28px; height: 28px; border-radius: 8px;
-  background: var(--cf-ink); position: relative; overflow: hidden;
-  display: inline-block;
-}
-.cf-mark::after {
-  content: ''; position: absolute; width: 12px; height: 12px;
-  border-radius: 50%; background: var(--cf-accent); bottom: 4px; right: 4px;
-}
-.cf-mark::before {
-  content: ''; position: absolute; width: 12px; height: 12px;
-  border-radius: 50%; background: #fff; top: 4px; left: 4px;
+.cf-logo-img {
+  height: 32px; width: auto;
 }
 .cf-nav-links { display: flex; gap: 36px; font-size: 14px; color: var(--cf-ink-soft); }
 .cf-nav-links button { position: relative; padding: 4px 0; font-weight: 500; }
@@ -1578,8 +1566,10 @@ const landingCSS = `
 .cf-foot-grid ul button:hover { color: var(--cf-ink); }
 .cf-foot-tag { max-width: 36ch; color: var(--cf-ink-soft); font-size: 14px; line-height: 1.55; margin-top: 12px; }
 .cf-foot-mark {
-  font-weight: 700; font-size: 12vw; line-height: 0.9; color: var(--cf-ink);
-  letter-spacing: -0.05em; margin: 24px 0 32px; text-align: center;
+  margin: 24px 0 32px; text-align: center;
+}
+.cf-foot-mark-img {
+  width: 60%; max-width: 600px; height: auto; margin: 0 auto;
 }
 .cf-foot-bottom {
   border-top: 1px solid var(--cf-line); padding-top: 24px;
