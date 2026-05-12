@@ -8,8 +8,10 @@ import { getCompositionBaseImageUrl } from "@/lib/composition-image-url"
 import type { CompositionJob } from "@/lib/composition-types"
 import { findCompositionJob } from "@/lib/server/composition-jobs-store"
 import { readGeneratedAsset, saveGeneratedAsset } from "@/lib/server/generated-assets-store"
+import { findInboxMessage } from "@/lib/server/inbox-store"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
+import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
 
 export const runtime = "nodejs"
 
@@ -47,6 +49,15 @@ function getSourceUrl(job: CompositionJob, kind: "base" | "result") {
   }
 
   return job.baseImageUrl || getCompositionBaseImageUrl(job)
+}
+
+function getSourceCandidates(job: CompositionJob, kind: "base" | "result") {
+  const candidates = [
+    getSourceUrl(job, kind),
+    kind === "result" ? job.baseImageUrl || getCompositionBaseImageUrl(job) : undefined,
+  ].filter((value): value is string => Boolean(value))
+
+  return [...new Set(candidates)]
 }
 
 function toAbsoluteImageUrl(value: string) {
@@ -94,7 +105,57 @@ async function readGeneratedSource(generatedPath: string) {
   return readFile(filePath)
 }
 
-async function readSourceBytes(sourceUrl: string) {
+function parseInboxMediaPath(sourceUrl: string) {
+  const pathname = (() => {
+    try {
+      return new URL(sourceUrl).pathname
+    } catch {
+      return sourceUrl
+    }
+  })()
+  const parts = pathname.split("/").filter(Boolean)
+  const tenantIndex = parts.findIndex((part) => part === "tenant")
+
+  if (
+    tenantIndex === -1 ||
+    parts[tenantIndex + 2] !== "inbox" ||
+    parts[tenantIndex + 3] !== "conversations" ||
+    parts[tenantIndex + 5] !== "messages" ||
+    parts[tenantIndex + 7] !== "media"
+  ) {
+    return null
+  }
+
+  try {
+    return {
+      tenantSlug: decodeURIComponent(parts[tenantIndex + 1] ?? ""),
+      conversationId: decodeURIComponent(parts[tenantIndex + 4] ?? ""),
+      messageId: decodeURIComponent(parts[tenantIndex + 6] ?? ""),
+    }
+  } catch {
+    return null
+  }
+}
+
+async function readInboxMediaSource(job: CompositionJob, sourceUrl: string) {
+  const mediaPath = parseInboxMediaPath(sourceUrl)
+
+  if (!mediaPath || mediaPath.tenantSlug !== job.tenantSlug) {
+    return null
+  }
+
+  const message = await findInboxMessage(mediaPath.tenantSlug, mediaPath.conversationId, mediaPath.messageId)
+
+  if (!message || message.contentType !== "image") {
+    return null
+  }
+
+  const media = await resolveWhatsAppMedia(message)
+
+  return media.bytes
+}
+
+async function readSourceBytes(job: CompositionJob, sourceUrl: string) {
   if (sourceUrl.startsWith("data:")) {
     const match = sourceUrl.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/)
 
@@ -117,11 +178,16 @@ async function readSourceBytes(sourceUrl: string) {
     return bytes
   }
 
-  if (sourceUrl.startsWith("/api/")) {
-    throw new Error("Thumbnail nao tenta resolver midia legada do inbox.")
+  const inboxMediaBytes = await readInboxMediaSource(job, sourceUrl)
+
+  if (inboxMediaBytes) {
+    return inboxMediaBytes
   }
 
   const response = await fetch(toAbsoluteImageUrl(sourceUrl), {
+    headers: {
+      accept: "image/*",
+    },
     signal: AbortSignal.timeout(8000),
   })
 
@@ -165,9 +231,9 @@ export async function GET(request: Request, context: RouteContext) {
 
   const width = getThumbnailWidth(request)
   const kind = getImageKind(request)
-  const sourceUrl = getSourceUrl(job, kind)
+  const sourceCandidates = getSourceCandidates(job, kind)
 
-  if (!sourceUrl) {
+  if (sourceCandidates.length === 0) {
     return NextResponse.json({ error: "Imagem de origem nao encontrada." }, { status: 404 })
   }
 
@@ -186,7 +252,22 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
-    const sourceBytes = await readSourceBytes(sourceUrl)
+    const failures: string[] = []
+    let sourceBytes: Buffer | null = null
+
+    for (const sourceUrl of sourceCandidates) {
+      try {
+        sourceBytes = await readSourceBytes(job, sourceUrl)
+        break
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : "Falha ao ler imagem de origem.")
+      }
+    }
+
+    if (!sourceBytes) {
+      throw new Error(failures.join("; ") || "Nao foi possivel recuperar a imagem de origem.")
+    }
+
     const thumbnailBytes = await sharp(sourceBytes)
       .rotate()
       .resize({ width, withoutEnlargement: true })
