@@ -492,6 +492,7 @@ function CompositionViewerModal({
   const baseImageUrl = imageUrlWithVersion(getCompositionBaseImageUrl(job), job.baseMessageId || job.createdAt)
   const jobResultImageUrl = imageUrlWithVersion(job.resultImageUrl, job.completedAt || job.updatedAt)
   const resultImageUrl = jobResultImageUrl || baseImageUrl
+  const baseImageLabel = "Base usada"
 
   const handleMouseDown = (event: React.MouseEvent | React.TouchEvent) => {
     event.preventDefault()
@@ -725,13 +726,13 @@ function CompositionViewerModal({
                           loading="lazy"
                           decoding="async"
                           className="h-full w-full object-contain"
-                          alt="Imagem original"
+                          alt={baseImageLabel}
                           draggable={false}
-                          fallbackLabel="Original indisponível"
+                          fallbackLabel="Base indisponível"
                           fallbackHint="Nao foi possivel carregar a imagem base."
                         />
                       </div>
-                      <div className="absolute left-4 top-4 rounded-sm bg-black/60 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Original</div>
+                      <div className="absolute left-4 top-4 rounded-sm bg-black/60 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">{baseImageLabel}</div>
                     </div>
 
                     <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Nova imagem</div>
@@ -755,16 +756,16 @@ function CompositionViewerModal({
             ) : (
               <div className="grid h-[72vh] min-h-[520px] w-full grid-cols-1 gap-px bg-border md:grid-cols-2">
                 <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-neutral-950">
-                  <div className="absolute left-4 top-4 z-10 rounded-sm bg-black/65 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Original</div>
+                  <div className="absolute left-4 top-4 z-10 rounded-sm bg-black/65 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">{baseImageLabel}</div>
                   {baseImageUrl ? (
                     <SafeImage
                       src={baseImageUrl}
                       loading="lazy"
                       decoding="async"
                       className="h-full w-full object-contain"
-                      alt="Imagem original"
+                      alt={baseImageLabel}
                       draggable={false}
-                      fallbackLabel="Original indisponível"
+                      fallbackLabel="Base indisponível"
                       fallbackHint="Nao foi possivel carregar a imagem base."
                     />
                   ) : (

@@ -11,6 +11,7 @@ type RawMediaPayload = {
   mediaUrl?: unknown
   downloadUrl?: unknown
   fileUrl?: unknown
+  fileURL?: unknown
   directPath?: unknown
   mediaKey?: unknown
   mimetype?: unknown
@@ -116,6 +117,7 @@ function getMediaUrl(payload: RawMediaPayload, message: InboxMessage) {
     payload.mediaUrl,
     payload.downloadUrl,
     payload.fileUrl,
+    payload.fileURL,
     message.mediaUrl,
     message.imageUrl
   )

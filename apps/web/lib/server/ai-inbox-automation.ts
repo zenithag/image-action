@@ -18,6 +18,7 @@ import { classifyInboundMessage } from "@/lib/server/ai-orchestrator"
 import { recordAiTrace } from "@/lib/server/ai-observability-store"
 import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { hasCatalogReferenceImage } from "@/lib/server/catalog-reference-image"
+import { ensureCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
 import { createCompositionJob, listCompositionJobs } from "@/lib/server/composition-jobs-store"
 import {
   appendAssistantInboxMessage,
@@ -2724,13 +2725,29 @@ export async function processInboundMessageWithAi(input: {
         references: visualReferences.length > 0 ? visualReferences : undefined,
         prompt,
       })
-      compositionJobId = result.job.id
+      const job = result.created
+        ? await ensureCompositionBaseSnapshot(result.job).catch(async (error) => {
+          await recordAiTrace({
+            tenantSlug: input.tenantSlug,
+            conversationId: conversation.id,
+            jobId: result.job.id,
+            stage: "composition",
+            status: "warning",
+            event: "composition_base_snapshot_failed",
+            errorMessage: error instanceof Error ? error.message : "Falha ao persistir snapshot da imagem base.",
+          })
+
+          return result.job
+        })
+        : result.job
+
+      compositionJobId = job.id
       setCompositionSession((session) => {
         const product = primaryReference
           ? toSessionProduct(primaryReference.item, primaryReference.color)
           : session.selectedProducts[0]
         const base: "original" | "result" = compositionBase.choice
-        const status: "queued" | "failed" = result.job.status === "failed" ? "failed" : "queued"
+        const status: "queued" | "failed" = job.status === "failed" ? "failed" : "queued"
 
         return {
           ...session,
@@ -2754,21 +2771,21 @@ export async function processInboundMessageWithAi(input: {
               prompt,
               product,
               base,
-              jobId: result.job.id,
+              jobId: job.id,
               status,
-              createdAt: result.job.createdAt,
+              createdAt: job.createdAt,
             },
-            ...session.changes.filter((change) => change.jobId !== result.job.id),
+            ...session.changes.filter((change) => change.jobId !== job.id),
           ].slice(0, 20),
         }
       })
-      if (result.job.status === "queued") {
+      if (job.status === "queued") {
         await enqueueProcessCompositionQueue(input.tenantSlug)
         scheduleAppJobProcessing()
       }
       reply = result.created
-        ? `Criei a composição usando a ${compositionBase.label} como base e ela entrou na fila. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${result.job.id.slice(0, 8)}.`
-        : `Essa composição já está na fila usando a ${compositionBase.label} como base. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${result.job.id.slice(0, 8)}.`
+        ? `Criei a composição usando a ${compositionBase.label} como base e ela entrou na fila. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${job.id.slice(0, 8)}.`
+        : `Essa composição já está na fila usando a ${compositionBase.label} como base. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${job.id.slice(0, 8)}.`
     }
   }
 

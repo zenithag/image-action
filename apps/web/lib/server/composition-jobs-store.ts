@@ -136,7 +136,7 @@ export async function updateCompositionJob(
   jobId: string,
   updates: Partial<Pick<
     CompositionJob,
-    "status" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "archivedAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
+    "status" | "baseImageUrl" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "archivedAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
   >>
 ): Promise<CompositionJob | null> {
   return withCompositionJobsMutation(async () => {

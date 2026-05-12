@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import type { CompositionJobInput } from "@/lib/composition-types"
 import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
+import { ensureCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
 import { createCompositionJob, getCompositionJobStats, listCompositionJobs } from "@/lib/server/composition-jobs-store"
 import { canTenantCreateComposition } from "@/lib/server/token-ledger-store"
 
@@ -37,13 +38,16 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const result = await createCompositionJob(slug, payload)
+    const job = result.created
+      ? await ensureCompositionBaseSnapshot(result.job).catch(() => result.job)
+      : result.job
 
-    if (result.job.status === "queued") {
+    if (job.status === "queued") {
       await enqueueProcessCompositionQueue(slug)
       scheduleAppJobProcessing()
     }
 
-    return NextResponse.json(result, { status: result.created ? 201 : 200 })
+    return NextResponse.json({ ...result, job }, { status: result.created ? 201 : 200 })
   } catch (error) {
     return NextResponse.json({
       error: error instanceof Error ? error.message : "Nao foi possivel criar o job de composicao.",
