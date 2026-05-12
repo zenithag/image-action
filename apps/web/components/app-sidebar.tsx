@@ -139,25 +139,23 @@ export function AppSidebar({
         collapsed ? "w-[60px]" : "w-60"
       )}
     >
-      {/* Brand — 68px height, logo + name */}
+      {/* Brand — 68px height, horizontal logo (or symbol when collapsed) */}
       <div
         className={cn(
-          "flex h-[68px] shrink-0 cursor-pointer items-center gap-2.5 overflow-hidden px-[18px] py-5",
+          "flex h-[68px] shrink-0 cursor-pointer items-center overflow-hidden px-[18px] py-5",
           collapsed && "justify-center px-0"
         )}
         onClick={onToggle}
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-primary">
-          <Zap className="h-4 w-4 text-primary-foreground" />
-        </div>
-        <span
-          className={cn(
-            "whitespace-nowrap font-display text-lg font-semibold tracking-tight text-foreground transition-all duration-300",
-            collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-          )}
-        >
-          ComoFica
-        </span>
+        {collapsed ? (
+          <img src="/simbolo-azul.png" alt="Como Fica" className="h-8 w-8 shrink-0 rounded-[7px] object-contain" />
+        ) : (
+          <img
+            src="/logo-horizontal-azul.svg"
+            alt="Como Fica"
+            className="h-8 w-auto max-w-full shrink-0 object-contain"
+          />
+        )}
       </div>
 
       {/* Tenant card */}
