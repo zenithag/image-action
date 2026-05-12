@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 
 import { SafeImage } from "@/components/safe-image"
-import { getCompositionBaseImageUrl, imageUrlWithVersion } from "@/lib/composition-image-url"
+import { getCompositionBaseImageUrl, getCompositionThumbnailUrl, imageUrlWithVersion } from "@/lib/composition-image-url"
 import { Button } from "@/components/ui/button"
 import type { CompositionJob, CompositionJobStatus } from "@/lib/composition-types"
 import { cn } from "@/lib/utils"
@@ -379,7 +379,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
               {filteredJobs.map((job) => {
                 const status = statusConfig[job.status]
                 const StatusIcon = status.icon
-                const baseImageUrl = imageUrlWithVersion(getCompositionBaseImageUrl(job), job.baseMessageId || job.createdAt)
+                const thumbnailUrl = getCompositionThumbnailUrl(job, { width: 768 })
                 const meta = getJobCardMeta(job)
                 return (
                   <div
@@ -389,13 +389,14 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                   >
                     <div className="relative aspect-[4/3] bg-muted">
                       <SafeImage
-                        src={baseImageUrl}
-                        alt="Base"
+                        src={thumbnailUrl}
+                        alt={job.resultImageUrl ? "Miniatura da composição" : "Miniatura da base"}
                         className="h-full w-full object-cover"
                         loading="lazy"
                         decoding="async"
+                        sizes="(min-width: 1280px) 280px, (min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
                         fallbackLabel="Preview indisponível"
-                        fallbackHint={job.resultImageUrl ? "Resultado salvo, mas a imagem nao carregou." : "Imagem base nao encontrada."}
+                        fallbackHint={job.resultImageUrl ? "Resultado salvo, mas a miniatura nao carregou." : "Imagem base nao encontrada."}
                       />
                       <div className="absolute left-2.5 top-2.5">
                         <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider", status.className)}>
