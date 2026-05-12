@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import sharp from "sharp"
 
@@ -8,7 +8,7 @@ import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
 import { isDurableCompositionBaseImageUrl, saveCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
-import { saveGeneratedAsset } from "@/lib/server/generated-assets-store"
+import { readGeneratedAsset, saveGeneratedAsset } from "@/lib/server/generated-assets-store"
 import { findInboxMessage, listInboxMessages } from "@/lib/server/inbox-store"
 import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
@@ -140,7 +140,7 @@ function getOpenRouterImageQuality() {
 }
 
 function getOpenRouterImageOutputFormat() {
-  return process.env.OPENROUTER_IMAGE_OUTPUT_FORMAT?.trim() || "png"
+  return process.env.OPENROUTER_IMAGE_OUTPUT_FORMAT?.trim() || "webp"
 }
 
 function shouldUseLocalSurfaceRender() {
@@ -1452,6 +1452,70 @@ function toAbsoluteImageUrl(value: string) {
   return `${getPublicAppBaseUrl()}${value.startsWith("/") ? value : `/${value}`}`
 }
 
+function getGeneratedPath(value: string) {
+  const trimmedValue = value.trim()
+
+  try {
+    const parsedUrl = new URL(trimmedValue)
+
+    return parsedUrl.pathname.startsWith("/generated/") ? parsedUrl.pathname : null
+  } catch {
+    return trimmedValue.startsWith("/generated/") ? trimmedValue : null
+  }
+}
+
+function getMimeTypeFromPath(filePath: string) {
+  const extension = path.extname(filePath).toLowerCase()
+
+  if (extension === ".webp") return "image/webp"
+  if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg"
+  if (extension === ".png") return "image/png"
+  return "image/png"
+}
+
+async function readGeneratedImageUrl(imageUrl: string) {
+  const generatedPath = getGeneratedPath(imageUrl)
+
+  if (!generatedPath) {
+    return null
+  }
+
+  const persistedAsset = await readGeneratedAsset(generatedPath)
+
+  if (persistedAsset) {
+    return {
+      bytes: persistedAsset.bytes,
+      mimeType: persistedAsset.mimeType,
+    }
+  }
+
+  const pathSegments = generatedPath
+    .replace(/^\/generated\/?/, "")
+    .split("/")
+    .filter(Boolean)
+
+  if (pathSegments.length === 0 || pathSegments.some((segment) => segment === "..")) {
+    return null
+  }
+
+  const filePath = getRuntimeGeneratedDir(...pathSegments)
+
+  try {
+    await stat(filePath)
+
+    return {
+      bytes: await readFile(filePath),
+      mimeType: getMimeTypeFromPath(filePath),
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      return null
+    }
+
+    throw error
+  }
+}
+
 async function buildBaseImage(bytes: Buffer, mimeType: string): Promise<BaseImage> {
   const metadata = await sharp(bytes).metadata()
 
@@ -1717,6 +1781,12 @@ async function bytesFromImageUrl(imageUrl: string, context = "imagem") {
     }
   }
 
+  const generatedImage = await readGeneratedImageUrl(imageUrl)
+
+  if (generatedImage) {
+    return generatedImage
+  }
+
   const response = await fetch(imageUrl, {
     signal: AbortSignal.timeout(60000),
   })
@@ -1733,37 +1803,39 @@ async function bytesFromImageUrl(imageUrl: string, context = "imagem") {
   }
 }
 
-async function normalizeResultToBaseDimensions(bytes: Buffer, mimeType: string, baseImage: BaseImage) {
+async function normalizeResultToBaseDimensions(bytes: Buffer, _mimeType: string, baseImage: BaseImage) {
   const metadata = await sharp(bytes).metadata()
 
-  if (metadata.width === baseImage.width && metadata.height === baseImage.height) {
-    return { bytes, mimeType }
-  }
-
-  const normalizedBytes = await sharp(bytes)
-    .resize(baseImage.width, baseImage.height, { fit: "cover", position: "centre" })
-    .png()
+  const pipeline = sharp(bytes).rotate()
+  const normalizedBytes = await (metadata.width === baseImage.width && metadata.height === baseImage.height
+    ? pipeline
+    : pipeline.resize(baseImage.width, baseImage.height, { fit: "cover", position: "centre" }))
+    .webp({ quality: 95, effort: 6, smartSubsample: true })
     .toBuffer()
 
   return {
     bytes: normalizedBytes,
-    mimeType: "image/png",
+    mimeType: "image/webp",
   }
 }
 
 async function saveImageResult(job: CompositionJob, bytes: Buffer, mimeType: string, baseImage: BaseImage) {
   const normalized = await normalizeResultToBaseDimensions(bytes, mimeType, baseImage)
   const watermarkedBytes = await applyTenantWatermark(job, normalized.bytes)
+  const finalBytes = watermarkedBytes === normalized.bytes
+    ? normalized.bytes
+    : await sharp(watermarkedBytes)
+      .webp({ quality: 95, effort: 6, smartSubsample: true })
+      .toBuffer()
   const fileName = getFileName(job, normalized.mimeType)
   const filePath = path.join(outputDir, fileName)
 
   await mkdir(path.dirname(filePath), { recursive: true })
-  await writeFile(filePath, watermarkedBytes)
+  await writeFile(filePath, finalBytes)
 
   const resultPath = `/generated/compositions/${fileName}`
-  const watermarkedMimeType = watermarkedBytes === normalized.bytes ? normalized.mimeType : "image/png"
 
-  await saveGeneratedAsset(resultPath, watermarkedBytes, watermarkedMimeType)
+  await saveGeneratedAsset(resultPath, finalBytes, normalized.mimeType)
 
   return resultPath
 }
