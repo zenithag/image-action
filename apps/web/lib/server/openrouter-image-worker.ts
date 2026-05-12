@@ -7,6 +7,7 @@ import type { CompositionJob, CompositionJobReference } from "@/lib/composition-
 import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
 import { listCatalogItems } from "@/lib/server/catalog-store"
+import { isDurableCompositionBaseImageUrl, saveCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
 import { saveGeneratedAsset } from "@/lib/server/generated-assets-store"
 import { findInboxMessage, listInboxMessages } from "@/lib/server/inbox-store"
 import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
@@ -1862,6 +1863,9 @@ export async function processCompositionWithOpenRouter(job: CompositionJob) {
   }
 
   const baseImage = await getBaseImage(job)
+  const baseImageUrl = isDurableCompositionBaseImageUrl(job.baseImageUrl)
+    ? job.baseImageUrl
+    : await saveCompositionBaseSnapshot(job, baseImage.bytes, baseImage.mimeType)
 
   if (shouldUseLocalSurfaceRender() && await isLocalizedSurfaceColorRequest(job)) {
     const mask = await requestExternalSurfaceMask(job, baseImage)
@@ -1878,6 +1882,7 @@ export async function processCompositionWithOpenRouter(job: CompositionJob) {
     const resultImageUrl = await saveImageResult(job, compositedImage, "image/png", baseImage)
 
     return {
+      baseImageUrl,
       resultImageUrl,
       provider: "openrouter" as const,
       model: `${maskModel}${foregroundMask?.model ? `+foreground-restore:${foregroundMask.model}` : ""}+local-surface-render`,
@@ -1888,6 +1893,7 @@ export async function processCompositionWithOpenRouter(job: CompositionJob) {
   const resultImageUrl = await saveImageResult(job, image.bytes, image.mimeType, baseImage)
 
   return {
+    baseImageUrl,
     resultImageUrl,
     provider: "openrouter" as const,
     model: image.model,

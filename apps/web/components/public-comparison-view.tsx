@@ -20,6 +20,7 @@ export function PublicComparisonView({
 }: PublicComparisonViewProps) {
   const [comparisonView, setComparisonView] = useState<"slider" | "side-by-side">("slider")
   const [sliderPos, setSliderPos] = useState(50)
+  const baseImageLabel = "Base usada"
   const isResizing = useRef(false)
 
   const handleMouseDown = (event: React.MouseEvent | React.TouchEvent) => {
@@ -107,14 +108,14 @@ export function PublicComparisonView({
               <div className="absolute inset-0 flex items-center justify-center bg-neutral-950">
                 <SafeImage
                   src={baseImageUrl}
-                  alt="Imagem original"
+                  alt={baseImageLabel}
                   className="h-full w-full object-contain"
                   draggable={false}
-                  fallbackLabel="Original indisponível"
-                  fallbackHint="A imagem original nao carregou."
+                  fallbackLabel="Base indisponível"
+                  fallbackHint="A imagem base nao carregou."
                 />
               </div>
-              <div className="absolute left-4 top-4 rounded-sm bg-black/65 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Original</div>
+              <div className="absolute left-4 top-4 rounded-sm bg-black/65 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">{baseImageLabel}</div>
             </div>
 
             <div className="absolute right-4 top-4 z-10 rounded-sm bg-primary/85 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Nova imagem</div>
@@ -137,14 +138,14 @@ export function PublicComparisonView({
         ) : (
           <div className="grid h-[70vh] min-h-[420px] w-full grid-cols-1 gap-px bg-border md:grid-cols-2">
             <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-neutral-950">
-              <div className="absolute left-4 top-4 z-10 rounded-sm bg-black/65 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">Original</div>
+              <div className="absolute left-4 top-4 z-10 rounded-sm bg-black/65 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">{baseImageLabel}</div>
               <SafeImage
                 src={baseImageUrl}
-                alt="Imagem original"
+                alt={baseImageLabel}
                 className="h-full w-full object-contain"
                 draggable={false}
-                fallbackLabel="Original indisponível"
-                fallbackHint="A imagem original nao carregou."
+                fallbackLabel="Base indisponível"
+                fallbackHint="A imagem base nao carregou."
               />
             </div>
             <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-neutral-950">

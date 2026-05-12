@@ -384,6 +384,7 @@ export async function processCompositionJob(tenantSlug: string, jobId: string): 
     )
     const completedJob = await updateCompositionJob(tenantSlug, job.id, {
       status: "done",
+      baseImageUrl: result.baseImageUrl,
       resultImageUrl: result.resultImageUrl,
       processorProvider: result.provider,
       processorModel: result.model,

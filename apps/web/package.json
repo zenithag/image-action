@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "backfill:composition-bases": "node scripts/backfill-composition-bases.mjs",
     "seed:superadmin": "node scripts/seed-superadmin.mjs",
     "worker:app-jobs": "node scripts/app-job-worker.mjs",
     "start": "next start"
