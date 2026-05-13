@@ -1,11 +1,10 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 
-import sharp from "sharp"
-
 import type { CompositionJob } from "@/lib/composition-types"
 import { updateCompositionJob } from "@/lib/server/composition-jobs-store"
 import { readGeneratedAsset, saveGeneratedAsset } from "@/lib/server/generated-assets-store"
+import { normalizeImageForUpload } from "@/lib/server/image-normalization"
 import { findInboxMessage } from "@/lib/server/inbox-store"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
@@ -180,16 +179,13 @@ export async function saveCompositionBaseSnapshot(job: CompositionJob, bytes: Bu
     throw new Error(`Imagem base possui tipo invalido: ${mimeType}.`)
   }
 
-  const normalizedBytes = await sharp(bytes)
-    .rotate()
-    .png()
-    .toBuffer()
-  const resultPath = `${durableBasePathPrefix}${job.id}.png`
-  const filePath = path.join(durableBaseOutputDir, `${job.id}.png`)
+  const normalized = await normalizeImageForUpload(bytes, mimeType)
+  const resultPath = `${durableBasePathPrefix}${job.id}.${normalized.fileExtension}`
+  const filePath = path.join(durableBaseOutputDir, `${job.id}.${normalized.fileExtension}`)
 
   await mkdir(path.dirname(filePath), { recursive: true })
-  await writeFile(filePath, normalizedBytes)
-  await saveGeneratedAsset(resultPath, normalizedBytes, "image/png")
+  await writeFile(filePath, normalized.bytes)
+  await saveGeneratedAsset(resultPath, normalized.bytes, normalized.mimeType)
 
   return resultPath
 }

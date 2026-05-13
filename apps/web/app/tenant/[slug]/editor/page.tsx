@@ -84,6 +84,66 @@ function mergeReferences(current: StudioImageArtifact[], nextReference: StudioIm
   return alreadyExists ? current : [...current, nextReference]
 }
 
+const uploadMaxDimension = 2000
+const uploadWebpQuality = 0.88
+
+function loadBrowserImage(url: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error("Nao foi possivel preparar a imagem selecionada."))
+    image.src = url
+  })
+}
+
+function canvasToWebpDataUrl(canvas: HTMLCanvasElement) {
+  return new Promise<string>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Nao foi possivel converter a imagem para WebP."))
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ""))
+      reader.onerror = () => reject(new Error("Nao foi possivel carregar a imagem convertida."))
+      reader.readAsDataURL(blob)
+    }, "image/webp", uploadWebpQuality)
+  })
+}
+
+async function fileToOptimizedWebpDataUrl(file: File) {
+  if (!file.type.startsWith("image/") || file.type.includes("svg")) {
+    throw new Error("Selecione uma imagem raster valida.")
+  }
+
+  const objectUrl = URL.createObjectURL(file)
+
+  try {
+    const image = await loadBrowserImage(objectUrl)
+    const scale = Math.min(
+      1,
+      uploadMaxDimension / image.naturalWidth,
+      uploadMaxDimension / image.naturalHeight
+    )
+    const canvas = document.createElement("canvas")
+    const context = canvas.getContext("2d")
+
+    if (!context) {
+      throw new Error("Nao foi possivel otimizar a imagem selecionada.")
+    }
+
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+    return canvasToWebpDataUrl(canvas)
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
 function ImageSlotCard({
   title,
   description,
@@ -265,22 +325,15 @@ export default function EditorPage({
   // TODO: Revisit direct canvas tools when Studio supports in-place editing workflows.
   const showCanvasTools = false
 
-  function fileToDataUrl(file: File) {
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result || ""))
-      reader.onerror = () => reject(new Error("Nao foi possivel carregar a imagem selecionada."))
-      reader.readAsDataURL(file)
-    })
-  }
-
   async function handleUpload(event: ChangeEvent<HTMLInputElement>, slot: "base" | "reference") {
     const file = event.target.files?.[0]
     event.target.value = ""
     if (!file) return
 
     try {
-      const mediaUrl = await fileToDataUrl(file)
+      setError(null)
+      setStatusMessage("Otimizando imagem para WebP...")
+      const mediaUrl = await fileToOptimizedWebpDataUrl(file)
       const artifact: StudioImageArtifact = {
         source: "upload",
         mediaUrl,
@@ -291,10 +344,12 @@ export default function EditorPage({
 
       if (slot === "base") {
         setBaseImage(artifact)
+        setStatusMessage("Imagem base otimizada para WebP.")
         return
       }
 
       setReferences((current) => mergeReferences(current, artifact))
+      setStatusMessage("Referencia otimizada para WebP.")
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Erro ao carregar imagem.")
     }
