@@ -4,12 +4,29 @@ import type { CompositionJobInput } from "@/lib/composition-types"
 import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { ensureCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
 import { createCompositionJob, getCompositionJobStats, listCompositionJobs } from "@/lib/server/composition-jobs-store"
+import { normalizeDataImageUrlForUpload } from "@/lib/server/image-normalization"
 import { canTenantCreateComposition } from "@/lib/server/token-ledger-store"
 
 export const runtime = "nodejs"
 
 type RouteContext = {
   params: Promise<{ slug: string }>
+}
+
+async function normalizeCompositionJobInputImages(input: CompositionJobInput): Promise<CompositionJobInput> {
+  const references = input.references
+    ? await Promise.all(input.references.map(async (reference) => ({
+      ...reference,
+      imageUrl: reference.imageUrl ? await normalizeDataImageUrlForUpload(reference.imageUrl) : reference.imageUrl,
+    })))
+    : input.references
+
+  return {
+    ...input,
+    baseImageUrl: input.baseImageUrl ? await normalizeDataImageUrlForUpload(input.baseImageUrl) : input.baseImageUrl,
+    referenceImageUrl: input.referenceImageUrl ? await normalizeDataImageUrlForUpload(input.referenceImageUrl) : input.referenceImageUrl,
+    references,
+  }
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -24,7 +41,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function POST(request: Request, context: RouteContext) {
   const { slug } = await context.params
-  const payload = await request.json() as CompositionJobInput
+  const payload = await normalizeCompositionJobInputImages(await request.json() as CompositionJobInput)
 
   try {
     const tokenCheck = await canTenantCreateComposition(slug)

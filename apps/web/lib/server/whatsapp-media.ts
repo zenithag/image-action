@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { InboxMessage, InboxMessageContentType } from "@/lib/inbox-types"
+import { getNormalizedFileName, normalizeImageForUpload } from "@/lib/server/image-normalization"
 import { getRuntimeDataDir, getRuntimePublicDir } from "@/lib/server/runtime-paths"
 
 type RawMediaPayload = {
@@ -194,8 +195,27 @@ function assertSha256(bytes: Buffer, expectedSha256?: string) {
 
 function getCacheKey(message: InboxMessage) {
   return createHash("sha256")
-    .update(`${message.id}:${message.providerMessageId ?? ""}:${message.contentType}`)
+    .update(`${message.id}:${message.providerMessageId ?? ""}:${message.contentType}:normalized-webp-v1`)
     .digest("hex")
+}
+
+async function normalizeResolvedMedia(
+  message: InboxMessage,
+  bytes: Buffer,
+  mimeType: string,
+  fileName: string
+): Promise<ResolvedWhatsAppMedia> {
+  if (message.contentType !== "image") {
+    return { bytes, mimeType, fileName }
+  }
+
+  const normalized = await normalizeImageForUpload(bytes, mimeType)
+
+  return {
+    bytes: normalized.bytes,
+    mimeType: normalized.mimeType,
+    fileName: getNormalizedFileName(fileName),
+  }
 }
 
 async function readCachedMedia(cacheKey: string, mimeType: string, fileName: string) {
@@ -228,7 +248,11 @@ export async function resolveWhatsAppMedia(message: InboxMessage): Promise<Resol
   const fileName = firstString(payload.fileName, payload.filename, message.mediaFileName) ||
     `${message.id}.${getExtension(mimeType)}`
   const cacheKey = getCacheKey(message)
-  const cached = await readCachedMedia(cacheKey, mimeType, fileName)
+  const cached = await readCachedMedia(
+    cacheKey,
+    message.contentType === "image" ? "image/webp" : mimeType,
+    message.contentType === "image" ? getNormalizedFileName(fileName) : fileName
+  )
 
   if (cached) {
     return cached
@@ -241,20 +265,18 @@ export async function resolveWhatsAppMedia(message: InboxMessage): Promise<Resol
   const dataUrlMedia = getDataUrlMedia(mediaUrl)
 
   if (dataUrlMedia) {
-    await writeCachedMedia(cacheKey, dataUrlMedia.bytes)
-    return {
-      bytes: dataUrlMedia.bytes,
-      mimeType: dataUrlMedia.mimeType || mimeType,
-      fileName,
-    }
+    const media = await normalizeResolvedMedia(message, dataUrlMedia.bytes, dataUrlMedia.mimeType || mimeType, fileName)
+    await writeCachedMedia(cacheKey, media.bytes)
+    return media
   }
 
   const publicFilePath = getPublicFilePathFromMediaUrl(mediaUrl)
 
   if (publicFilePath) {
     const bytes = await readFile(publicFilePath)
-    await writeCachedMedia(cacheKey, bytes)
-    return { bytes, mimeType, fileName }
+    const media = await normalizeResolvedMedia(message, bytes, mimeType, fileName)
+    await writeCachedMedia(cacheKey, media.bytes)
+    return media
   }
 
   const response = await fetch(mediaUrl, {
@@ -274,7 +296,8 @@ export async function resolveWhatsAppMedia(message: InboxMessage): Promise<Resol
     : downloaded
 
   assertSha256(bytes, firstString(payload.fileSHA256))
-  await writeCachedMedia(cacheKey, bytes)
+  const media = await normalizeResolvedMedia(message, bytes, mimeType, fileName)
+  await writeCachedMedia(cacheKey, media.bytes)
 
-  return { bytes, mimeType, fileName }
+  return media
 }
