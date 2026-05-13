@@ -227,6 +227,32 @@ export async function archiveCompositionJob(tenantSlug: string, jobId: string) {
   })
 }
 
+export async function purgeTenantCompositionJobs(tenantSlug: string) {
+  return withCompositionJobsMutation(async () => {
+    const data = await readCompositionJobsData()
+    const tenantJobs = data.jobs.filter((job) => job.tenantSlug === tenantSlug)
+    const processingJobs = tenantJobs.filter((job) => job.status === "processing")
+
+    if (processingJobs.length > 0) {
+      return {
+        purged: false as const,
+        jobs: tenantJobs,
+        processingJobs,
+      }
+    }
+
+    await writeCompositionJobsData({
+      jobs: data.jobs.filter((job) => job.tenantSlug !== tenantSlug),
+    })
+
+    return {
+      purged: true as const,
+      jobs: tenantJobs,
+      processingJobs: [],
+    }
+  })
+}
+
 export async function getNextQueuedCompositionJob(tenantSlug: string) {
   const jobs = await listCompositionJobs(tenantSlug)
 
