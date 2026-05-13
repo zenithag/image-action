@@ -329,7 +329,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
       [
         "Limpar a base de imagens e composicoes deste tenant?",
         "",
-        "Esta acao apaga todos os jobs de composicao, imagens base salvas, resultados e miniaturas geradas.",
+        "Esta acao apaga os arquivos de imagem do servidor e remove todos os jobs de composicao, imagens base salvas, resultados e miniaturas geradas.",
         "Historico de conversas e catalogo nao serao apagados.",
       ].join("\n")
     )
@@ -352,7 +352,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
 
       setViewingJob(null)
       setNotice(
-        `Limpeza concluida: ${result.deletedJobs} composicao(oes), ${result.deletedFiles} arquivo(s) e ${result.deletedGeneratedAssets} asset(s) persistido(s) removidos. Espaco liberado: ${formatBytes(result.freedBytes)}.${failedSuffix}`
+        `Limpeza concluida: ${result.deletedJobs} composicao(oes), ${result.deletedFiles} arquivo(s) do servidor e ${result.deletedGeneratedAssets} asset(s) persistido(s) removidos. Espaco liberado: ${formatBytes(result.freedBytes)}.${failedSuffix}`
       )
       await loadJobs({ silent: true })
     } catch (cleanupError) {

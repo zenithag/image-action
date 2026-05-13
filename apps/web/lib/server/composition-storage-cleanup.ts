@@ -1,7 +1,7 @@
 import { readdir, rm, stat } from "node:fs/promises"
 
 import type { CompositionJob } from "@/lib/composition-types"
-import { purgeTenantCompositionJobs } from "@/lib/server/composition-jobs-store"
+import { listCompositionJobs, purgeTenantCompositionJobs } from "@/lib/server/composition-jobs-store"
 import { deleteGeneratedAsset } from "@/lib/server/generated-assets-store"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
 
@@ -121,9 +121,10 @@ async function deleteGeneratedFile(generatedPath: string) {
 }
 
 export async function cleanupTenantCompositionStorage(tenantSlug: string): Promise<CompositionStorageCleanupResult> {
-  const purgeResult = await purgeTenantCompositionJobs(tenantSlug)
+  const jobs = await listCompositionJobs(tenantSlug, { includeArchived: true })
+  const processingJobs = jobs.filter((job) => job.status === "processing")
 
-  if (!purgeResult.purged) {
+  if (processingJobs.length > 0) {
     return {
       ok: false,
       deletedJobs: 0,
@@ -131,7 +132,7 @@ export async function cleanupTenantCompositionStorage(tenantSlug: string): Promi
       deletedGeneratedAssets: 0,
       freedBytes: 0,
       failedFiles: [],
-      processingJobs: purgeResult.processingJobs.map((job) => ({
+      processingJobs: processingJobs.map((job) => ({
         id: job.id,
         contactName: job.contactName,
       })),
@@ -139,8 +140,8 @@ export async function cleanupTenantCompositionStorage(tenantSlug: string): Promi
   }
 
   const generatedPaths = new Set([
-    ...collectReferencedGeneratedPaths(purgeResult.jobs),
-    ...await collectExistingJobFiles(purgeResult.jobs),
+    ...collectReferencedGeneratedPaths(jobs),
+    ...await collectExistingJobFiles(jobs),
   ])
   const failedFiles: CompositionStorageCleanupResult["failedFiles"] = []
   let deletedFiles = 0
@@ -173,8 +174,37 @@ export async function cleanupTenantCompositionStorage(tenantSlug: string): Promi
     }
   }
 
+  if (failedFiles.length > 0) {
+    return {
+      ok: false,
+      deletedJobs: 0,
+      deletedFiles,
+      deletedGeneratedAssets,
+      freedBytes,
+      failedFiles,
+      processingJobs: [],
+    }
+  }
+
+  const purgeResult = await purgeTenantCompositionJobs(tenantSlug)
+
+  if (!purgeResult.purged) {
+    return {
+      ok: false,
+      deletedJobs: 0,
+      deletedFiles,
+      deletedGeneratedAssets,
+      freedBytes,
+      failedFiles: [],
+      processingJobs: purgeResult.processingJobs.map((job) => ({
+        id: job.id,
+        contactName: job.contactName,
+      })),
+    }
+  }
+
   return {
-    ok: failedFiles.length === 0,
+    ok: true,
     deletedJobs: purgeResult.jobs.length,
     deletedFiles,
     deletedGeneratedAssets,
