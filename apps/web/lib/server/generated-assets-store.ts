@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 
-import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { deleteJsonStore, readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type GeneratedAssetData = {
@@ -89,4 +89,14 @@ export async function readGeneratedAsset(path: string) {
     mimeType: asset.mimeType,
     size: asset.size,
   }
+}
+
+export async function deleteGeneratedAsset(path: string) {
+  const normalizedPath = normalizeGeneratedPath(path)
+
+  if (!normalizedPath) {
+    return false
+  }
+
+  return deleteJsonStore(getStoreOptions(normalizedPath))
 }

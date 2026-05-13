@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { Pool } from "pg"
@@ -130,4 +130,23 @@ export async function writeJsonStore<T>(options: JsonStoreOptions<T>, data: T) {
     `,
     [options.key, JSON.stringify(data)]
   )
+}
+
+export async function deleteJsonStore<T>(options: JsonStoreOptions<T>) {
+  const activePool = await ensureTable()
+
+  if (!activePool) {
+    try {
+      await unlink(options.filePath)
+      return true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error
+      }
+    }
+    return false
+  }
+
+  const result = await activePool.query("delete from app_documents where key = $1", [options.key])
+  return (result.rowCount ?? 0) > 0
 }

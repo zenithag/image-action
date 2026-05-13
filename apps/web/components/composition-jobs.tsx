@@ -24,6 +24,16 @@ type CompositionJobsResponse = {
   stats: Record<CompositionJobStatus, number>
 }
 
+type CompositionCleanupResponse = {
+  ok: boolean
+  deletedJobs: number
+  deletedFiles: number
+  deletedGeneratedAssets: number
+  freedBytes: number
+  failedFiles: Array<{ path: string; error: string }>
+  processingJobs: Array<{ id: string; contactName: string }>
+}
+
 const emptyStats: Record<CompositionJobStatus, number> = {
   queued: 0,
   processing: 0,
@@ -70,6 +80,23 @@ function formatJobTime(value?: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value))
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B"
+
+  const units = ["B", "KB", "MB", "GB"]
+  let size = value
+  let unitIndex = 0
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+
+  return `${size.toLocaleString("pt-BR", {
+    maximumFractionDigits: unitIndex === 0 ? 0 : 1,
+  })} ${units[unitIndex]}`
 }
 
 function getImageExtension(url: string) {
@@ -190,8 +217,10 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   const [isRetrying, setIsRetrying] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
   const [isProcessingQueue, setIsProcessingQueue] = useState(false)
+  const [isCleaningStorage, setIsCleaningStorage] = useState(false)
   const [statusFilter, setStatusFilter] = useState<"all" | "review" | CompositionJobStatus>("all")
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const filteredJobs = useMemo(() => {
     if (statusFilter === "all") return jobs
@@ -223,6 +252,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   async function retryJob(jobId: string) {
     setIsRetrying(jobId)
     setError(null)
+    setNotice(null)
 
     try {
       await requestJson<CompositionJob>(`/api/tenant/${tenantSlug}/compositions/jobs/${encodeURIComponent(jobId)}/retry`, {
@@ -239,6 +269,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   async function processJob(jobId: string) {
     setIsProcessing(jobId)
     setError(null)
+    setNotice(null)
 
     try {
       await requestJson<{ ok: boolean; message: string; job: CompositionJob | null }>(
@@ -256,6 +287,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   async function processQueue() {
     setIsProcessingQueue(true)
     setError(null)
+    setNotice(null)
 
     try {
       await requestJson<{ ok: boolean; message: string; job: CompositionJob | null }>(
@@ -274,6 +306,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
     if (!window.confirm("Excluir esta composicao da lista? Ela continuara contando nas metricas.")) return
 
     setError(null)
+    setNotice(null)
 
     try {
       await requestJson<CompositionJob>(`/api/tenant/${tenantSlug}/compositions/jobs/${encodeURIComponent(jobId)}`, {
@@ -283,6 +316,49 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
       await loadJobs({ silent: true })
     } catch (archiveError) {
       setError(archiveError instanceof Error ? archiveError.message : "Nao foi possivel excluir a composicao.")
+    }
+  }
+
+  async function cleanupStorage() {
+    if (jobs.some((job) => job.status === "processing")) {
+      setError("Aguarde as composicoes em processamento finalizarem antes de limpar o armazenamento.")
+      return
+    }
+
+    const confirmed = window.confirm(
+      [
+        "Limpar a base de imagens e composicoes deste tenant?",
+        "",
+        "Esta acao apaga todos os jobs de composicao, imagens base salvas, resultados e miniaturas geradas.",
+        "Historico de conversas e catalogo nao serao apagados.",
+      ].join("\n")
+    )
+
+    if (!confirmed) return
+
+    setIsCleaningStorage(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const result = await requestJson<CompositionCleanupResponse>(
+        `/api/tenant/${tenantSlug}/compositions/cleanup`,
+        { method: "POST" }
+      )
+
+      const failedSuffix = result.failedFiles.length > 0
+        ? ` ${result.failedFiles.length} arquivo(s) precisam de revisao manual.`
+        : ""
+
+      setViewingJob(null)
+      setNotice(
+        `Limpeza concluida: ${result.deletedJobs} composicao(oes), ${result.deletedFiles} arquivo(s) e ${result.deletedGeneratedAssets} asset(s) persistido(s) removidos. Espaco liberado: ${formatBytes(result.freedBytes)}.${failedSuffix}`
+      )
+      await loadJobs({ silent: true })
+    } catch (cleanupError) {
+      setError(cleanupError instanceof Error ? cleanupError.message : "Nao foi possivel limpar o armazenamento.")
+    } finally {
+      setIsCleaningStorage(false)
     }
   }
 
@@ -304,6 +380,16 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
           <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Composições</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-[10px] font-sans text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => cleanupStorage()}
+            disabled={isCleaningStorage || isProcessingQueue || jobs.length === 0}
+          >
+            {isCleaningStorage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+            Limpar base
+          </Button>
           <Button
             size="sm"
             className="rounded-[10px] font-sans"
@@ -354,6 +440,12 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
       {error && (
         <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-6 py-2 text-xs text-destructive">
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="shrink-0 border-b border-primary/20 bg-primary/10 px-6 py-2 text-xs text-primary">
+          {notice}
         </div>
       )}
 
