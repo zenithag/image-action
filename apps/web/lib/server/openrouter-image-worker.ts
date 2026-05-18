@@ -175,6 +175,90 @@ function escapeSvgText(value: string) {
     .replace(/'/g, "&apos;")
 }
 
+function readDataImageUrl(value: string) {
+  const match = value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
+
+  if (!match) {
+    return null
+  }
+
+  return {
+    bytes: Buffer.from(match[2], "base64"),
+    mimeType: match[1],
+  }
+}
+
+async function readWatermarkLogo(logoUrl: string) {
+  const value = logoUrl.trim()
+
+  if (!value) {
+    return null
+  }
+
+  const dataImage = readDataImageUrl(value)
+  if (dataImage) {
+    return dataImage
+  }
+
+  const sourceUrl = value.startsWith("/") ? appendPath(getPublicAppBaseUrl(), value) : value
+  if (!/^https?:\/\//i.test(sourceUrl)) {
+    return null
+  }
+
+  const response = await fetch(sourceUrl, {
+    headers: { accept: "image/*" },
+    signal: AbortSignal.timeout(10000),
+  })
+
+  if (!response.ok) {
+    return null
+  }
+
+  const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/png"
+  if (!mimeType.startsWith("image/")) {
+    return null
+  }
+
+  return {
+    bytes: Buffer.from(await response.arrayBuffer()),
+    mimeType,
+  }
+}
+
+async function createLogoWatermarkOverlay(logoUrl: string, width: number, height: number) {
+  const logo = await readWatermarkLogo(logoUrl)
+
+  if (!logo) {
+    return null
+  }
+
+  const maxWidth = Math.max(1, Math.round(width * 0.28))
+  const maxHeight = Math.max(1, Math.round(height * 0.18))
+  const resizedLogo = await sharp(logo.bytes)
+    .resize({ width: maxWidth, height: maxHeight, fit: "inside" })
+    .png()
+    .toBuffer()
+  const metadata = await sharp(resizedLogo).metadata()
+  const logoWidth = metadata.width ?? maxWidth
+  const logoHeight = metadata.height ?? maxHeight
+  const opacityMask = Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="${logoWidth}" height="${logoHeight}">
+      <rect width="100%" height="100%" fill="rgba(255,255,255,0.22)" />
+    </svg>
+  `)
+  const transparentLogo = await sharp(resizedLogo)
+    .ensureAlpha()
+    .composite([{ input: opacityMask, blend: "dest-in" }])
+    .png()
+    .toBuffer()
+
+  return {
+    input: transparentLogo,
+    left: Math.round((width - logoWidth) / 2),
+    top: Math.round((height - logoHeight) / 2),
+  }
+}
+
 async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
   const settings = await getTenantSettings(job.tenantSlug)
   const branding = settings.branding
@@ -183,14 +267,23 @@ async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
     return imageBytes
   }
 
+  const metadata = await sharp(imageBytes).metadata()
+  const width = metadata.width ?? 1280
+  const height = metadata.height ?? 720
+  const logoOverlay = await createLogoWatermarkOverlay(branding.logoUrl, width, height).catch(() => null)
+
+  if (logoOverlay) {
+    return sharp(imageBytes)
+      .composite([logoOverlay])
+      .png()
+      .toBuffer()
+  }
+
   const text = (branding.watermarkText || settings.general.companyName || "ComoFica").trim()
   if (!text) {
     return imageBytes
   }
 
-  const metadata = await sharp(imageBytes).metadata()
-  const width = metadata.width ?? 1280
-  const height = metadata.height ?? 720
   const fontSize = Math.max(20, Math.round(Math.min(width, height) * (branding.watermarkPosition === "center" ? 0.045 : 0.028)))
   const padding = Math.max(24, Math.round(Math.min(width, height) * 0.03))
   const escapedText = escapeSvgText(text)
