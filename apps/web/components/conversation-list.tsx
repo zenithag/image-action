@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxHandledBy } from "@/lib/inbox-types"
 import { useInboxRealtime } from "@/lib/inbox-realtime-client"
@@ -62,6 +62,11 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
   const [filter, setFilter] = useState<"all" | InboxHandledBy | "unread">("all")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const selectedIdRef = useRef(selectedId)
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId
+  }, [selectedId])
 
   async function triggerInboxSync(options?: { wait?: boolean; fast?: boolean }) {
     const params = new URLSearchParams()
@@ -94,11 +99,15 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
       setConversations(data)
       window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
 
-      if (!selectedId && data[0]) {
+      const currentSelectedId = selectedIdRef.current
+
+      if (!currentSelectedId && data[0]) {
+        selectedIdRef.current = data[0].id
         onSelect?.(data[0].id)
       }
 
-      if (selectedId && !data.some((conversation) => conversation.id === selectedId)) {
+      if (currentSelectedId && !data.some((conversation) => conversation.id === currentSelectedId)) {
+        selectedIdRef.current = data[0]?.id ?? null
         onSelect?.(data[0]?.id ?? null)
       }
     } catch (loadError) {
@@ -146,6 +155,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
     window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
 
     if (!selectedId) {
+      selectedIdRef.current = event.conversation.id
       onSelect?.(event.conversation.id)
     }
   })
@@ -230,6 +240,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
               key={conversation.id}
               type="button"
               onClick={() => {
+                selectedIdRef.current = conversation.id
                 onSelect?.(conversation.id)
                 void markConversationAsRead(conversation.id)
               }}
