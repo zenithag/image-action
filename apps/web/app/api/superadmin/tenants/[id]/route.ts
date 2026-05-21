@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import type { TenantInput } from "@/lib/tenant-types"
+import { syncPrimaryTenantAuthUser } from "@/lib/server/auth-users-store"
 import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 import { deleteTenant, findTenant, updateTenant } from "@/lib/server/tenants-store"
 
@@ -37,11 +38,21 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params
     const payload = await request.json() as Partial<TenantInput>
+    const previousTenant = await findTenant(id)
     const tenant = await updateTenant(id, payload)
 
     if (!tenant) {
       return NextResponse.json({ error: "Tenant nao encontrado." }, { status: 404 })
     }
+
+    await syncPrimaryTenantAuthUser({
+      tenantId: tenant.id,
+      tenantSlug: tenant.slug,
+      previousTenantSlug: previousTenant?.slug,
+      previousContactEmail: previousTenant?.contactEmail,
+      contactEmail: tenant.contactEmail,
+      contactName: tenant.contactName || tenant.name,
+    })
 
     return NextResponse.json(tenant)
   } catch (error) {

@@ -267,6 +267,75 @@ export async function createStoredAuthUser(input: CreateAuthUserInput) {
   })
 }
 
+export async function syncPrimaryTenantAuthUser(input: {
+  tenantId: string
+  tenantSlug: string
+  previousTenantSlug?: string
+  previousContactEmail?: string
+  contactEmail?: string
+  contactName?: string
+}) {
+  const previousTenantSlug = normalizeText(input.previousTenantSlug) || input.tenantSlug
+  const previousContactEmail = normalizeEmail(input.previousContactEmail)
+  const contactEmail = normalizeEmail(input.contactEmail)
+  const contactName = normalizeText(input.contactName)
+
+  if (!contactEmail && !contactName) {
+    return null
+  }
+
+  return withAuthUsersMutation(async () => {
+    const data = await ensureBootstrapUsersUnlocked()
+    const tenantUsers = data.users.filter((user) => isTenantScopedUser(user, previousTenantSlug))
+    const targetUser =
+      (previousContactEmail
+        ? tenantUsers.find((user) => user.email.toLowerCase() === previousContactEmail)
+        : null) ??
+      (contactEmail
+        ? tenantUsers.find((user) => user.email.toLowerCase() === contactEmail)
+        : null) ??
+      (tenantUsers.length === 1 ? tenantUsers[0] : null)
+
+    if (!targetUser) {
+      return null
+    }
+
+    const nextEmail = contactEmail || targetUser.email
+    const nextName = contactName || targetUser.name
+
+    if (!nextName) {
+      throw new Error("Nome do usuario e obrigatorio.")
+    }
+
+    if (!nextEmail) {
+      throw new Error("Email do usuario e obrigatorio.")
+    }
+
+    const emailTaken = data.users.some((user) =>
+      user.id !== targetUser.id && user.email.toLowerCase() === nextEmail
+    )
+
+    if (emailTaken) {
+      throw new Error("Ja existe um usuario com esse email.")
+    }
+
+    const updatedUser: StoredAuthUser = {
+      ...targetUser,
+      name: nextName,
+      email: nextEmail,
+      tenantId: input.tenantId,
+      tenantSlug: input.tenantSlug,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await writeAuthUsersData({
+      users: data.users.map((user) => user.id === updatedUser.id ? updatedUser : user),
+    })
+
+    return toPublicAuthUser(updatedUser)
+  })
+}
+
 export async function listStoredAuthUsersForTenant(tenantSlug: string) {
   const data = await ensureBootstrapUsers()
 
