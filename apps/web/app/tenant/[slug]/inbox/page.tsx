@@ -342,7 +342,12 @@ export default function InboxPage({
             />
           </aside>
           <section className={hasSelectedConversation ? "h-full min-h-0 min-w-0 overflow-hidden" : "hidden h-full min-h-0 min-w-0 overflow-hidden xl:block"}>
-            <ChatPanel tenantSlug={slug} conversationId={selectedConversation} onBackToList={() => setSelectedConversation(null)} />
+            <ChatPanel
+              tenantSlug={slug}
+              conversationId={selectedConversation}
+              onBackToList={() => setSelectedConversation(null)}
+              onConversationDeleted={() => setSelectedConversation(null)}
+            />
           </section>
           <aside className="hidden h-full min-h-0 overflow-hidden border-l border-border bg-card 2xl:block">
             <ContextPanel tenantSlug={slug} conversationId={selectedConversation} />
@@ -360,7 +365,12 @@ export default function InboxPage({
             </div>
           </aside>
           <section className={hasSelectedConversation ? "h-full min-h-0 overflow-hidden" : "hidden h-full min-h-0 overflow-hidden lg:block"}>
-            <ChatPanel tenantSlug={slug} conversationId={selectedConversation} onBackToList={() => setSelectedConversation(null)} />
+            <ChatPanel
+              tenantSlug={slug}
+              conversationId={selectedConversation}
+              onBackToList={() => setSelectedConversation(null)}
+              onConversationDeleted={() => setSelectedConversation(null)}
+            />
           </section>
         </div>
       )}

@@ -18,11 +18,11 @@ import {
   ArrowLeft,
   Loader2,
   Mic,
-  MoreVertical,
   Paperclip,
   Phone,
   RefreshCw,
   Send,
+  Trash2,
   User,
   Video,
 } from "lucide-react"
@@ -33,6 +33,7 @@ interface ChatPanelProps {
   tenantSlug: string
   conversationId?: string | null
   onBackToList?: () => void
+  onConversationDeleted?: (id: string) => void
 }
 
 function formatMessageTime(value: string) {
@@ -194,7 +195,7 @@ function MediaMessage({
   return <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{message.content}</p>
 }
 
-export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPanelProps) {
+export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversationDeleted }: ChatPanelProps) {
   const router = useRouter()
   const [conversation, setConversation] = useState<InboxConversationSummary | null>(null)
   const [messages, setMessages] = useState<InboxMessage[]>([])
@@ -204,6 +205,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
   const [isTakingOver, setIsTakingOver] = useState(false)
   const [isReturningToAi, setIsReturningToAi] = useState(false)
   const [isResettingContext, setIsResettingContext] = useState(false)
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -260,6 +262,13 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
 
   useInboxRealtime(tenantSlug, (event) => {
     if (!conversationId || event.conversationId !== conversationId) {
+      return
+    }
+
+    if (event.type === "conversation_deleted") {
+      setConversation(null)
+      setMessages([])
+      onConversationDeleted?.(event.conversationId)
       return
     }
 
@@ -437,6 +446,40 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
     }
   }
 
+  async function deleteConversation() {
+    if (!conversationId || !conversation || isDeletingConversation) return
+
+    const confirmed = window.confirm(
+      `Excluir a conversa com ${currentContactName}? As composicoes geradas por esta conversa serao mantidas no historico.`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setIsDeletingConversation(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}`, {
+        method: "DELETE",
+      })
+      const payload = await response.json().catch(() => null) as { error?: string } | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nao foi possivel excluir a conversa.")
+      }
+
+      setConversation(null)
+      setMessages([])
+      onConversationDeleted?.(conversationId)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Erro ao excluir conversa.")
+    } finally {
+      setIsDeletingConversation(false)
+    }
+  }
+
   function sendImageToStudio(selectedMessage: InboxMessage, slot: StudioImageSlot) {
     if (selectedMessage.contentType !== "image") return
 
@@ -579,8 +622,16 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
           >
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <MoreVertical className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            onClick={deleteConversation}
+            disabled={!conversation || isDeletingConversation}
+            title="Excluir conversa"
+            aria-label="Excluir conversa"
+          >
+            <Trash2 className={cn("h-4 w-4", isDeletingConversation && "animate-pulse")} />
           </Button>
         </div>
       </div>

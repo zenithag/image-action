@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { findInboxConversation } from "@/lib/server/inbox-store"
+import { deleteInboxConversation, findInboxConversation } from "@/lib/server/inbox-store"
 import { findTenantInstance } from "@/lib/server/tenant-channel-instances-store"
 
 export const runtime = "nodejs"
@@ -22,5 +22,19 @@ export async function GET(_request: Request, context: RouteContext) {
   return NextResponse.json({
     ...conversation,
     channelInstanceRemoved: !instance,
+  })
+}
+
+export async function DELETE(_request: Request, context: RouteContext) {
+  const { slug, id } = await context.params
+  const conversation = await deleteInboxConversation(slug, id)
+
+  if (!conversation) {
+    return NextResponse.json({ error: "Conversa nao encontrada." }, { status: 404 })
+  }
+
+  return NextResponse.json({
+    ok: true,
+    conversationId: id,
   })
 }

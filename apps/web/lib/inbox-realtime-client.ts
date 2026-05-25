@@ -24,6 +24,11 @@ export type InboxRealtimeClientEvent =
       conversationId: string
       conversation: InboxConversationSummary
     }
+  | {
+      type: "conversation_deleted"
+      tenantSlug: string
+      conversationId: string
+    }
 
 export function useInboxRealtime(
   tenantSlug: string,
@@ -47,11 +52,13 @@ export function useInboxRealtime(
     source.addEventListener("message_created", handleEvent)
     source.addEventListener("message_updated", handleEvent)
     source.addEventListener("conversation_updated", handleEvent)
+    source.addEventListener("conversation_deleted", handleEvent)
 
     return () => {
       source.removeEventListener("message_created", handleEvent)
       source.removeEventListener("message_updated", handleEvent)
       source.removeEventListener("conversation_updated", handleEvent)
+      source.removeEventListener("conversation_deleted", handleEvent)
       source.close()
     }
   }, [tenantSlug])

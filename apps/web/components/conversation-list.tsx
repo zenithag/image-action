@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxHandledBy } from "@/lib/inbox-types"
 import { useInboxRealtime } from "@/lib/inbox-realtime-client"
-import { Bot, Clock, MessageSquare, RefreshCw, User } from "lucide-react"
+import { Bot, Clock, MessageSquare, RefreshCw, Trash2, User } from "lucide-react"
 
 const statusColors = {
   open: "bg-primary",
@@ -61,6 +61,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
   const [conversations, setConversations] = useState<InboxConversationSummary[]>([])
   const [filter, setFilter] = useState<"all" | InboxHandledBy | "unread">("all")
   const [isLoading, setIsLoading] = useState(true)
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const selectedIdRef = useRef(selectedId)
 
@@ -135,11 +136,60 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
     window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
   }
 
+  async function deleteConversation(conversation: InboxConversationSummary) {
+    const confirmed = window.confirm(
+      `Excluir a conversa com ${conversation.contact.name}? As composicoes geradas por esta conversa serao mantidas no historico.`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingConversationId(conversation.id)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversation.id)}`, {
+        method: "DELETE",
+      })
+      const payload = await response.json().catch(() => null) as { error?: string } | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nao foi possivel excluir a conversa.")
+      }
+
+      setConversations((current) => current.filter((item) => item.id !== conversation.id))
+
+      if (selectedIdRef.current === conversation.id) {
+        selectedIdRef.current = null
+        onSelect?.(null)
+      }
+
+      window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Erro ao excluir conversa.")
+    } finally {
+      setDeletingConversationId(null)
+    }
+  }
+
   useEffect(() => {
     void loadConversations({ sync: true })
   }, [tenantSlug])
 
   useInboxRealtime(tenantSlug, (event) => {
+    if (event.type === "conversation_deleted") {
+      setConversations((current) => current.filter((conversation) => conversation.id !== event.conversationId))
+
+      if (selectedIdRef.current === event.conversationId) {
+        selectedIdRef.current = null
+        onSelect?.(null)
+      }
+
+      window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
+      return
+    }
+
     if (!("conversation" in event)) {
       return
     }
@@ -236,16 +286,10 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
           </div>
         ) : filteredConversations.length > 0 ? (
           filteredConversations.map((conversation) => (
-            <button
+            <div
               key={conversation.id}
-              type="button"
-              onClick={() => {
-                selectedIdRef.current = conversation.id
-                onSelect?.(conversation.id)
-                void markConversationAsRead(conversation.id)
-              }}
               className={cn(
-                "relative flex w-full items-start gap-3 border-b border-border p-4 text-left transition-all duration-200",
+                "relative border-b border-border transition-all duration-200",
                 selectedId === conversation.id
                   ? "bg-primary/10"
                   : "bg-transparent hover:bg-primary/5"
@@ -254,56 +298,85 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
               {selectedId === conversation.id && (
                 <span className="absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r bg-primary" />
               )}
-              <div className="relative">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border/50 bg-secondary text-sm font-bold text-secondary-foreground">
-                  {getInitials(conversation.contact.name)}
-                </div>
-                <div
-                  className={cn(
-                    "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card",
-                    statusColors[conversation.status]
-                  )}
-                />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className={cn(
-                    "truncate text-sm font-medium",
-                    selectedId === conversation.id ? "text-primary" : "text-card-foreground"
-                  )}>
-                    {conversation.contact.name}
-                  </span>
-                  <span className="flex max-w-[92px] shrink-0 items-center gap-1 truncate text-xs text-muted-foreground font-sans">
-                    <Clock className="h-3 w-3" />
-                    {formatRelativeTime(conversation.lastMessageAt)}
-                  </span>
-                </div>
-
-                <p className="mt-0.5 truncate text-xs text-muted-foreground font-sans">
-                  {conversation.lastMessage}
-                </p>
-
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex items-center gap-1.5">
-                    {conversation.handledBy === "ai" ? (
-                      <Bot className="h-3 w-3 text-primary" />
-                    ) : (
-                      <User className="h-3 w-3 text-blue-500" />
+              <button
+                type="button"
+                onClick={() => {
+                  selectedIdRef.current = conversation.id
+                  onSelect?.(conversation.id)
+                  void markConversationAsRead(conversation.id)
+                }}
+                className="flex w-full items-start gap-3 p-4 pr-12 text-left"
+              >
+                <div className="relative">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border/50 bg-secondary text-sm font-bold text-secondary-foreground">
+                    {getInitials(conversation.contact.name)}
+                  </div>
+                  <div
+                    className={cn(
+                      "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card",
+                      statusColors[conversation.status]
                     )}
-                    <span className="truncate text-xs text-muted-foreground font-sans">
-                      {stateLabels[conversation.state] || conversation.state}
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn(
+                      "truncate text-sm font-medium",
+                      selectedId === conversation.id ? "text-primary" : "text-card-foreground"
+                    )}>
+                      {conversation.contact.name}
+                    </span>
+                    <span className="flex max-w-[92px] shrink-0 items-center gap-1 truncate text-xs text-muted-foreground font-sans">
+                      <Clock className="h-3 w-3" />
+                      {formatRelativeTime(conversation.lastMessageAt)}
                     </span>
                   </div>
 
-                  {conversation.unreadCount > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                      {conversation.unreadCount}
-                    </span>
-                  )}
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground font-sans">
+                    {conversation.lastMessage}
+                  </p>
+
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex items-center gap-1.5">
+                      {conversation.handledBy === "ai" ? (
+                        <Bot className="h-3 w-3 text-primary" />
+                      ) : (
+                        <User className="h-3 w-3 text-blue-500" />
+                      )}
+                      <span className="truncate text-xs text-muted-foreground font-sans">
+                        {stateLabels[conversation.state] || conversation.state}
+                      </span>
+                    </div>
+
+                    {conversation.unreadCount > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                        {conversation.unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void deleteConversation(conversation)
+                }}
+                disabled={deletingConversationId === conversation.id}
+                className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+                title="Excluir conversa"
+                aria-label={`Excluir conversa com ${conversation.contact.name}`}
+              >
+                <Trash2
+                  className={cn(
+                    "h-4 w-4",
+                    deletingConversationId === conversation.id && "animate-pulse"
+                  )}
+                />
+              </button>
+            </div>
           ))
         ) : (
           <div className="flex min-h-full flex-col items-center justify-center p-6 text-center">

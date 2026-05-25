@@ -373,6 +373,36 @@ export async function findInboxMessage(tenantSlug: string, conversationId: strin
   ) ?? null
 }
 
+export async function deleteInboxConversation(tenantSlug: string, conversationId: string) {
+  return withInboxMutation(async () => {
+    const data = await readInboxData()
+    const conversation = data.conversations.find((item) =>
+      item.tenantSlug === tenantSlug && item.id === conversationId
+    )
+
+    if (!conversation) {
+      return null
+    }
+
+    await writeInboxData({
+      conversations: data.conversations.filter((item) =>
+        !(item.tenantSlug === tenantSlug && item.id === conversationId)
+      ),
+      messages: data.messages.filter((message) =>
+        !(message.tenantSlug === tenantSlug && message.conversationId === conversationId)
+      ),
+    })
+
+    publishInboxRealtime({
+      type: "conversation_deleted",
+      tenantSlug,
+      conversationId,
+    })
+
+    return conversation
+  })
+}
+
 export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput) {
   return withInboxMutation(async () => {
     const data = await readInboxData()
