@@ -11,7 +11,7 @@ import type {
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { publishInboxRealtime } from "@/lib/server/inbox-realtime"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
-import { readTenantInstances } from "@/lib/server/tenant-channel-instances-store"
+import { readTenantInstances, type StoredTenantChannelInstance } from "@/lib/server/tenant-channel-instances-store"
 
 type InboxData = {
   conversations: InboxConversationSummary[]
@@ -403,12 +403,78 @@ export async function deleteInboxConversation(tenantSlug: string, conversationId
   })
 }
 
+export async function assignInboxConversationToChannelInstance(
+  tenantSlug: string,
+  conversationId: string,
+  instance: StoredTenantChannelInstance,
+) {
+  return withInboxMutation(async () => {
+    const data = await readInboxData()
+    const conversation = data.conversations.find((item) =>
+      item.tenantSlug === tenantSlug && item.id === conversationId
+    )
+
+    if (!conversation) {
+      return { ok: false as const, reason: "not_found" as const }
+    }
+
+    const duplicatedConversation = data.conversations.find((item) =>
+      item.tenantSlug === tenantSlug &&
+      item.id !== conversationId &&
+      item.channelInstanceId === instance.id &&
+      item.externalContactId === conversation.externalContactId
+    )
+
+    if (duplicatedConversation) {
+      return {
+        ok: false as const,
+        reason: "duplicate" as const,
+        conversation: duplicatedConversation,
+      }
+    }
+
+    const now = new Date().toISOString()
+    const updatedConversation: InboxConversationSummary = {
+      ...conversation,
+      channelInstanceId: instance.id,
+      channelInstanceName: instance.name,
+      handledBy: "operator",
+      status: "waiting_operator",
+      updatedAt: now,
+    }
+
+    await writeInboxData({
+      ...data,
+      conversations: sortConversations(
+        data.conversations.map((item) => item.id === conversationId ? updatedConversation : item)
+      ),
+    })
+
+    publishInboxRealtime({
+      type: "conversation_updated",
+      tenantSlug,
+      conversationId,
+      conversation: updatedConversation,
+    })
+
+    return { ok: true as const, conversation: updatedConversation }
+  })
+}
+
 export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput) {
   return withInboxMutation(async () => {
     const data = await readInboxData()
     const now = input.createdAt ?? new Date().toISOString()
-    const conversationId = getConversationId(input.tenantSlug, input.channelInstanceId, input.externalContactId)
-    const existingConversation = data.conversations.find((conversation) => conversation.id === conversationId)
+    const generatedConversationId = getConversationId(input.tenantSlug, input.channelInstanceId, input.externalContactId)
+    const existingConversation = data.conversations.find((conversation) =>
+      conversation.id === generatedConversationId ||
+      (
+        conversation.tenantSlug === input.tenantSlug &&
+        conversation.channelInstanceId === input.channelInstanceId &&
+        conversation.externalContactId === input.externalContactId
+      )
+    )
+    const conversationId = existingConversation?.id ?? generatedConversationId
     const messageExists = Boolean(
       input.providerMessageId &&
       data.messages.some((message) => message.providerMessageId === input.providerMessageId)
@@ -490,8 +556,16 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
 export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) {
   return withInboxMutation(async () => {
     const data = await readInboxData()
-    const conversationId = getConversationId(input.tenantSlug, input.channelInstanceId, input.externalContactId)
-    const existingConversation = data.conversations.find((conversation) => conversation.id === conversationId)
+    const generatedConversationId = getConversationId(input.tenantSlug, input.channelInstanceId, input.externalContactId)
+    const existingConversation = data.conversations.find((conversation) =>
+      conversation.id === generatedConversationId ||
+      (
+        conversation.tenantSlug === input.tenantSlug &&
+        conversation.channelInstanceId === input.channelInstanceId &&
+        conversation.externalContactId === input.externalContactId
+      )
+    )
+    const conversationId = existingConversation?.id ?? generatedConversationId
     const messageExists = Boolean(
       input.providerMessageId &&
       data.messages.some((message) => message.providerMessageId === input.providerMessageId)
