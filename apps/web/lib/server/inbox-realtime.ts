@@ -20,6 +20,11 @@ export type InboxRealtimeEvent =
       conversationId: string
       conversation: InboxConversationSummary
     }
+  | {
+      type: "conversation_deleted"
+      tenantSlug: string
+      conversationId: string
+    }
 
 type InboxRealtimeListener = (event: InboxRealtimeEvent) => void
 
