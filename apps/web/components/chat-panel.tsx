@@ -203,6 +203,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [isTakingOver, setIsTakingOver] = useState(false)
+  const [isClaimingConversation, setIsClaimingConversation] = useState(false)
   const [isReturningToAi, setIsReturningToAi] = useState(false)
   const [isResettingContext, setIsResettingContext] = useState(false)
   const [isDeletingConversation, setIsDeletingConversation] = useState(false)
@@ -377,6 +378,59 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
       setError(takeoverError instanceof Error ? takeoverError.message : "Erro ao assumir conversa.")
     } finally {
       setIsTakingOver(false)
+    }
+  }
+
+  async function claimRemovedConversation(channelInstanceId?: string) {
+    if (!conversationId || isClaimingConversation) return
+
+    setIsClaimingConversation(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(channelInstanceId ? { channelInstanceId } : {}),
+      })
+      const payload = await response.json().catch(() => null) as {
+        conversation?: InboxConversationSummary
+        instances?: Array<{ id: string; name: string; phoneNumber?: string }>
+        code?: string
+        error?: string
+      } | null
+
+      if (response.status === 409 && payload?.code === "multiple_active_whatsapp_instances" && payload.instances?.length) {
+        const options = payload.instances
+          .map((instance, index) => `${index + 1}. ${instance.name}${instance.phoneNumber ? ` (${instance.phoneNumber})` : ""}`)
+          .join("\n")
+        const selected = window.prompt(`Escolha a instancia que deve assumir esta conversa:\n${options}`)
+        const selectedIndex = selected ? Number(selected.trim()) - 1 : -1
+        const selectedInstance = payload.instances[selectedIndex]
+
+        if (!selectedInstance) {
+          return
+        }
+
+        await claimRemovedConversation(selectedInstance.id)
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nao foi possivel assumir a conversa.")
+      }
+
+      if (payload?.conversation) {
+        setConversation({
+          ...payload.conversation,
+          channelInstanceRemoved: false,
+        })
+        void loadConversation({ silent: true })
+      }
+    } catch (claimError) {
+      setError(claimError instanceof Error ? claimError.message : "Erro ao assumir conversa.")
+    } finally {
+      setIsClaimingConversation(false)
     }
   }
 
@@ -576,7 +630,19 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
         </div>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          {conversation?.handledBy === "operator" ? (
+          {isChannelInstanceRemoved ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 px-2 text-xs font-sans sm:px-3"
+              onClick={() => void claimRemovedConversation()}
+              disabled={isClaimingConversation || !conversation}
+              title="Vincular esta conversa a uma instancia WhatsApp ativa"
+            >
+              {isClaimingConversation ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" /> : <User className="h-3.5 w-3.5 sm:mr-1.5" />}
+              <span className="hidden sm:inline">Assumir conversa</span>
+            </Button>
+          ) : conversation?.handledBy === "operator" ? (
             <Button
               variant="outline"
               size="sm"
