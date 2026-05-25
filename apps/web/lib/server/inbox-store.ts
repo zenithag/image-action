@@ -881,36 +881,6 @@ export async function resetInboxConversationContext(tenantSlug: string, conversa
   })
 }
 
-export async function purgeInboxForChannelInstance(tenantSlug: string, channelInstanceId: string) {
-  await withInboxMutation(async () => {
-    const data = await readInboxData()
-    await writeInboxData({
-      conversations: data.conversations.filter((conversation) =>
-        conversation.tenantSlug !== tenantSlug || conversation.channelInstanceId !== channelInstanceId
-      ),
-      messages: data.messages.filter((message) =>
-        message.tenantSlug !== tenantSlug || message.channelInstanceId !== channelInstanceId
-      ),
-    })
-  })
-}
-
-export async function purgeInboxExceptChannelInstances(tenantSlug: string, channelInstanceIds: string[]) {
-  await withInboxMutation(async () => {
-    const allowedIds = new Set(channelInstanceIds)
-    const data = await readInboxData()
-
-    await writeInboxData({
-      conversations: data.conversations.filter((conversation) =>
-        conversation.tenantSlug !== tenantSlug || allowedIds.has(conversation.channelInstanceId)
-      ),
-      messages: data.messages.filter((message) =>
-        message.tenantSlug !== tenantSlug || allowedIds.has(message.channelInstanceId)
-      ),
-    })
-  })
-}
-
 function getMessageTimestamp(message: { createdAt: string }) {
   const timestamp = new Date(message.createdAt).getTime()
 

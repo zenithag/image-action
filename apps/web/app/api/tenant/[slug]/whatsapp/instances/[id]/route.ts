@@ -8,7 +8,6 @@ import {
   deleteTenantInstance,
   findTenantInstance,
 } from "@/lib/server/tenant-channel-instances-store"
-import { purgeInboxForChannelInstance } from "@/lib/server/inbox-store"
 import { UazapiError, deleteUazapiInstance } from "@/lib/server/uazapi-client"
 
 export const runtime = "nodejs"
@@ -50,7 +49,6 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   await decrementProviderUsage(deletedInstance.providerId)
-  await purgeInboxForChannelInstance(slug, deletedInstance.id)
 
   return NextResponse.json({
     ok: true,

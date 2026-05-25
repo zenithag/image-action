@@ -21,7 +21,10 @@ export async function POST(_request: Request, context: RouteContext) {
   const instance = await findTenantInstance(slug, conversation.channelInstanceId)
 
   if (!instance) {
-    return NextResponse.json({ error: "Instancia da conversa nao encontrada." }, { status: 404 })
+    return NextResponse.json({
+      code: "channel_instance_removed",
+      error: "Esta instancia foi removida. O historico esta preservado, mas nao e possivel reprocessar esta conversa com a IA.",
+    }, { status: 409 })
   }
 
   await updateInboxConversation(slug, id, {

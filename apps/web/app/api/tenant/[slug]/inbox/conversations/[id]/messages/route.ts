@@ -55,7 +55,10 @@ export async function POST(request: Request, context: RouteContext) {
   const instance = await findTenantInstance(slug, conversation.channelInstanceId)
 
   if (!instance) {
-    return NextResponse.json({ error: "Instancia WhatsApp da conversa nao encontrada." }, { status: 404 })
+    return NextResponse.json({
+      code: "channel_instance_removed",
+      error: "Esta instancia foi removida. O historico esta preservado, mas nao e possivel enviar mensagens por este numero.",
+    }, { status: 409 })
   }
 
   const providers = await readProviders()

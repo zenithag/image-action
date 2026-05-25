@@ -2,7 +2,6 @@ import { enqueueProcessInboundMessage, scheduleAppJobProcessing } from "@/lib/se
 import { readProviders } from "@/lib/server/channel-providers-store"
 import {
   pruneInboxBeforeChannelInstanceTime,
-  purgeInboxExceptChannelInstances,
   upsertSyncedInboxMessage,
 } from "@/lib/server/inbox-store"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
@@ -165,7 +164,6 @@ export async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
     instance.status === "connected" &&
     instance.instanceToken
   )
-  await purgeInboxExceptChannelInstances(slug, activeInstances.map((instance) => instance.id))
 
   let scannedChats = 0
   let scannedMessages = 0
