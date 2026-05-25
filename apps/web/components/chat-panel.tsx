@@ -211,6 +211,8 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
   const currentContactName = conversation?.contact.name ?? "Contato"
   const currentPhone = conversation?.contact.phone ?? conversation?.externalContactId ?? ""
   const isAiActive = conversation?.handledBy === "ai"
+  const isChannelInstanceRemoved = Boolean(conversation?.channelInstanceRemoved)
+  const removedInstanceMessage = "Esta instância foi removida. O histórico está preservado, mas não é possível enviar mensagens por este número."
 
   const headerStatus = useMemo(() => {
     if (!conversation) return "Operador"
@@ -262,7 +264,10 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
     }
 
     if ("conversation" in event) {
-      setConversation(event.conversation)
+      setConversation((current) => ({
+        ...event.conversation,
+        channelInstanceRemoved: event.conversation.channelInstanceRemoved ?? current?.channelInstanceRemoved,
+      }))
     }
 
     if (event.type === "message_created") {
@@ -302,6 +307,11 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
 
     if (isAiActive) {
       setError("A IA esta ativa nesta conversa. Assuma a conversa antes de responder como operador.")
+      return
+    }
+
+    if (isChannelInstanceRemoved) {
+      setError(removedInstanceMessage)
       return
     }
 
@@ -349,7 +359,10 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
       }
 
       if (payload && "id" in payload) {
-        setConversation(payload)
+        setConversation({
+          ...payload,
+          channelInstanceRemoved: conversation?.channelInstanceRemoved,
+        })
       }
     } catch (takeoverError) {
       setError(takeoverError instanceof Error ? takeoverError.message : "Erro ao assumir conversa.")
@@ -360,6 +373,11 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
 
   async function returnConversationToAi() {
     if (!conversationId || isReturningToAi || isTakingOver) return
+
+    if (isChannelInstanceRemoved) {
+      setError("Esta instância foi removida. O histórico está preservado, mas não é possível devolver esta conversa para a IA.")
+      return
+    }
 
     setIsReturningToAi(true)
     setError(null)
@@ -406,7 +424,10 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
       }
 
       if (payload && "id" in payload) {
-        setConversation(payload)
+        setConversation({
+          ...payload,
+          channelInstanceRemoved: conversation?.channelInstanceRemoved,
+        })
       }
       void loadConversation({ silent: true })
     } catch (resetError) {
@@ -501,6 +522,12 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
                 {headerStatus}
               </span>
               {conversation?.channelInstanceName && <span>{conversation.channelInstanceName}</span>}
+              {isChannelInstanceRemoved && (
+                <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="h-3 w-3" />
+                  Instância removida
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -512,8 +539,8 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
               size="sm"
               className="h-9 shrink-0 px-2 text-xs font-sans sm:px-3"
               onClick={returnConversationToAi}
-              disabled={isReturningToAi || isTakingOver || !conversation}
-              title="Devolver para IA"
+              disabled={isReturningToAi || isTakingOver || !conversation || isChannelInstanceRemoved}
+              title={isChannelInstanceRemoved ? "Esta instância foi removida." : "Devolver para IA"}
             >
               {isReturningToAi ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" /> : <Bot className="h-3.5 w-3.5 sm:mr-1.5" />}
               <span className="hidden sm:inline">Devolver para IA</span>
@@ -657,6 +684,12 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
       </div>
 
       <div className="shrink-0 border-t border-border bg-background p-4">
+        {isChannelInstanceRemoved && (
+          <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-[6px] border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{removedInstanceMessage}</span>
+          </div>
+        )}
         {isAiActive && (
           <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-[6px] border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary">
             <Bot className="h-4 w-4 shrink-0" />
@@ -681,10 +714,10 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder={isAiActive ? "IA ativa. Assuma a conversa para responder como operador." : "Digite uma mensagem como operador..."}
+              placeholder={isChannelInstanceRemoved ? "Instância removida. Histórico disponível somente para consulta." : isAiActive ? "IA ativa. Assuma a conversa para responder como operador." : "Digite uma mensagem como operador..."}
               rows={1}
               className="w-full resize-none rounded-lg border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-sans"
-              disabled={isSending || !conversation || isAiActive}
+              disabled={isSending || !conversation || isAiActive || isChannelInstanceRemoved}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault()
@@ -694,7 +727,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList }: ChatPane
             />
           </div>
 
-          <Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={isSending || !message.trim() || !conversation || isAiActive}>
+          <Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={isSending || !message.trim() || !conversation || isAiActive || isChannelInstanceRemoved}>
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>

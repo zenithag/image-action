@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { findInboxConversation } from "@/lib/server/inbox-store"
+import { findTenantInstance } from "@/lib/server/tenant-channel-instances-store"
 
 export const runtime = "nodejs"
 
@@ -16,5 +17,10 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Conversa nao encontrada." }, { status: 404 })
   }
 
-  return NextResponse.json(conversation)
+  const instance = await findTenantInstance(slug, conversation.channelInstanceId)
+
+  return NextResponse.json({
+    ...conversation,
+    channelInstanceRemoved: !instance,
+  })
 }

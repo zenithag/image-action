@@ -90,6 +90,7 @@ export type InboxConversationSummary = {
   state: InboxConversationState
   contextResetAt?: string
   compositionSession?: InboxCompositionSession
+  channelInstanceRemoved?: boolean
   createdAt: string
   updatedAt: string
 }
