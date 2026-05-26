@@ -476,6 +476,9 @@ function getExplicitCompositionBaseChoice(text: string): CompositionBaseChoice |
     "imagem original",
     "foto original",
     "original",
+    "imagem anterior",
+    "foto anterior",
+    "ambiente anterior",
     "primeira imagem",
     "primeira foto",
     "foto que mandei",
@@ -1024,12 +1027,17 @@ function getCompositionPrompt(message: InboxMessage, messages: InboxMessage[]) {
 
 function buildCompositionPrompt(message: InboxMessage, messages: InboxMessage[], reference = "") {
   const prompt = getCompositionPrompt(message, messages)
+  const guardrails = [
+    "Regra obrigatoria: usar a imagem base do cliente como unico canvas de saida.",
+    "Preservar fielmente angulo, camera, perspectiva, enquadramento, proporcao, layout, paredes, portas, janelas, objetos e iluminacao do ambiente.",
+    "Nao criar uma nova cena, nao trocar o ambiente, nao usar a referencia como imagem principal e nao alterar nada fora da area solicitada.",
+  ].join("\n")
 
   if (!reference) {
-    return prompt
+    return `${prompt}\n${guardrails}`
   }
 
-  return `${prompt}\nReferencia visual: ${reference}`
+  return `${prompt}\nReferencia visual: ${reference}\n${guardrails}`
 }
 
 function normalizeSearchText(value: string) {
@@ -1414,9 +1422,95 @@ function getPublicCatalogUrl(tenantSlug: string) {
 }
 
 function formatCatalogLinkReply(tenantSlug: string) {
+  const catalogUrl = getPublicCatalogUrl(tenantSlug)
+
   return [
-    `Aqui está o link dos nossos produtos: ${getPublicCatalogUrl(tenantSlug)}`,
+    `Aqui está o link clicável dos nossos produtos: ${catalogUrl}`,
     "Pode dar uma olhada e me dizer qual produto você quer usar na composição.",
+  ].join("\n\n")
+}
+
+function hasUrl(text: string) {
+  return /https?:\/\/\S+/i.test(text)
+}
+
+function ensureCatalogLinkInReply(reply: string, tenantSlug: string) {
+  if (hasUrl(reply)) {
+    return reply
+  }
+
+  const catalogUrl = getPublicCatalogUrl(tenantSlug)
+  const normalizedReply = normalizeSearchText(reply)
+
+  if (normalizedReply.includes("catalogo") || normalizedReply.includes("catálogo")) {
+    return `${reply.trim()}\n\nLink clicável do catálogo: ${catalogUrl}`
+  }
+
+  return `${reply.trim()}\n\n${formatCatalogLinkReply(tenantSlug)}`
+}
+
+function isCompositionConfirmationRequest(text: string | null | undefined) {
+  const normalized = normalizeSearchText(text || "").trim()
+
+  if (!normalized) {
+    return false
+  }
+
+  if (includesAny(normalized, [
+    "nao",
+    "não",
+    "cancela",
+    "cancelar",
+    "espera",
+    "aguarda",
+    "mudar",
+    "trocar",
+    "outra",
+  ])) {
+    return false
+  }
+
+  return /^(sim|ok|okay|certo|confirmo|confirmado|pode|pode sim|isso|isso mesmo|fechado|perfeito|vai|vamos|bora)$/.test(normalized) ||
+    includesAny(normalized, [
+      "pode gerar",
+      "pode criar",
+      "pode fazer",
+      "pode seguir",
+      "pode preparar",
+      "gerar agora",
+      "criar agora",
+      "faz a composicao",
+      "faca a composicao",
+      "faça a composição",
+      "manda ver",
+      "seguir com a composicao",
+      "confirmo a composicao",
+    ])
+}
+
+function formatReferenceSummary(input: {
+  primaryReference?: { item: CatalogItem; color?: string } | null
+  sessionReference?: InboxCompositionSession["referenceImage"] | null
+  freeTextReference?: string | null
+}) {
+  if (input.primaryReference) {
+    return `${input.primaryReference.item.name}${input.primaryReference.item.sku ? ` (${input.primaryReference.item.sku})` : ""}${input.primaryReference.color ? `, cor ${input.primaryReference.color}` : ""}`
+  }
+
+  if (input.sessionReference) {
+    return input.sessionReference.label || "a imagem de referência enviada"
+  }
+
+  return input.freeTextReference || "a referência descrita"
+}
+
+function formatCompositionConfirmationReply(input: {
+  baseLabel: string
+  referenceSummary: string
+}) {
+  return [
+    `Tenho a ${input.baseLabel} e a referência: ${input.referenceSummary}.`,
+    "Antes de gerar, confirma que posso criar a composição mantendo a imagem do ambiente exatamente no mesmo ângulo, enquadramento e perspectiva, alterando apenas o que foi pedido?",
   ].join("\n\n")
 }
 
@@ -1966,6 +2060,10 @@ export async function processInboundMessageWithAi(input: {
     catalogContext: [
       productReference ? `Produto citado diretamente: ${productReference.name}${productReference.sku ? ` SKU ${productReference.sku}` : ""} - ${productReference.description}` : "",
       colorReferences.length > 0 ? formatCatalogColorReferences(colorReferences) : "",
+      catalogReferenceItems.length > 0
+        ? `Produtos do catalogo reconhecidos ou relevantes:\n${catalogReferenceItems.slice(0, 5).map((item, index) => `${index + 1}. ${item.name}${item.sku ? ` SKU ${item.sku}` : ""}${item.category ? `, categoria ${item.category}` : ""} - ${item.description}`).join("\n")}`
+        : "",
+      catalogLinkRequested ? `Link clicavel do catalogo: ${getPublicCatalogUrl(input.tenantSlug)}` : "",
     ].filter(Boolean).join("\n"),
     artifactContext,
     hasBaseImage,
@@ -1980,8 +2078,18 @@ export async function processInboundMessageWithAi(input: {
   let reply = classification.reply?.trim() || getDefaultReply(nextAction)
   let compositionJobId: string | undefined
   const compositionBaseChoice: CompositionBaseChoice | null = explicitBaseChoice
+  const hasCompositionConfirmation = isCompositionConfirmationRequest(input.message.content)
   let shouldPersistCompositionSession = false
   const shouldIncludeWelcome = isFirstInboundMessage(messages, input.message.id)
+
+  if (pendingSessionPrompt && hasCompositionConfirmation && nextAction !== "handoff_to_operator") {
+    nextAction = "create_composition_job"
+    reply = getDefaultReply(nextAction)
+  }
+
+  if (settings.assistant.catalogEnabled && (catalogLinkRequested || nextAction === "show_catalog_options")) {
+    reply = ensureCatalogLinkInReply(reply, input.tenantSlug)
+  }
 
   function setCompositionSession(updater: (session: InboxCompositionSession) => InboxCompositionSession) {
     compositionSession = {
@@ -2103,7 +2211,28 @@ export async function processInboundMessageWithAi(input: {
           : "",
         freeTextReference ? "Referência textual descrita pelo cliente: " + freeTextReference : "",
       ].filter(Boolean).join("\n")
-      const prompt = buildCompositionPrompt(inboundMessage, messages, referencePrompt)
+      const prompt = pendingSessionPrompt && hasCompositionConfirmation
+        ? pendingSessionPrompt
+        : buildCompositionPrompt(inboundMessage, messages, referencePrompt)
+
+      if (!hasCompositionConfirmation) {
+        nextAction = "reply_in_chat"
+        reply = formatCompositionConfirmationReply({
+          baseLabel: compositionBase.label,
+          referenceSummary: formatReferenceSummary({
+            primaryReference,
+            sessionReference: sessionReferenceForComposition,
+            freeTextReference,
+          }),
+        })
+        setCompositionSession((session) => ({
+          ...session,
+          step: "awaiting_reference_image",
+          preferredBase: compositionBase.choice,
+          pendingPrompt: prompt,
+          pendingBaseChoice: false,
+        }))
+      } else {
       const result = await createCompositionJob(input.tenantSlug, {
         conversationId: conversation.id,
         channelInstanceId: conversation.channelInstanceId,
@@ -2183,6 +2312,7 @@ export async function processInboundMessageWithAi(input: {
       reply = result.created
         ? "Criei a composição usando a " + compositionBase.label + " como base. ID do processo: " + job.id.slice(0, 8) + "."
         : "Essa composição já está na fila usando a " + compositionBase.label + " como base. ID do processo: " + job.id.slice(0, 8) + "."
+      }
     }
   }
 
