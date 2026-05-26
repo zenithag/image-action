@@ -45,10 +45,13 @@ Regras decididas:
 
 Objetivo: impedir que a IA crie Composicao Visual quando o Cliente Final ainda nao disse o que deve ser alterado.
 
+Status: implementado em `apps/web/lib/server/ai-inbox-automation.ts`.
+
 Regras decididas:
 
 - A IA nao deve criar Composicao Visual a partir de Pedido de Simulacao Vago.
 - "Quero simular outra imagem", "simular de novo", "fazer outra" e respostas como "opcao 1" nao criam job sozinhas.
+- A composicao deve preservar fielmente a imagem base: mesmo angulo, enquadramento, perspectiva, camera e posicao dos elementos. A referencia e a unica parte que pode ser adaptada para aplicar na foto base.
 - Quando houver duas imagens sem papel claro, perguntar qual e Imagem de Ambiente e qual e Imagem de Referencia.
 - Apos o Cliente Final escolher "opcao 1" ou "opcao 2", guardar a escolha e perguntar qual e a Direcao de Composicao.
 - Quando ja existir composicao pronta e o pedido for vago, perguntar se a base deve ser a imagem original ou a ultima composicao, e o que deve ser alterado.
