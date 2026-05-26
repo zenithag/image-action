@@ -1,7 +1,6 @@
 import type { ClassificationResponse, Intent, Mode, NextAction } from "@studio/contracts"
 
 import type { AiClassificationResult } from "@/lib/ai-types"
-import { applyDeterministicClassificationRules } from "@/lib/server/ai-classification-rules"
 import { getAiModelProfile, getAiModelProfileById } from "@/lib/server/ai-model-profiles-store"
 import { recordAiTrace } from "@/lib/server/ai-observability-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
@@ -129,33 +128,6 @@ function heuristicClassification(input: ClassificationInput): AiClassificationRe
   }
 }
 
-async function applyClassificationRulesWithTrace(
-  input: ClassificationInput,
-  result: AiClassificationResult,
-  classificationInputSnapshot: Record<string, unknown>,
-) {
-  const deterministicOverride = applyDeterministicClassificationRules(input, result)
-
-  if (!deterministicOverride) {
-    return result
-  }
-
-  await recordAiTrace({
-    tenantSlug: input.tenantSlug,
-    stage: "classification",
-    status: "warning",
-    event: "classification_overridden_by_rule",
-    details: {
-      rule: deterministicOverride.rule,
-      input: classificationInputSnapshot,
-      previousResult: result,
-      overriddenResult: deterministicOverride.result,
-    },
-  })
-
-  return deterministicOverride.result
-}
-
 export async function classifyInboundMessage(input: ClassificationInput): Promise<AiClassificationResult> {
   const provider = await getActiveOpenRouterProvider()
   const profile = input.modelProfileId
@@ -177,7 +149,6 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
 
   if (!provider || !profile) {
     const fallback = heuristicClassification(input)
-    const finalFallback = await applyClassificationRulesWithTrace(input, fallback, classificationInputSnapshot)
 
     await recordAiTrace({
       tenantSlug: input.tenantSlug,
@@ -186,11 +157,11 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
       event: "classification_fallback_without_provider",
       details: {
         input: classificationInputSnapshot,
-        result: finalFallback,
+        result: fallback,
       },
     })
 
-    return finalFallback
+    return fallback
   }
 
   const recentMessages = (input.recentMessages || [])
@@ -200,26 +171,17 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
 
   const systemPrompt = [
     "Voce e o orquestrador de IA do ComoFica.",
-    "Classifique a mensagem recebida e escolha a proxima acao.",
+    "Classifique a mensagem recebida e escolha a proxima acao sem impor um fluxo rigido de conversa.",
     "Responda somente JSON valido, sem markdown.",
     "Campos obrigatorios: intent, mode, next_action, confidence, needs_human_review, missing_inputs, rationale, reply.",
     "Intents: visual_edit, commercial_question, smalltalk, human_handoff.",
     "Modes: product, interior, print, fashion ou null.",
     "Next actions: reply_in_chat, ask_for_base_image, ask_for_reference_image, create_composition_job, handoff_to_operator, show_catalog_options.",
     "O autoatendimento pode ser iniciado pelo gatilho 'Como Fica' no inicio da mensagem, aceitando variacoes de maiusculas/minusculas, junto ou separado.",
-    "Se o cliente pedir cor/tinta/produto e houver catalogContext relevante, prefira show_catalog_options; use create_composition_job somente se tambem houver imagem base e direcao clara de aplicacao.",
-    "Se hasBaseImage=true, considere que ja existe uma imagem anterior utilizavel na conversa; nao peca uma nova imagem base sem necessidade.",
-    "Nunca crie composicao apenas porque existe imagem anterior. Para create_composition_job, precisa haver imagem base, referencia visual e uma direcao clara do que aplicar ou alterar.",
-    "Interprete direcoes de composicao em linguagem natural ampla, sem depender de palavras fixas. Exemplos validos incluem posicionar, encostar, remover, limpar, substituir, trocar, aplicar, inserir, mover, aproximar, centralizar, aumentar, reduzir ou preservar algo em uma area indicada.",
-    "Quando uma mensagem com imagem tambem trouxer texto/legenda, trate esse texto como parte do pedido atual. Se a legenda explicar o que aplicar, remover ou posicionar, ela pode ser a direcao de montagem.",
-    "Se ja houver imagem base e referencia visual, e o texto atual explicar o que fazer ou onde aplicar, escolha create_composition_job mesmo que a frase seja informal.",
-    "A referencia visual pode ser um SKU/produto do catalogo ou uma imagem de referencia enviada pelo cliente.",
-    "Se o cliente ja enviou uma imagem de referencia, use essa referencia; nao peca produto do catalogo e nao envie link do catalogo.",
-    "Se faltar referencia visual, pergunte qual SKU/produto ou imagem de referencia o cliente quer usar. Nao envie link do catalogo a menos que o cliente peca catalogo/produtos/opcoes.",
-    "Se faltar direcao de montagem, pergunte o que o cliente quer fazer na imagem e onde aplicar a referencia.",
-    "Nao force o cliente a seguir um fluxo linear. Ele pode mudar de assunto, pedir catalogo, enviar SKU, voltar para uma imagem anterior ou pedir outra composicao na mesma conversa.",
-    "Se a mensagem nova tiver uma intencao clara, responda essa intencao em vez de cobrar uma resposta pendente antiga.",
-    "Use artifactContext como memoria da conversa: imagens enviadas, composicoes geradas e produtos selecionados sao conhecimento disponivel para interpretar pedidos naturais.",
+    "Conhecimento central do produto: uma composicao visual usa uma imagem base do cliente e uma referencia visual, textual ou de catalogo para aplicar produto, material, textura, cor, padrao ou estilo sobre a imagem base.",
+    "A IA pode conversar naturalmente, explicar, perguntar, orientar, pedir imagens ou referencias e decidir quando a conversa tem informacao suficiente para criar uma composicao.",
+    "Nao use regras fixas de etapas. Use o historico, artifactContext, catalogContext e a mensagem atual para responder de forma natural.",
+    "Se escolher create_composition_job, significa que a IA entende que ja existe imagem base e referencia suficientes no contexto.",
     input.systemPrompt?.trim()
       ? `Instrucoes especificas do tenant:\n${input.systemPrompt.trim()}`
       : "",
@@ -250,8 +212,7 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
       ],
     })
     const parsed = firstJsonObject(completion.content)
-    const normalized = normalizeClassification(parsed, "openrouter", completion.model)
-    const finalResult = await applyClassificationRulesWithTrace(input, normalized, classificationInputSnapshot)
+    const result = normalizeClassification(parsed, "openrouter", completion.model)
 
     await recordAiTrace({
       tenantSlug: input.tenantSlug,
@@ -263,15 +224,14 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
         systemPrompt,
         userPrompt,
         rawResponse: completion.content,
-        result: finalResult,
+        result,
       },
     })
 
-    return finalResult
+    return result
   } catch (error) {
     const fallback = heuristicClassification(input)
     const errorMessage = error instanceof Error ? error.message : "erro desconhecido"
-    const finalFallback = await applyClassificationRulesWithTrace(input, fallback, classificationInputSnapshot)
 
     await recordAiTrace({
       tenantSlug: input.tenantSlug,
@@ -283,14 +243,14 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
         input: classificationInputSnapshot,
         systemPrompt,
         userPrompt,
-        fallback: finalFallback,
+        fallback,
       },
     })
 
     return {
-      ...finalFallback,
+      ...fallback,
       needs_human_review: true,
-      rationale: `${finalFallback.rationale} Falha OpenRouter: ${errorMessage}`,
+      rationale: `${fallback.rationale} Falha OpenRouter: ${errorMessage}`,
     }
   }
 }

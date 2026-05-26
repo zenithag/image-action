@@ -63,8 +63,8 @@
 9. **[2026-05-01] Sync do WhatsApp não pode importar histórico anterior à conexão**
    Do instead: usar `syncStartedAt` como corte rígido; timestamps da UAZAPI podem vir como string, número em segundos ou milissegundos. Se mensagem sincronizada não tiver timestamp confiável, pular em vez de usar `new Date()`.
 
-10. **[2026-04-26] Conversa da IA não pode ficar travada em pergunta antiga**
-   Do instead: mensagens claras como SKU, catálogo, imagem ou edição seguem direto, ignorando pendências antigas; `original/nova` é inferência interna, não resposta obrigatória. Se a mensagem atual trouxer SKU/produto sem direção de montagem, perguntar o que fazer em vez de reaproveitar direção antiga.
+10. **[2026-05-26] Chat WhatsApp não deve impor fluxo determinístico**
+   Do instead: deixar a IA responder naturalmente; o sistema só guarda memória técnica de imagem base/referência/produto e cria composição quando a IA escolher `create_composition_job`.
 
 ## User Directives
 1. **[2026-04-05] Sempre responder em Português**

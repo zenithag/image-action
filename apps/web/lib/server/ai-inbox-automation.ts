@@ -1764,20 +1764,14 @@ export async function processInboundMessageWithAi(input: {
     return { ok: false, skipped: "conversation_not_found" }
   }
 
-  const vagueCompositionRequest = isVagueCompositionRequest(inboundMessage.content)
-  const newImageRequest = isNewTopicRequest(inboundMessage.content) && !vagueCompositionRequest
-  const contextResetTime = newImageRequest
-    ? getMessageTime(inboundMessage.createdAt)
-    : conversation.contextResetAt
-      ? new Date(conversation.contextResetAt).getTime()
-      : 0
+  const contextResetTime = conversation.contextResetAt
+    ? new Date(conversation.contextResetAt).getTime()
+    : 0
   const messages = contextResetTime > 0
     ? allMessages.filter((message) => new Date(message.createdAt).getTime() >= contextResetTime || message.id === inboundMessage.id)
     : allMessages
   const conversationMessages = messages.slice(-10)
-  let compositionSession = newImageRequest
-    ? createEmptyInboxCompositionSession(inboundMessage.createdAt)
-    : normalizeInboxCompositionSession(conversation.compositionSession)
+  let compositionSession = normalizeInboxCompositionSession(conversation.compositionSession)
   const pendingSessionPrompt = compositionSession.pendingPrompt?.trim()
   const previousMessage = getPreviousConversationMessage(messages, inboundMessage.id)
   const idleMs = previousMessage
@@ -1919,42 +1913,7 @@ export async function processInboundMessageWithAi(input: {
   const latestBaseImageMessage = rawLatestBaseImageMessage?.id === inboundMessage.id
     ? rawLatestBaseImageMessage
     : storedSessionBaseImageMessage ?? rawLatestBaseImageMessage
-  const pendingImagePairRoleRequest = getPendingImagePairRoleRequest(
-    messages,
-    input.message.id,
-    input.message.content,
-  )
-  const imagePairRoleChoice = pendingImagePairRoleRequest
-    ? getImagePairRoleChoice(input.message.content)
-    : null
-  const inferredImagePair = inboundMessage.contentType === "text" &&
-    isUseRecentImagesRequest(inboundMessage.content) &&
-    recentBaseImageMessages.length >= 2
-  const currentImageAsClientReference = inboundMessage.contentType === "image" &&
-    (
-      compositionSession.step === "awaiting_reference_image" ||
-      isClientReferenceImageInstruction(inboundMessage.content) ||
-      Boolean(compositionSession.preferredBase && hasSpecificCompositionDirection(inboundMessage.content))
-  )
-  const clientReferenceImageMessage = currentImageAsClientReference ? inboundMessage : null
-  const imagePairBaseMessage = imagePairRoleChoice && recentBaseImageMessages.length >= 2
-    ? imagePairRoleChoice === "first_base"
-      ? recentBaseImageMessages[1]
-      : recentBaseImageMessages[0]
-    : null
-  const imagePairReferenceMessage = imagePairRoleChoice && recentBaseImageMessages.length >= 2
-    ? imagePairRoleChoice === "first_base"
-      ? recentBaseImageMessages[0]
-      : recentBaseImageMessages[1]
-    : null
-  const inferredReferenceImageMessage = imagePairReferenceMessage ?? (inferredImagePair ? recentBaseImageMessages[1] : null)
-  const effectiveLatestBaseImageMessage = imagePairBaseMessage
-    ? imagePairBaseMessage
-    : clientReferenceImageMessage
-    ? recentBaseImageMessages.find((message) => message.id !== inboundMessage.id) ?? latestBaseImageMessage
-    : inferredImagePair
-      ? recentBaseImageMessages[0]
-    : latestBaseImageMessage
+  const effectiveLatestBaseImageMessage = latestBaseImageMessage
   const sessionReferenceImage = compositionSession.referenceImage
   const compositionJobs = await listCompositionJobs(input.tenantSlug)
   const contextCompositionJobs = contextResetTime > 0
@@ -1969,37 +1928,9 @@ export async function processInboundMessageWithAi(input: {
     input.conversationId,
   )
   const latestCompositionResultMessage = findCompositionResultMessage(messages, latestCompletedCompositionJob)
-  const pendingPreviousCompositionChoiceRequest = getPendingPreviousCompositionChoiceRequest(
-    messages,
-    input.message.id,
-    input.message.content,
-  )
-  const previousCompositionChoiceAnswer = pendingPreviousCompositionChoiceRequest
-    ? getPreviousCompositionChoiceAnswer(input.message.content)
-    : null
-  const shouldAskPreviousCompositionChoice = Boolean(
-    isOnlyAutoStartTrigger &&
-    latestCompletedCompositionJob?.resultImageUrl &&
-    !pendingPreviousCompositionChoiceRequest
-  )
   const explicitBaseChoice = getExplicitCompositionBaseChoice(input.message.content)
-  const baseChoiceAnswer = getCompositionBaseChoiceAnswer(input.message.content)
-  const pendingBaseChoiceRequest = getPendingBaseChoiceRequest(messages, input.message.id, input.message.content)
-  const isPendingBaseChoiceAnswer = Boolean(
-    conversation.state === "awaiting_selection" &&
-    pendingBaseChoiceRequest &&
-    baseChoiceAnswer
-  )
   const hasSessionBaseImage = Boolean(compositionSession.baseImage?.imageUrl)
   const hasBaseImage = Boolean(effectiveLatestBaseImageMessage || hasSessionBaseImage)
-  const hasAmbiguousRecentImagePair = inboundMessage.contentType === "image" &&
-    !clientReferenceImageMessage &&
-    recentBaseImageMessages.length >= 2 &&
-    recentBaseImageMessages[0]?.id === inboundMessage.id &&
-    Math.abs(getMessageTime(recentBaseImageMessages[0].createdAt) - getMessageTime(recentBaseImageMessages[1].createdAt)) <= 10 * 60 * 1000 &&
-    !hasSpecificCompositionDirection(inboundMessage.content) &&
-    !isClientReferenceImageInstruction(inboundMessage.content)
-  const currentMessageHasDirection = hasSpecificCompositionDirection(inboundMessage.content)
   const currentMessageHasCatalogProduct = Boolean(
     skuReference ||
     productReferences.length > 0 ||
@@ -2007,52 +1938,15 @@ export async function processInboundMessageWithAi(input: {
   )
   const currentMessageHasKnownVisualReference = Boolean(
     currentMessageHasCatalogProduct ||
-    clientReferenceImageMessage ||
-    inferredReferenceImageMessage ||
     sessionReferenceImage
   )
-  const currentFreeTextReference = getFreeTextReferenceForComposition({
+  const currentMessageHasDirection = hasSpecificCompositionDirection(inboundMessage.content)
+  const freeTextReference = getFreeTextReferenceForComposition({
     text: inboundMessage.content,
     hasKnownReference: currentMessageHasKnownVisualReference,
     hasDirection: currentMessageHasDirection,
   })
-  const pendingFreeTextReference = getFreeTextReferenceForComposition({
-    text: pendingSessionPrompt || pendingBaseChoiceRequest || "",
-    hasKnownReference: currentMessageHasKnownVisualReference,
-    hasDirection: hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest]),
-  })
-  const freeTextReference = currentFreeTextReference || pendingFreeTextReference
-  const hasOpenTask = hasOpenStructuredTask(
-    conversation.state,
-    compositionSession,
-    pendingBaseChoiceRequest,
-    pendingSessionPrompt,
-  )
-  const isActionableMessage = Boolean(
-    inboundMessage.contentType !== "text" ||
-    baseChoiceAnswer ||
-    imagePairRoleChoice ||
-    explicitBaseChoice ||
-    wantsDifferentBaseImage(inboundMessage.content) ||
-    freeTextReference ||
-    skuReference ||
-    productReferences.length > 0 ||
-    colorReferences.length > 0 ||
-    genericCatalogItems.length > 0 ||
-    catalogLinkRequested ||
-    (settings.assistant.catalogEnabled && isCatalogBrowseRequest(inboundMessage.content)) ||
-    isColorEditRequest(inboundMessage.content) ||
-    isActionableVisualInstruction(inboundMessage.content) ||
-    handoffRequestedByKeyword
-  )
-  const shouldTreatPendingContextAsStale = isStaleConversationGap && hasOpenTask && !isPendingBaseChoiceAnswer
-  const shouldAskToResumeContext = shouldTreatPendingContextAsStale &&
-    !isActionableMessage &&
-    !isNewTopicRequest(inboundMessage.content) &&
-    !isResumeOnlyRequest(inboundMessage.content)
-  const effectiveConversationState: InboxConversationState = shouldTreatPendingContextAsStale && !baseChoiceAnswer
-    ? "idle"
-    : conversation.state
+  const effectiveConversationState: InboxConversationState = conversation.state
   const artifactContext = buildArtifactContext({
     session: compositionSession,
     latestBaseImageMessage: effectiveLatestBaseImageMessage,
@@ -2064,48 +1958,28 @@ export async function processInboundMessageWithAi(input: {
     catalogReferences: catalogReferenceItems,
   })
 
-  const directClassification: AiClassificationResult = {
-    intent: "visual_edit",
-    mode: "interior",
-    next_action: "reply_in_chat",
-    confidence: 1,
-    needs_human_review: false,
-    missing_inputs: [],
-    rationale: "Regra deterministica do fluxo de composição.",
-    source: "heuristic",
-  }
-  const classification = shouldAskPreviousCompositionChoice || previousCompositionChoiceAnswer
-    ? directClassification
-    : await classifyInboundMessage({
-      tenantSlug: input.tenantSlug,
-      text: input.message.content,
-      mediaTypes: input.message.contentType === "text" ? [] : [input.message.contentType],
-      conversationState: effectiveConversationState,
-      catalogContext: [
-        productReference ? `Produto citado diretamente: ${productReference.name}${productReference.sku ? ` SKU ${productReference.sku}` : ""} - ${productReference.description}` : "",
-        colorReferences.length > 0 ? formatCatalogColorReferences(colorReferences) : "",
-      ].filter(Boolean).join("\n"),
-      artifactContext,
-      hasBaseImage,
-      recentMessages: conversationMessages.map((message) => ({
-        role: message.role,
-        content: formatMessageForAiContext(message, effectiveLatestBaseImageMessage?.id),
-      })),
-      modelProfileId: settings.assistant.modelProfileId,
-      systemPrompt: getAssistantSystemPrompt(settings),
-    })
+  const classification = await classifyInboundMessage({
+    tenantSlug: input.tenantSlug,
+    text: input.message.content,
+    mediaTypes: input.message.contentType === "text" ? [] : [input.message.contentType],
+    conversationState: effectiveConversationState,
+    catalogContext: [
+      productReference ? `Produto citado diretamente: ${productReference.name}${productReference.sku ? ` SKU ${productReference.sku}` : ""} - ${productReference.description}` : "",
+      colorReferences.length > 0 ? formatCatalogColorReferences(colorReferences) : "",
+    ].filter(Boolean).join("\n"),
+    artifactContext,
+    hasBaseImage,
+    recentMessages: conversationMessages.map((message) => ({
+      role: message.role,
+      content: formatMessageForAiContext(message, effectiveLatestBaseImageMessage?.id),
+    })),
+    modelProfileId: settings.assistant.modelProfileId,
+    systemPrompt: getAssistantSystemPrompt(settings),
+  })
   let nextAction = classification.next_action
   let reply = classification.reply?.trim() || getDefaultReply(nextAction)
-  if (!settings.assistant.catalogEnabled && nextAction === "show_catalog_options") {
-    nextAction = hasBaseImage ? "ask_for_reference_image" : "ask_for_base_image"
-    reply = hasBaseImage
-      ? "Neste atendimento vou usar uma referência enviada por você. Me mande a imagem de referência ou descreva a referência que quer aplicar."
-      : "Neste atendimento vou usar uma referência enviada por você. Me envie o ambiente que quer transformar e a referência que quer aplicar."
-  }
   let compositionJobId: string | undefined
-  let compositionBaseChoice: CompositionBaseChoice | null = explicitBaseChoice
-  let compositionPromptOverride: string | null = null
-  let nextStateOverride: InboxConversationState | undefined
+  const compositionBaseChoice: CompositionBaseChoice | null = explicitBaseChoice
   let shouldPersistCompositionSession = false
   const shouldIncludeWelcome = isFirstInboundMessage(messages, input.message.id)
 
@@ -2121,714 +1995,90 @@ export async function processInboundMessageWithAi(input: {
     shouldPersistCompositionSession = true
   }
 
-  if (imagePairBaseMessage && imagePairReferenceMessage) {
-    setCompositionSession((session) => ({
-      ...session,
-      baseImage: {
-        kind: "base",
-        messageId: imagePairBaseMessage.id,
-        imageUrl: getMessageMediaUrl(input.tenantSlug, imagePairBaseMessage),
-        label: "imagem enviada pelo cliente",
-        createdAt: imagePairBaseMessage.createdAt,
-      },
-      preferredBase: undefined,
-      referenceImage: {
-        kind: "reference",
-        messageId: imagePairReferenceMessage.id,
-        imageUrl: getMessageMediaUrl(input.tenantSlug, imagePairReferenceMessage),
-        label: "imagem de referência enviada pelo cliente",
-        createdAt: imagePairReferenceMessage.createdAt,
-      },
-      pendingBaseChoice: false,
-    }))
-  }
+  const previousInboundImageMessage = recentBaseImageMessages.find((message) => message.id !== inboundMessage.id) ?? null
+  const currentImageUrl = inboundMessage.contentType === "image"
+    ? getMessageMediaUrl(input.tenantSlug, inboundMessage)
+    : undefined
 
-  if (clientReferenceImageMessage) {
-    setCompositionSession((session) => ({
-      ...session,
-      referenceImage: {
-        kind: "reference",
-        messageId: inboundMessage.id,
-        imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
-        label: "imagem de referência enviada pelo cliente",
-        createdAt: inboundMessage.createdAt,
-      },
-      pendingBaseChoice: false,
-    }))
-  }
+  if (currentImageUrl) {
+    const currentImageIsReference = Boolean(
+      previousInboundImageMessage ||
+      compositionSession.baseImage?.imageUrl ||
+      compositionSession.baseImage?.messageId
+    )
 
-  if (inferredReferenceImageMessage && effectiveLatestBaseImageMessage) {
-    setCompositionSession((session) => ({
-      ...session,
-      baseImage: {
-        kind: "base",
-        messageId: effectiveLatestBaseImageMessage.id,
-        imageUrl: getMessageMediaUrl(input.tenantSlug, effectiveLatestBaseImageMessage),
-        label: "imagem enviada pelo cliente",
-        createdAt: effectiveLatestBaseImageMessage.createdAt,
-      },
-      preferredBase: undefined,
-      referenceImage: {
-        kind: "reference",
-        messageId: inferredReferenceImageMessage.id,
-        imageUrl: getMessageMediaUrl(input.tenantSlug, inferredReferenceImageMessage),
-        label: "imagem de referência enviada pelo cliente",
-        createdAt: inferredReferenceImageMessage.createdAt,
-      },
-      pendingBaseChoice: false,
-    }))
-  }
-
-  if (
-    inboundMessage.contentType === "image" &&
-    !clientReferenceImageMessage &&
-    !hasAmbiguousRecentImagePair
-  ) {
-    setCompositionSession((session) => ({
-      ...session,
-      baseImage: {
-        kind: "base",
-        messageId: inboundMessage.id,
-        imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
-        label: "imagem enviada pelo cliente",
-        createdAt: inboundMessage.createdAt,
-      },
-      workingImage: undefined,
-      preferredBase: undefined,
-      pendingBaseChoice: false,
-    }))
-  }
-
-  if (shouldAskPreviousCompositionChoice) {
-    nextAction = "reply_in_chat"
-    nextStateOverride = "awaiting_selection"
-    reply = formatPreviousCompositionChoiceQuestion()
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_choice",
-      pendingPrompt: undefined,
-      pendingBaseChoice: true,
-    }))
-  } else if (
-    vagueCompositionRequest &&
-    latestCompletedCompositionJob?.resultImageUrl &&
-    !pendingPreviousCompositionChoiceRequest
-  ) {
-    nextAction = "reply_in_chat"
-    nextStateOverride = "awaiting_selection"
-    reply = formatPreviousCompositionChoiceQuestion()
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_choice",
-      pendingPrompt: undefined,
-      pendingBaseChoice: true,
-    }))
-  } else if (isOnlyAutoStartTrigger) {
-    nextAction = "ask_for_base_image"
-    nextStateOverride = "awaiting_base_image"
-    reply = [
-      "Vamos começar um processo de composição.",
-      "Me envie a imagem do ambiente que você quer transformar.",
-      "Depois me envie ou descreva a referência: produto, material, cor, textura, estilo ou outra imagem que sirva como inspiração para aplicar nesse ambiente.",
-    ].join("\n\n")
-    await updateInboxConversation(input.tenantSlug, input.conversationId, {
-      contextResetAt: inboundMessage.createdAt,
-      compositionSession: createEmptyInboxCompositionSession(inboundMessage.createdAt),
-      state: "awaiting_base_image",
-      status: "open",
-    })
-    setCompositionSession(() => ({
-      ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
-      step: "awaiting_base_image",
-    }))
-  } else if (previousCompositionChoiceAnswer === "new") {
-    nextAction = "ask_for_base_image"
-    nextStateOverride = "awaiting_base_image"
-    reply = [
-      "Perfeito. Vou começar um novo processo e limpar o contexto anterior.",
-      "Me envie a imagem do ambiente que você quer transformar.",
-      "Depois me envie ou descreva a referência: produto, material, cor, textura, estilo ou outra imagem que sirva como inspiração para aplicar nesse ambiente.",
-    ].join("\n\n")
-    await updateInboxConversation(input.tenantSlug, input.conversationId, {
-      contextResetAt: inboundMessage.createdAt,
-      compositionSession: createEmptyInboxCompositionSession(inboundMessage.createdAt),
-      state: "awaiting_base_image",
-      status: "open",
-    })
-    setCompositionSession(() => ({
-      ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
-      step: "awaiting_base_image",
-    }))
-  } else if (previousCompositionChoiceAnswer === "result" || previousCompositionChoiceAnswer === "original") {
-    const selectedBase = previousCompositionChoiceAnswer === "result"
-      ? getCompletedJobCompositionBase({
-        latestResultMessage: latestCompositionResultMessage,
-        latestCompletedJob: latestCompletedCompositionJob,
-        tenantSlug: input.tenantSlug,
-      })
-      : getOriginalCompositionBase({
-        latestBaseImageMessage: effectiveLatestBaseImageMessage,
-        latestCompletedJob: latestCompletedCompositionJob,
-        tenantSlug: input.tenantSlug,
-      })
-
-    if (!selectedBase?.imageUrl) {
-      nextAction = "ask_for_base_image"
-      nextStateOverride = "awaiting_base_image"
-      reply = "Não consegui recuperar essa imagem como base. Me envie a imagem do ambiente para começar uma nova composição."
-      setCompositionSession(() => ({
-        ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
-        step: "awaiting_base_image",
-      }))
-    } else {
-      const nextSession: InboxCompositionSession = {
-        ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
-        step: "awaiting_reference_image",
-        baseImage: {
-          kind: selectedBase.choice === "result" ? "result" : "base",
-          messageId: selectedBase.message?.id,
-          imageUrl: selectedBase.imageUrl,
-          label: selectedBase.label,
-          createdAt: selectedBase.message?.createdAt ?? latestCompletedCompositionJob?.completedAt ?? latestCompletedCompositionJob?.createdAt ?? inboundMessage.createdAt,
-        },
-      }
-
-      nextAction = "ask_for_reference_image"
-      nextStateOverride = "collecting_preferences"
-      reply = [
-        `Perfeito. Vou começar uma nova composição usando a ${selectedBase.label} como base e limpar o contexto anterior.`,
-        "Agora me envie ou descreva a referência e me diga o que você quer fazer nessa nova composição.",
-      ].join("\n\n")
-      await updateInboxConversation(input.tenantSlug, input.conversationId, {
-        contextResetAt: inboundMessage.createdAt,
-        compositionSession: nextSession,
-        state: "collecting_preferences",
-        status: "open",
-      })
-      setCompositionSession(() => nextSession)
-    }
-  } else if (newImageRequest) {
-    nextAction = "ask_for_base_image"
-    nextStateOverride = "awaiting_base_image"
-    reply = [
-      "Sem problema. Vou iniciar um novo processo e limpar o contexto anterior.",
-      "Me envie a imagem do ambiente que você quer transformar.",
-      "Depois me envie ou descreva a referência: produto, material, cor, textura, estilo ou outra imagem que sirva como inspiração para aplicar nesse ambiente.",
-    ].join("\n\n")
-    await updateInboxConversation(input.tenantSlug, input.conversationId, {
-      contextResetAt: inboundMessage.createdAt,
-      compositionSession: createEmptyInboxCompositionSession(inboundMessage.createdAt),
-      state: "awaiting_base_image",
-      status: "open",
-    })
-    setCompositionSession(() => ({
-      ...createEmptyInboxCompositionSession(inboundMessage.createdAt),
-      step: "awaiting_base_image",
-    }))
-  } else if (handoffRequestedByKeyword) {
-    nextAction = "handoff_to_operator"
-    reply = "Vou encaminhar seu atendimento para um operador continuar daqui."
-  } else if (hasAmbiguousRecentImagePair) {
-    nextAction = "reply_in_chat"
-    nextStateOverride = "awaiting_selection"
-    reply = formatImagePairRoleQuestion()
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_choice",
-      pendingPrompt: pendingSessionPrompt || undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (imagePairBaseMessage && imagePairReferenceMessage) {
-    const pairDirection = hasCompositionDirection([pendingSessionPrompt, inboundMessage.content])
-
-    if (pairDirection) {
-      nextAction = "create_composition_job"
-      compositionPromptOverride = pendingSessionPrompt || inboundMessage.content
-      reply = "Perfeito. Vou usar a imagem definida como ambiente e aplicar a referência nela conforme você pediu."
+    if (currentImageIsReference) {
       setCompositionSession((session) => ({
         ...session,
-        step: "composing",
-        pendingPrompt: undefined,
-        pendingBaseChoice: false,
-      }))
-    } else {
-      nextAction = "ask_for_reference_image"
-      nextStateOverride = "collecting_preferences"
-      reply = "Perfeito. Já sei qual imagem é o ambiente e qual é a referência. Agora me diga como essa referência deve ser aplicada no ambiente."
-      setCompositionSession((session) => ({
-        ...session,
-        step: "product_selected",
-        pendingPrompt: undefined,
-        pendingBaseChoice: false,
-      }))
-    }
-  } else if (clientReferenceImageMessage && !hasBaseImage) {
-    nextAction = "ask_for_base_image"
-    nextStateOverride = "awaiting_base_image"
-    reply = hasSpecificCompositionDirection(inboundMessage.content)
-      ? "Recebi a imagem de referência. Agora me envie a imagem do ambiente em que você quer aplicar essa referência."
-      : "Recebi a imagem de referência. Agora me envie a imagem do ambiente em que você quer aplicar essa referência e me diga como ela deve ser aplicada."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_image",
-      pendingPrompt: hasSpecificCompositionDirection(inboundMessage.content) ? inboundMessage.content : undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (shouldAskToResumeContext) {
-    nextAction = "reply_in_chat"
-    nextStateOverride = "idle"
-    reply = buildResumePromptReply(compositionSession)
-    setCompositionSession((session) => ({
-      ...session,
-      step: session.step === "completed" ? "completed" : "idle",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (shouldTreatPendingContextAsStale && isNewTopicRequest(inboundMessage.content)) {
-    nextAction = "reply_in_chat"
-    nextStateOverride = "idle"
-    reply = "Sem problema. Vamos começar um novo pedido. Me diga o que você quer criar ou envie a nova foto para eu analisar."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "idle",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (shouldTreatPendingContextAsStale && isResumeOnlyRequest(inboundMessage.content)) {
-    nextAction = "reply_in_chat"
-    nextStateOverride = "idle"
-    reply = [
-      "Vamos retomar.",
-      "Me diga diretamente o que você quer alterar agora na imagem ou qual produto quer aplicar.",
-    ].join("\n")
-    setCompositionSession((session) => ({
-      ...session,
-      step: session.step === "completed" ? "completed" : "idle",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (isPendingBaseChoiceAnswer) {
-    const selectedBaseChoice = baseChoiceAnswer ?? "original"
-    compositionBaseChoice = selectedBaseChoice
-    if (hasCompositionDirection([pendingBaseChoiceRequest])) {
-      nextAction = "create_composition_job"
-      compositionPromptOverride = pendingBaseChoiceRequest
-      reply = selectedBaseChoice === "result"
-        ? "Vou usar a imagem nova gerada como base para continuar a composição."
-        : "Vou usar a imagem original que você enviou como base para continuar a composição."
-      setCompositionSession((session) => ({
-        ...session,
-        step: "composing",
-        pendingPrompt: undefined,
-        pendingBaseChoice: false,
-      }))
-    } else {
-      nextAction = "ask_for_reference_image"
-      nextStateOverride = "collecting_preferences"
-      reply = formatSelectedBaseDirectionQuestion(selectedBaseChoice)
-      setCompositionSession((session) => ({
-        ...session,
-        step: "awaiting_reference_image",
-        preferredBase: selectedBaseChoice,
-        pendingPrompt: undefined,
-        pendingBaseChoice: false,
-      }))
-    }
-  } else if (
-    conversation.state === "awaiting_base_image" &&
-    (pendingBaseChoiceRequest || pendingSessionPrompt) &&
-    inboundMessage.contentType === "image"
-  ) {
-    const pendingImagePrompt = pendingSessionPrompt || pendingBaseChoiceRequest
-    compositionBaseChoice = "original"
-    if (hasCompositionDirection([pendingImagePrompt])) {
-      nextAction = "create_composition_job"
-      compositionPromptOverride = pendingImagePrompt
-      reply = "Recebi a nova imagem. Vou usar essa foto como base para criar a composição solicitada."
-      setCompositionSession((session) => ({
-        ...session,
-        step: "composing",
-        baseImage: {
-          kind: "base",
+        referenceImage: {
+          kind: "reference",
           messageId: inboundMessage.id,
-          imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
-          label: "imagem enviada pelo cliente",
+          imageUrl: currentImageUrl,
+          label: "imagem de referência enviada pelo cliente",
           createdAt: inboundMessage.createdAt,
         },
         pendingPrompt: undefined,
         pendingBaseChoice: false,
       }))
     } else {
-      nextAction = "ask_for_reference_image"
-      nextStateOverride = "collecting_preferences"
-      reply = "Recebi a nova imagem do ambiente. Agora me diga o que você quer simular nela e qual referência deve ser aplicada."
       setCompositionSession((session) => ({
         ...session,
-        step: "awaiting_reference_image",
         baseImage: {
           kind: "base",
           messageId: inboundMessage.id,
-          imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
+          imageUrl: currentImageUrl,
           label: "imagem enviada pelo cliente",
           createdAt: inboundMessage.createdAt,
         },
+        workingImage: undefined,
+        preferredBase: undefined,
         pendingPrompt: undefined,
         pendingBaseChoice: false,
       }))
     }
-  } else if (conversation.state === "awaiting_selection" && pendingBaseChoiceRequest && wantsDifferentBaseImage(inboundMessage.content)) {
-    nextAction = "ask_for_base_image"
-    nextStateOverride = "awaiting_base_image"
-    reply = "Perfeito. Me envie a nova imagem que voce quer usar como base para essa composicao."
+  }
+
+  if (primaryReference) {
     setCompositionSession((session) => ({
       ...session,
-      step: "awaiting_base_image",
-      pendingPrompt: pendingBaseChoiceRequest,
-      pendingBaseChoice: false,
-    }))
-  } else if (skuReference && !hasBaseImage) {
-    nextAction = "ask_for_base_image"
-    reply = [
-      `Encontrei o produto ${skuReference.name}${skuReference.sku ? ` pelo SKU ${skuReference.sku}` : ""}.`,
-      "Agora me envie a imagem do ambiente que voce quer transformar para eu aplicar essa referencia.",
-    ].join("\n\n")
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_image",
-      selectedProducts: upsertSessionProduct(session, toSessionProduct(skuReference)),
-      pendingPrompt: inboundMessage.content,
-      pendingBaseChoice: false,
-    }))
-  } else if (skuReference && hasBaseImage) {
-    nextAction = "create_composition_job"
-    reply = `Encontrei o produto ${skuReference.name}${skuReference.sku ? ` pelo SKU ${skuReference.sku}` : ""}. Vou preparar a composicao visual com essa referencia.`
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      selectedProducts: upsertSessionProduct(session, toSessionProduct(skuReference)),
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (isColorEditRequest(inboundMessage.content) && colorReferences.length > 0 && !hasBaseImage) {
-    nextAction = "show_catalog_options"
-    reply = [
-      "Consigo te ajudar com essa cor, mas primeiro preciso da imagem do ambiente que você quer transformar.",
-      formatCatalogLinkReply(input.tenantSlug),
-    ].join("\n\n")
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_image",
-      selectedProducts: colorReferences[0]
-        ? upsertSessionProduct(session, toSessionProduct(colorReferences[0].item, getPrimaryCatalogColor(colorReferences[0])))
-        : session.selectedProducts,
-      pendingPrompt: inboundMessage.content,
-      pendingBaseChoice: false,
-    }))
-  } else if (isColorEditRequest(inboundMessage.content) && colorReferences.length > 0 && hasBaseImage) {
-    nextAction = "create_composition_job"
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      selectedProducts: colorReferences[0]
-        ? upsertSessionProduct(session, toSessionProduct(colorReferences[0].item, getPrimaryCatalogColor(colorReferences[0])))
-        : session.selectedProducts,
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (clientReferenceImageMessage && hasBaseImage && hasSpecificCompositionDirection(inboundMessage.content)) {
-    nextAction = "create_composition_job"
-    reply = "Recebi a imagem de referência. Vou usar a imagem anterior como base e aplicar essa referência conforme você pediu."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (sessionReferenceImage && !hasBaseImage && hasSpecificCompositionDirection(inboundMessage.content)) {
-    nextAction = "ask_for_base_image"
-    nextStateOverride = "awaiting_base_image"
-    reply = "Entendi como você quer aplicar a referência. Agora me envie a imagem do ambiente que você quer transformar."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_image",
-      pendingPrompt: inboundMessage.content,
-      pendingBaseChoice: false,
-    }))
-  } else if (sessionReferenceImage && hasBaseImage && hasSpecificCompositionDirection(inboundMessage.content)) {
-    nextAction = "create_composition_job"
-    reply = "Vou aplicar a referência salva na imagem conforme você pediu."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (freeTextReference && hasBaseImage) {
-    nextAction = "create_composition_job"
-    reply = "Vou usar a referência que você descreveu e colocar essa composição na fila."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  } else if (freeTextReference && !hasBaseImage) {
-    nextAction = "ask_for_base_image"
-    nextStateOverride = "awaiting_base_image"
-    reply = "Entendi a referência e como ela deve ser aplicada. Agora me envie a imagem do ambiente que você quer transformar."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "awaiting_base_image",
-      pendingPrompt: inboundMessage.content,
-      pendingBaseChoice: false,
-    }))
-  } else if (catalogLinkRequested) {
-    nextAction = "show_catalog_options"
-    reply = formatCatalogLinkReply(input.tenantSlug)
-    setCompositionSession((session) => ({
-      ...session,
-      step: "browsing_catalog",
+      selectedProducts: upsertSessionProduct(
+        session,
+        toSessionProduct(primaryReference.item, primaryReference.color),
+      ),
       pendingBaseChoice: false,
     }))
   }
 
-  const hasVisualReferenceForComposition = Boolean(
+  const sessionReferenceForComposition = compositionSession.referenceImage?.imageUrl || compositionSession.referenceImage?.messageId
+    ? compositionSession.referenceImage
+    : null
+  const hasReferenceForComposition = Boolean(
     primaryReference ||
-    clientReferenceImageMessage ||
-    inferredReferenceImageMessage ||
-    sessionReferenceImage ||
+    sessionReferenceForComposition ||
     freeTextReference
   )
-  const shouldShowCatalogLink = catalogLinkRequested && !hasVisualReferenceForComposition
-  const currentMessageHasVisualReference = Boolean(currentMessageHasKnownVisualReference || freeTextReference)
-  const semanticDirectionText = compositionPromptOverride ?? inboundMessage.content
-  const semanticDirectionFromClassifier = !isOnlyAutoStartTrigger &&
-    !(clientReferenceImageMessage && !currentMessageHasDirection) &&
-    classificationProvidesCompositionDirection(classification, semanticDirectionText)
-  const storedPendingDirection = Boolean(
-    hasCompositionDirection([pendingSessionPrompt, pendingBaseChoiceRequest]) ||
-    (
-      hasSubstantiveCompositionText(pendingSessionPrompt || pendingBaseChoiceRequest) &&
-      !isReferenceOnlyText(pendingSessionPrompt || pendingBaseChoiceRequest)
-    )
-  )
-  const hasPendingFreeTextDirection = Boolean(
-    pendingFreeTextReference &&
-    storedPendingDirection
-  )
-  const hasDirectionForComposition = currentMessageHasVisualReference
-    ? currentMessageHasDirection || storedPendingDirection || hasPendingFreeTextDirection || semanticDirectionFromClassifier
-    : hasCompositionDirection([
-      compositionPromptOverride,
-      inboundMessage.content,
-      pendingSessionPrompt,
-      pendingBaseChoiceRequest,
-    ]) || semanticDirectionFromClassifier
-
-  if (
-    nextAction === "create_composition_job" &&
-    !hasDirectionForComposition &&
-    !previousCompositionChoiceAnswer
-  ) {
-    nextAction = !hasBaseImage ? "ask_for_base_image" : "ask_for_reference_image"
-    nextStateOverride = mapNextActionToState(nextAction)
-    reply = formatCompositionMissingInputsReply({
-      hasBaseImage,
-      hasVisualReference: hasVisualReferenceForComposition,
-      hasDirection: hasDirectionForComposition,
-      tenantSlug: input.tenantSlug,
-      catalogEnabled: settings.assistant.catalogEnabled,
-    })
-    setCompositionSession((session) => ({
-      ...session,
-      step: !hasBaseImage
-        ? "awaiting_base_image"
-        : hasVisualReferenceForComposition
-          ? "product_selected"
-          : settings.assistant.catalogEnabled
-            ? "browsing_catalog"
-            : "awaiting_reference_image",
-      selectedProducts: primaryReference
-        ? upsertSessionProduct(session, toSessionProduct(primaryReference.item, primaryReference.color))
-        : session.selectedProducts,
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  }
-
-  const shouldAskForCompositionInputs =
-    !newImageRequest &&
-    !isOnlyAutoStartTrigger &&
-    !previousCompositionChoiceAnswer &&
-    nextAction !== "handoff_to_operator" &&
-    !hasAmbiguousRecentImagePair &&
-    !(clientReferenceImageMessage && !hasBaseImage) &&
-    classification.intent === "visual_edit" &&
-    (
-      nextAction === "create_composition_job" ||
-      nextAction === "ask_for_base_image" ||
-      nextAction === "ask_for_reference_image" ||
-      inboundMessage.contentType === "image"
-    ) &&
-    (!hasBaseImage || !hasVisualReferenceForComposition || !hasDirectionForComposition)
-
-  if (shouldAskForCompositionInputs) {
-    nextAction = !hasBaseImage ? "ask_for_base_image" : "ask_for_reference_image"
-    nextStateOverride = mapNextActionToState(nextAction)
-    reply = formatCompositionMissingInputsReply({
-      hasBaseImage,
-      hasVisualReference: hasVisualReferenceForComposition,
-      hasDirection: hasDirectionForComposition,
-      tenantSlug: input.tenantSlug,
-      catalogEnabled: settings.assistant.catalogEnabled,
-    })
-    setCompositionSession((session) => ({
-      ...session,
-      step: !hasBaseImage
-        ? "awaiting_base_image"
-        : hasVisualReferenceForComposition
-          ? "product_selected"
-          : settings.assistant.catalogEnabled
-            ? "browsing_catalog"
-            : "awaiting_reference_image",
-      selectedProducts: primaryReference
-        ? upsertSessionProduct(session, toSessionProduct(primaryReference.item, primaryReference.color))
-        : session.selectedProducts,
-      pendingPrompt: hasDirectionForComposition
-        ? compositionPromptOverride ?? inboundMessage.content
-        : undefined,
-      pendingBaseChoice: false,
-    }))
-  }
-
-  if (
-    clientReferenceImageMessage &&
-    hasBaseImage &&
-    !currentMessageHasDirection &&
-    !storedPendingDirection
-  ) {
-    nextAction = "ask_for_reference_image"
-    nextStateOverride = "collecting_preferences"
-    reply = "Recebi a referência. Agora me diga qual alteração você quer fazer na composição e onde essa referência deve ser aplicada."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "product_selected",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  }
-
-  if (
-    nextAction !== "handoff_to_operator" &&
-    nextAction !== "create_composition_job" &&
-    !isOnlyAutoStartTrigger &&
-    classification.intent === "visual_edit" &&
-    hasBaseImage &&
-    hasVisualReferenceForComposition &&
-    hasDirectionForComposition
-  ) {
-    nextAction = "create_composition_job"
-    nextStateOverride = mapNextActionToState(nextAction)
-    reply = "Perfeito. Já tenho o ambiente, a referência e o que deve ser feito. Vou colocar essa composição na fila."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  }
-
-  if (nextAction === "show_catalog_options" && hasVisualReferenceForComposition) {
-    nextAction = !hasBaseImage
-      ? "ask_for_base_image"
-      : hasDirectionForComposition
-        ? "create_composition_job"
-        : "ask_for_reference_image"
-    nextStateOverride = mapNextActionToState(nextAction)
-    reply = !hasBaseImage
-      ? "Já tenho a referência enviada por você. Agora me envie a imagem do ambiente em que ela deve ser aplicada."
-      : hasDirectionForComposition
-        ? "Já tenho a referência enviada por você. Vou preparar a composição usando essa referência na imagem base."
-        : "Já tenho a referência enviada por você. Agora me diga como ela deve ser aplicada na imagem."
-    setCompositionSession((session) => ({
-      ...session,
-      step: !hasBaseImage ? "awaiting_base_image" : hasDirectionForComposition ? "composing" : "product_selected",
-      pendingPrompt: hasDirectionForComposition ? compositionPromptOverride ?? inboundMessage.content : undefined,
-      pendingBaseChoice: false,
-    }))
-  }
-
-  if (nextAction === "show_catalog_options" && shouldShowCatalogLink) {
-    reply = formatCatalogLinkReply(input.tenantSlug)
-  }
-
-  if (
-    nextAction === "create_composition_job" &&
-    latestCompletedCompositionJob?.resultImageUrl &&
-    effectiveLatestBaseImageMessage &&
-    !compositionBaseChoice &&
-    !isPendingBaseChoiceAnswer &&
-    (inboundMessage.contentType === "text" || compositionSession.preferredBase)
-  ) {
-    compositionBaseChoice = inferCompositionBaseChoice({
-      text: inboundMessage.content,
-      session: compositionSession,
-      latestBaseImageMessage: effectiveLatestBaseImageMessage,
-      latestCompletedJob: latestCompletedCompositionJob,
-    })
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
-  }
 
   if (nextAction === "create_composition_job") {
     const compositionBase = await resolveCompositionBase({
       choice: compositionBaseChoice,
-      latestBaseImageMessage: effectiveLatestBaseImageMessage,
+      latestBaseImageMessage: previousInboundImageMessage ?? effectiveLatestBaseImageMessage,
       latestResultMessage: latestCompositionResultMessage,
       latestCompletedJob: latestCompletedCompositionJob,
       session: compositionSession,
       tenantSlug: input.tenantSlug,
     })
 
-    if (!compositionBase) {
-      nextAction = "ask_for_base_image"
-      reply = "Para criar a composição, me envie primeiro a imagem do ambiente que voce quer transformar."
-      setCompositionSession((session) => ({
-        ...session,
-        step: "awaiting_base_image",
-        selectedProducts: primaryReference
-          ? upsertSessionProduct(session, toSessionProduct(primaryReference.item, primaryReference.color))
-          : session.selectedProducts,
-        pendingPrompt: compositionPromptOverride ?? inboundMessage.content,
-        pendingBaseChoice: false,
-      }))
+    if (!compositionBase || !hasReferenceForComposition) {
+      nextAction = "reply_in_chat"
+      reply = classification.reply?.trim() || "Para criar a composição, me envie a imagem que você quer modificar e a referência que quer aplicar."
     } else {
-      const promptMessage = compositionPromptOverride
-        ? { ...inboundMessage, content: compositionPromptOverride }
-        : inboundMessage
-      const clientReferenceForComposition = clientReferenceImageMessage
+      const clientReferenceForComposition = sessionReferenceForComposition
         ? {
-          messageId: clientReferenceImageMessage.id,
-          imageUrl: getMessageMediaUrl(input.tenantSlug, clientReferenceImageMessage),
-          label: "imagem de referência enviada pelo cliente",
+          messageId: sessionReferenceForComposition.messageId,
+          imageUrl: sessionReferenceForComposition.imageUrl,
+          label: sessionReferenceForComposition.label || "imagem de referência enviada pelo cliente",
         }
-        : inferredReferenceImageMessage
-          ? {
-            messageId: inferredReferenceImageMessage.id,
-            imageUrl: getMessageMediaUrl(input.tenantSlug, inferredReferenceImageMessage),
-            label: "imagem de referência enviada pelo cliente",
-          }
-        : sessionReferenceImage
-          ? {
-            messageId: sessionReferenceImage.messageId,
-            imageUrl: sessionReferenceImage.imageUrl,
-            label: sessionReferenceImage.label || "imagem de referência enviada pelo cliente",
-          }
-          : null
+        : null
       const visualReferences: CompositionJobReference[] = [
         ...(primaryReference ? [{
           source: "catalog" as const,
@@ -2838,7 +2088,7 @@ export async function processInboundMessageWithAi(input: {
           catalogCategory: primaryReference.item.category,
           catalogDescription: primaryReference.item.description,
         }] : []),
-        ...(clientReferenceForComposition ? [{
+        ...(clientReferenceForComposition?.imageUrl ? [{
           source: "inbox" as const,
           messageId: clientReferenceForComposition.messageId,
           imageUrl: clientReferenceForComposition.imageUrl,
@@ -2846,18 +2096,14 @@ export async function processInboundMessageWithAi(input: {
       ]
       const referencePrompt = [
         primaryReference
-          ? `${primaryReference.item.name}${primaryReference.color ? ` - cor ${primaryReference.color}` : ""}`
+          ? primaryReference.item.name + (primaryReference.color ? " - cor " + primaryReference.color : "")
           : "",
         clientReferenceForComposition
-          ? `${clientReferenceForComposition.label}${clientReferenceForComposition.messageId ? ` na mensagem ${clientReferenceForComposition.messageId}` : ""}`
+          ? clientReferenceForComposition.label + (clientReferenceForComposition.messageId ? " na mensagem " + clientReferenceForComposition.messageId : "")
           : "",
-        freeTextReference ? `Referência textual descrita pelo cliente: ${freeTextReference}` : "",
+        freeTextReference ? "Referência textual descrita pelo cliente: " + freeTextReference : "",
       ].filter(Boolean).join("\n")
-      const prompt = buildCompositionPrompt(
-        promptMessage,
-        messages,
-        referencePrompt
-      )
+      const prompt = buildCompositionPrompt(inboundMessage, messages, referencePrompt)
       const result = await createCompositionJob(input.tenantSlug, {
         conversationId: conversation.id,
         channelInstanceId: conversation.channelInstanceId,
@@ -2935,8 +2181,8 @@ export async function processInboundMessageWithAi(input: {
         scheduleAppJobProcessing()
       }
       reply = result.created
-        ? `Criei a composição usando a ${compositionBase.label} como base e ela entrou na fila. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${job.id.slice(0, 8)}.`
-        : `Essa composição já está na fila usando a ${compositionBase.label} como base. Vou preservar a estrutura do ambiente: ângulo, perspectiva, janelas, portas e layout não serão alterados fora do que foi solicitado. ID do processo: ${job.id.slice(0, 8)}.`
+        ? "Criei a composição usando a " + compositionBase.label + " como base. ID do processo: " + job.id.slice(0, 8) + "."
+        : "Essa composição já está na fila usando a " + compositionBase.label + " como base. ID do processo: " + job.id.slice(0, 8) + "."
     }
   }
 
@@ -2958,7 +2204,7 @@ export async function processInboundMessageWithAi(input: {
   const nextHandledBy = shouldHandoffToOperator
     ? "operator"
     : "ai"
-  const nextState = nextStateOverride ?? mapNextActionToState(nextAction)
+  const nextState = mapNextActionToState(nextAction)
 
   if (shouldPersistCompositionSession) {
     await updateInboxConversationCompositionSession(
