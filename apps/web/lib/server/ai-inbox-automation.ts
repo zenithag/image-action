@@ -1122,15 +1122,26 @@ function findCatalogProductReferences(items: CatalogItem[], text: string, limit 
       const normalizedName = normalizeSearchText(item.name)
       const normalizedSku = normalizeSearchText(item.sku || "")
       const compactSku = normalizeSkuSearchText(item.sku || "")
+      const searchableText = normalizeSearchText([
+        item.name,
+        item.sku,
+        item.category,
+        item.description,
+        ...Object.values(item.tags || {}),
+      ].filter(Boolean).join(" "))
       const nameWords = uniqueWords(item.name)
+      const searchableWords = uniqueWords(searchableText)
       const matchedNameWords = nameWords.filter((word) => normalizedText.includes(word))
+      const matchedSearchableWords = searchableWords.filter((word) => normalizedText.includes(word))
       const distinctiveNameWords = matchedNameWords.filter((word) => !genericNameWords.has(word))
+      const distinctiveSearchableWords = matchedSearchableWords.filter((word) => !genericNameWords.has(word))
       const score =
         (normalizedName && normalizedText.includes(normalizedName) ? 100 : 0) +
         (normalizedSku && normalizedText.includes(normalizedSku) ? 80 : 0) +
         (compactSku && compactText.includes(compactSku) ? 90 : 0) +
         (matchedNameWords.length >= 2 ? matchedNameWords.length * 12 : 0) +
-        (distinctiveNameWords.length >= 1 ? distinctiveNameWords.length * 18 : 0)
+        (distinctiveNameWords.length >= 1 ? distinctiveNameWords.length * 18 : 0) +
+        (distinctiveSearchableWords.length >= 2 ? distinctiveSearchableWords.length * 10 : 0)
 
       return { item, score }
     })
@@ -1511,6 +1522,13 @@ function formatCompositionConfirmationReply(input: {
   return [
     `Tenho a ${input.baseLabel} e a referência: ${input.referenceSummary}.`,
     "Antes de gerar, confirma que posso criar a composição mantendo a imagem do ambiente exatamente no mesmo ângulo, enquadramento e perspectiva, alterando apenas o que foi pedido?",
+  ].join("\n\n")
+}
+
+function formatCatalogProductNeedsBaseReply(product: CatalogItem) {
+  return [
+    `Encontrei no catálogo: ${product.name}${product.sku ? ` (${product.sku})` : ""}.`,
+    "Vou usar esse produto como referência. Agora me envie a imagem do ambiente onde ele deve ser aplicado.",
   ].join("\n\n")
 }
 
@@ -1972,7 +1990,8 @@ export async function processInboundMessageWithAi(input: {
   const sessionProductReference = !isStaleConversationGap && (
     conversation.state === "awaiting_base_image" ||
     compositionSession.step === "awaiting_base_image" ||
-    compositionSession.step === "product_selected"
+    compositionSession.step === "product_selected" ||
+    compositionSession.selectedProducts.length > 0
   )
     ? findSessionProductItem(compositionSession, catalogItems)
     : null
@@ -1991,6 +2010,7 @@ export async function processInboundMessageWithAi(input: {
       ? { item: colorReferences[0].item, color: getPrimaryCatalogColor(colorReferences[0]) }
       : null
   const catalogReferenceItems = uniqueCatalogItems([
+    ...(productReference ? [productReference] : []),
     ...productReferences,
     ...colorReferences.map((reference) => reference.item),
     ...genericCatalogItems,
@@ -2026,8 +2046,7 @@ export async function processInboundMessageWithAi(input: {
   const hasSessionBaseImage = Boolean(compositionSession.baseImage?.imageUrl)
   const hasBaseImage = Boolean(effectiveLatestBaseImageMessage || hasSessionBaseImage)
   const currentMessageHasCatalogProduct = Boolean(
-    skuReference ||
-    productReferences.length > 0 ||
+    primaryReference ||
     colorReferences.length > 0
   )
   const currentMessageHasKnownVisualReference = Boolean(
@@ -2110,9 +2129,12 @@ export async function processInboundMessageWithAi(input: {
 
   if (currentImageUrl) {
     const currentImageIsReference = Boolean(
-      previousInboundImageMessage ||
-      compositionSession.baseImage?.imageUrl ||
-      compositionSession.baseImage?.messageId
+      !primaryReference &&
+      (
+        previousInboundImageMessage ||
+        compositionSession.baseImage?.imageUrl ||
+        compositionSession.baseImage?.messageId
+      )
     )
 
     if (currentImageIsReference) {
@@ -2147,14 +2169,29 @@ export async function processInboundMessageWithAi(input: {
   }
 
   if (primaryReference) {
+    const catalogPendingPrompt = !hasBaseImage
+      ? buildCompositionPrompt(
+        inboundMessage,
+        messages,
+        primaryReference.item.name + (primaryReference.color ? " - cor " + primaryReference.color : ""),
+      )
+      : undefined
+
     setCompositionSession((session) => ({
       ...session,
       selectedProducts: upsertSessionProduct(
         session,
         toSessionProduct(primaryReference.item, primaryReference.color),
       ),
+      step: hasBaseImage ? session.step : "awaiting_base_image",
+      pendingPrompt: catalogPendingPrompt ?? session.pendingPrompt,
       pendingBaseChoice: false,
     }))
+  }
+
+  if (primaryReference && !hasBaseImage && nextAction !== "handoff_to_operator") {
+    nextAction = "ask_for_base_image"
+    reply = formatCatalogProductNeedsBaseReply(primaryReference.item)
   }
 
   const sessionReferenceForComposition = compositionSession.referenceImage?.imageUrl || compositionSession.referenceImage?.messageId
@@ -2165,6 +2202,24 @@ export async function processInboundMessageWithAi(input: {
     sessionReferenceForComposition ||
     freeTextReference
   )
+  const catalogReferenceHasEnoughContext = Boolean(
+    primaryReference &&
+    hasBaseImage &&
+    (
+      pendingSessionPrompt ||
+      currentMessageHasDirection ||
+      classificationProvidesCompositionDirection(classification, input.message.content)
+    )
+  )
+
+  if (
+    catalogReferenceHasEnoughContext &&
+    nextAction !== "handoff_to_operator" &&
+    nextAction !== "create_composition_job"
+  ) {
+    nextAction = "create_composition_job"
+    reply = getDefaultReply(nextAction)
+  }
 
   if (nextAction === "create_composition_job") {
     const compositionBase = await resolveCompositionBase({

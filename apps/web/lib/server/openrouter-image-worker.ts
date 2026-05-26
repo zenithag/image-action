@@ -6,6 +6,7 @@ import type { AiProvider } from "@/lib/ai-types"
 import type { CompositionJob, CompositionJobReference } from "@/lib/composition-types"
 import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
+import { getCatalogReferenceImageDataUrl } from "@/lib/server/catalog-reference-image"
 import { listCatalogItems } from "@/lib/server/catalog-store"
 import { isDurableCompositionBaseImageUrl, saveCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
 import { readGeneratedAsset, saveGeneratedAsset } from "@/lib/server/generated-assets-store"
@@ -971,8 +972,20 @@ async function resolveReferenceMaterialImage(job: CompositionJob, reference: Com
   if (reference.source === "catalog") {
     const item = await getCatalogItemForReference(job, reference)
 
-    if (item?.imageUrl) {
-      return normalizeReferenceImageUrl(item.imageUrl)
+    if (item) {
+      const itemReferenceImage = item.imageUrl
+        ? await normalizeReferenceImageUrl(item.imageUrl).catch(() => null)
+        : null
+
+      if (itemReferenceImage) {
+        return itemReferenceImage
+      }
+
+      const generatedReferenceImage = await getCatalogReferenceImageDataUrl(item)
+
+      if (generatedReferenceImage) {
+        return normalizeReferenceImageUrl(generatedReferenceImage)
+      }
     }
   }
 
