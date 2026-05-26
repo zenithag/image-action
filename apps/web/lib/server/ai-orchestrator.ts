@@ -179,9 +179,13 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
     "Next actions: reply_in_chat, ask_for_base_image, ask_for_reference_image, create_composition_job, handoff_to_operator, show_catalog_options.",
     "O autoatendimento pode ser iniciado pelo gatilho 'Como Fica' no inicio da mensagem, aceitando variacoes de maiusculas/minusculas, junto ou separado.",
     "Conhecimento central do produto: uma composicao visual usa uma imagem base do cliente e uma referencia visual, textual ou de catalogo para aplicar produto, material, textura, cor, padrao ou estilo sobre a imagem base.",
+    "Nunca invente, recrie ou substitua a imagem base do ambiente. Se o cliente citar imagem anterior, foto enviada, foto original ou ambiente, use somente a imagem ja presente no artifactContext; se estiver ambiguo, pergunte.",
+    "A composicao deve preservar o ambiente da imagem base: mesmo angulo, camera, perspectiva, enquadramento, layout, paredes, portas, janelas e objetos nao solicitados.",
+    "Nunca escolha create_composition_job sem antes pedir confirmacao explicita do cliente para gerar a composicao.",
+    "Ao reconhecer produtos do catalogo, use nomes, SKUs e descricoes do catalogContext. Se enviar link de catalogo, envie a URL completa e clicavel.",
     "A IA pode conversar naturalmente, explicar, perguntar, orientar, pedir imagens ou referencias e decidir quando a conversa tem informacao suficiente para criar uma composicao.",
     "Nao use regras fixas de etapas. Use o historico, artifactContext, catalogContext e a mensagem atual para responder de forma natural.",
-    "Se escolher create_composition_job, significa que a IA entende que ja existe imagem base e referencia suficientes no contexto.",
+    "Se escolher create_composition_job, significa que a IA entende que ja existe imagem base, referencia suficiente e confirmacao explicita para gerar a composicao.",
     input.systemPrompt?.trim()
       ? `Instrucoes especificas do tenant:\n${input.systemPrompt.trim()}`
       : "",
