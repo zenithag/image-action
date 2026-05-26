@@ -1815,12 +1815,28 @@ function isNewTopicRequest(text: string) {
     "fazer uma nova imagem",
     "criar uma nova imagem",
     "gerar uma nova imagem",
+    "fazer uma nova composicao",
+    "fazer uma nova composição",
+    "criar uma nova composicao",
+    "criar uma nova composição",
+    "gerar uma nova composicao",
+    "gerar uma nova composição",
     "fazer nova imagem",
     "criar nova imagem",
     "gerar nova imagem",
+    "fazer nova composicao",
+    "fazer nova composição",
+    "criar nova composicao",
+    "criar nova composição",
+    "gerar nova composicao",
+    "gerar nova composição",
     "nova imagem",
+    "nova composicao",
+    "nova composição",
     "comecar outro",
     "começar outro",
+    "comecar de novo",
+    "começar de novo",
     "novo assunto",
     "nova conversa",
     "outro assunto",
@@ -1883,14 +1899,20 @@ export async function processInboundMessageWithAi(input: {
     return { ok: false, skipped: "conversation_not_found" }
   }
 
-  const contextResetTime = conversation.contextResetAt
-    ? new Date(conversation.contextResetAt).getTime()
-    : 0
+  const resetRequested = isNewTopicRequest(inboundMessage.content)
+  const resetRequestedAt = resetRequested ? inboundMessage.createdAt : null
+  const contextResetTime = resetRequestedAt
+    ? new Date(resetRequestedAt).getTime()
+    : conversation.contextResetAt
+      ? new Date(conversation.contextResetAt).getTime()
+      : 0
   const messages = contextResetTime > 0
     ? allMessages.filter((message) => new Date(message.createdAt).getTime() >= contextResetTime || message.id === inboundMessage.id)
     : allMessages
   const conversationMessages = messages.slice(-10)
-  let compositionSession = normalizeInboxCompositionSession(conversation.compositionSession)
+  let compositionSession = resetRequested
+    ? createEmptyInboxCompositionSession(resetRequestedAt ?? undefined)
+    : normalizeInboxCompositionSession(conversation.compositionSession)
   const pendingSessionPrompt = compositionSession.pendingPrompt?.trim()
   const previousMessage = getPreviousConversationMessage(messages, inboundMessage.id)
   const idleMs = previousMessage
@@ -1980,6 +2002,28 @@ export async function processInboundMessageWithAi(input: {
     })
 
     return { ok: true, skipped: "external_auto_reply" }
+  }
+
+  if (resetRequested) {
+    await updateInboxConversation(input.tenantSlug, input.conversationId, {
+      contextResetAt: resetRequestedAt ?? new Date().toISOString(),
+      compositionSession,
+      state: "idle",
+      status: "open",
+    })
+
+    await recordAiTrace({
+      tenantSlug: input.tenantSlug,
+      conversationId: input.conversationId,
+      messageId: input.message.id,
+      stage: "automation",
+      status: "success",
+      event: "automation_context_reset_by_new_image_request",
+      details: {
+        text: input.message.content.slice(0, 280),
+        contextResetAt: resetRequestedAt,
+      },
+    })
   }
 
   const catalogItems = settings.assistant.catalogEnabled
