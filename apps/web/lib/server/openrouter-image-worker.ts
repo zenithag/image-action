@@ -84,10 +84,12 @@ const supportedAspectRatios = [
 ] as const
 const environmentStructureGuardrail = [
   "REGRA OBRIGATORIA DE PRESERVACAO DO AMBIENTE:",
-  "A IMAGEM BASE/CENA enviada pelo cliente e a unica fonte permitida para o ambiente final.",
+  "A IMAGEM 1, foto base/cena enviada pelo cliente, e o canvas obrigatorio da imagem final.",
+  "A imagem final deve ser uma edicao da IMAGEM 1, nao uma edicao da referencia e nao uma imagem nova inspirada na referencia.",
   "A imagem recebida e a base visual fixa. Nao modifique posicao, angulo de camera, perspectiva, ponto de vista, enquadramento, escala, layout, arquitetura, posicao de paredes, janelas, portas, teto, piso ou aberturas.",
   "A imagem final deve ser fiel a foto base: mesmo angulo, mesmo enquadramento, mesma perspectiva, mesmas linhas de fuga e mesma posicao dos elementos existentes.",
-  "Apenas a referencia visual/produto/material/cor solicitada pode ser adaptada para caber na foto base. Nao adapte a foto base para combinar com a referencia.",
+  "A referencia visual serve apenas para extrair produto, material, textura, cor, padrao ou estilo e aplicar na area solicitada da IMAGEM 1.",
+  "Nunca use a referencia visual como canvas, ambiente final, cena final, enquadramento, camera, fundo ou composicao espacial.",
   "Tudo que nao foi explicitamente solicitado deve permanecer igual a foto base. Fora da area pedida, preserve objetos, materiais, cores, decoracao, iluminacao, sombras, reflexos e textura original.",
   "Nao crie uma nova casa, fachada, sala, quarto, loja, parede, paisagem ou cena parecida. Edite somente a cena real da imagem base.",
   "Nao substitua o ambiente por uma renderizacao generica nem por uma composicao inspirada na referencia.",
@@ -1059,17 +1061,17 @@ function getReferenceImageInstruction(referenceImageCount: number) {
 
   return [
     "A resposta obrigatoriamente deve conter uma nova imagem gerada no campo message.images. Nao responda apenas com texto.",
-    "Use a IMAGEM 1 apenas como foto base/cena final.",
+    "Use a IMAGEM 1 como foto base, canvas de saida e cena final obrigatoria.",
     referenceImageCount === 1
-      ? "Use a IMAGEM 2 apenas como referencia visual obrigatoria e exata do produto/material a aplicar; nunca use a IMAGEM 2 como cena, fundo ou ambiente final."
-      : `Use as ${referenceImageCount} imagens seguintes apenas como referencias visuais obrigatorias para montar a composicao final; nunca use essas referencias como cena, fundo ou ambiente final.`,
+      ? "Use a IMAGEM 2 apenas como referencia do produto/material/textura/cor/padrao a aplicar sobre a IMAGEM 1; nunca use a IMAGEM 2 como canvas, cena, fundo, camera, enquadramento ou ambiente final."
+      : `Use as ${referenceImageCount} imagens seguintes apenas como referencias de produto/material/textura/cor/padrao a aplicar sobre a IMAGEM 1; nunca use essas referencias como canvas, cena, fundo, camera, enquadramento ou ambiente final.`,
     "Quando houver varias referencias, combine todas conforme o briefing: uma pode representar material, outra produto, outra textura, outra movel ou objeto.",
     "Para revestimentos, replique fielmente o padrao geometrico, a orientacao, a cor, o relevo, a paginacao, as juntas, a escala relativa e o acabamento da imagem de referencia correspondente.",
     "Trate imagens de textura/revestimento como modulos/amostras repetiveis: repita o mesmo modulo de forma uniforme, com a mesma escala fisica em toda a mesma superficie.",
     "A escala dos modulos so pode mudar pela perspectiva natural do plano da parede; nao aumente nem reduza desenhos em pontos isolados, nao misture tamanhos diferentes e nao distorca o padrao.",
     "Alinhe as juntas e a grade do revestimento com as quinas, planos e linhas de fuga da parede para manter proporcao arquitetonica realista.",
     "Nao substitua por referencia parecida, nao simplifique o desenho e nao invente outro produto.",
-    "Preserve a estrutura, arquitetura, camera e layout da IMAGEM 1.",
+    "Preserve a estrutura, arquitetura, camera, angulo, perspectiva, enquadramento e layout da IMAGEM 1.",
   ].join(" ")
 }
 
@@ -1424,9 +1426,10 @@ function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
   return [
     "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
     "Tarefa: editar a IMAGEM 1, que e a foto base/cena enviada pelo cliente, para criar uma composicao visual realista.",
-    "A cena final deve continuar reconhecivelmente a mesma foto da IMAGEM 1. A referencia visual serve somente para o material/produto/estilo solicitado.",
+    "A cena final deve ser a mesma foto da IMAGEM 1 com a referencia aplicada no local solicitado. Use a IMAGEM 1 como canvas de saida.",
     "Mantenha a IMAGEM 1 travada em posicao e angulo. A camera, perspectiva, enquadramento e geometria da base nao podem ser reinterpretados.",
-    "Transforme somente a referencia visual/produto/material solicitado para se encaixar na foto original.",
+    "Extraia da referencia apenas o produto/material/textura/cor/padrao/estilo solicitado e aplique isso na IMAGEM 1.",
+    "Nao use a referencia como imagem principal, cena final, camera, enquadramento, fundo ou ambiente.",
     "Nao crie uma nova cena. Preserve tudo o que nao foi solicitado com maxima fidelidade, como se fosse uma edicao localizada sobre a foto original.",
     getFrameInstruction(baseImage),
     environmentStructureGuardrail,
@@ -1450,15 +1453,16 @@ function buildOpenRouterImageContent(baseImage: BaseImage, referenceImageUrls: s
         prompt,
         getReferenceImageInstruction(referenceImageUrls.length),
         "ORDEM DAS IMAGENS:",
-        "IMAGEM 1 = FOTO BASE/CENA FINAL. Preserve esta imagem como camera, angulo, perspectiva, enquadramento, arquitetura, fundo e composicao espacial.",
+        "IMAGEM 1 = FOTO BASE/CANVAS DE SAIDA/CENA FINAL. Esta e a imagem que deve ser editada.",
+        "Preserve a IMAGEM 1 como camera, angulo, perspectiva, enquadramento, arquitetura, fundo e composicao espacial.",
         "A IMAGEM 1 nao pode ser recriada, substituida por outra cena ou alterada fora da area pedida.",
-        "A referencia deve ser ajustada para a IMAGEM 1, nunca o contrario.",
+        "As referencias devem fornecer somente produto/material/textura/cor/padrao/estilo para aplicar sobre a IMAGEM 1.",
         referenceImageUrls.length > 0
-          ? "IMAGEM 2 EM DIANTE = REFERENCIAS VISUAIS. Use apenas para produto, material, textura, cor, padrao ou objeto solicitado; nao use como ambiente final."
+          ? "IMAGEM 2 EM DIANTE = REFERENCIAS VISUAIS. Nao edite essas imagens. Nao use essas imagens como canvas, cena, fundo, camera, enquadramento ou ambiente final."
           : "",
       ].filter(Boolean).join("\n"),
     },
-    { type: "text", text: "IMAGEM 1 - FOTO BASE/CENA FINAL DO CLIENTE. Esta cena deve ser preservada." },
+    { type: "text", text: "IMAGEM 1 - FOTO BASE DO CLIENTE / CANVAS DE SAIDA / CENA FINAL A SER EDITADA. Preserve esta cena." },
     { type: "image_url", image_url: { url: baseImage.dataUrl, detail: "high" } },
   ]
 
@@ -1466,7 +1470,7 @@ function buildOpenRouterImageContent(baseImage: BaseImage, referenceImageUrls: s
     content.push(
       {
         type: "text",
-        text: `IMAGEM ${index + 2} - REFERENCIA VISUAL. Use somente como referencia do material/produto/padrao; nao use como cena, fundo ou nova fachada.`,
+        text: `IMAGEM ${index + 2} - REFERENCIA VISUAL. Extraia somente material/produto/textura/cor/padrao/estilo para aplicar na IMAGEM 1; nao use esta imagem como canvas, cena, fundo, camera, enquadramento ou ambiente final.`,
       },
       { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
     )
@@ -1480,7 +1484,7 @@ function buildLocalizedRenderPrompt(job: CompositionJob, baseImage: BaseImage) {
     "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
     "Renderize uma versao da imagem base com a alteracao solicitada, mantendo alinhamento perfeito com a foto original.",
     "Nunca transforme a imagem base em outro ambiente; altere apenas a superficie ou objeto solicitado.",
-    "Nao mova, gire, recorte, recentralize ou reinterprete a foto base. A referencia deve ser aplicada sobre a perspectiva original.",
+    "Nao mova, gire, recorte, recentralize ou reinterprete a foto base. A referencia fornece somente material/produto/textura/cor/padrao para aplicar sobre a perspectiva original.",
     getFrameInstruction(baseImage),
     environmentStructureGuardrail,
     surfaceSegmentationGuardrail,

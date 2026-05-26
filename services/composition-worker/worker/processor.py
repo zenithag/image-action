@@ -25,11 +25,11 @@ async def generate_composition(
         "type": "text",
         "text": (
             "ORDEM DAS IMAGENS: IMAGEM 1 = foto base/cena final enviada pelo cliente. "
+            "A IMAGEM 1 e o canvas obrigatorio da imagem final e e a unica imagem que deve ser editada. "
             "Preserve camera, angulo, perspectiva, enquadramento, arquitetura, layout, fundo e composicao espacial da IMAGEM 1. "
             "Nao mova, gire, recorte, recentralize ou reinterprete a foto base. "
             "IMAGEM 2 = referencia visual de produto/material, quando existir. "
-            "Use a referencia somente para material, textura, cor, padrao ou produto; nunca use a referencia como cena, fundo ou novo ambiente. "
-            "Adapte a referencia para caber na IMAGEM 1; nunca adapte a IMAGEM 1 para combinar com a referencia."
+            "Use a referencia somente para extrair material, textura, cor, padrao ou produto e aplicar na IMAGEM 1; nunca use a referencia como canvas, cena, fundo, camera, enquadramento ou novo ambiente."
         ),
     }]
 
@@ -104,7 +104,7 @@ def _build_prompt(mode: str, input_payload: dict | None) -> str:
             f"Material: {tags.get('material', '')}." if tags.get("material") else "",
             f"Estilo: {tags.get('estilo', '')}." if tags.get("estilo") else "",
             "Mantenha enquadramento, angulo, perspectiva, camera, arquitetura, layout, janelas, portas, iluminacao e sombras originais da IMAGEM 1.",
-            "A imagem final deve ser fiel a foto base; apenas o produto/material/referencia aplicada pode mudar.",
+            "A imagem final deve ser uma edicao fiel da foto base; a referencia fornece somente produto/material/textura/cor/padrao para aplicar na area solicitada.",
             "Nao crie uma nova casa, fachada, sala, parede ou ambiente parecido; altere somente o item/superficie solicitado.",
             "Gere uma imagem fotorrealista com o produto aplicado.",
         ]
@@ -115,9 +115,9 @@ def _build_prompt(mode: str, input_payload: dict | None) -> str:
         return (
             f"Insira {item_name} na IMAGEM 1 de forma natural e harmonizada. "
             "Mantenha a mesma cena, camera, angulo, enquadramento, iluminacao e perspectiva da IMAGEM 1. "
-            "Adapte o produto para a foto base sem mover ou reinterpretar a foto base. "
+            "A IMAGEM 1 e o canvas da imagem final; nao use a referencia como canvas ou nova cena. "
             "Nao gere uma nova cena. "
             "Gere uma imagem fotorrealista."
         )
 
-    return "Gere uma composicao visual editando a IMAGEM 1 e preservando cena, camera, angulo, enquadramento e perspectiva originais; use as demais imagens apenas como referencia visual a ser aplicada na foto base."
+    return "Gere uma composicao visual editando a IMAGEM 1 como canvas de saida e preservando cena, camera, angulo, enquadramento e perspectiva originais; use as demais imagens apenas para extrair referencia visual a ser aplicada na foto base."
