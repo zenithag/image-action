@@ -45,7 +45,14 @@ Regras decididas:
 
 Objetivo: impedir que a IA crie Composicao Visual quando o Cliente Final ainda nao disse o que deve ser alterado.
 
-Status: implementado em `apps/web/lib/server/ai-inbox-automation.ts`.
+Status: substituido por fluxo livre da IA em `apps/web/lib/server/ai-inbox-automation.ts`.
+
+Decisao posterior:
+
+- Remover regras rigidas de fluxo na conversa.
+- A IA responde naturalmente, sem travas deterministicas de etapa.
+- O sistema mantem apenas a memoria tecnica de imagem base, referencia e produto para criar o job quando a IA decidir `create_composition_job`.
+- Conhecimento central: composicoes usam uma imagem base do cliente e uma referencia visual/textual/catalogo aplicada sobre essa imagem.
 
 Regras decididas:
 
