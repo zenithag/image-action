@@ -286,6 +286,10 @@ export async function POST(request: Request) {
     rawPayload: payload,
   })
 
+  if (!result.conversation) {
+    return NextResponse.json({ ok: true, ignored: "deleted_conversation_history" })
+  }
+
   if (result.message) {
     await enqueueProcessInboundMessage({
       tenantSlug: instance.tenantSlug,

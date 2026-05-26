@@ -248,8 +248,11 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
       const nextMessages = await messagesResponse.json() as InboxMessage[]
       setConversation(nextConversation)
       setMessages(nextMessages)
+      setError(null)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Erro ao carregar conversa.")
+      if (!options?.silent || !conversation || messages.length === 0) {
+        setError(loadError instanceof Error ? loadError.message : "Erro ao carregar conversa.")
+      }
     } finally {
       if (!options?.silent) {
         setIsLoading(false)
