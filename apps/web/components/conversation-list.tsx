@@ -98,6 +98,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
 
       const data = await response.json() as InboxConversationSummary[]
       setConversations(data)
+      setError(null)
       window.dispatchEvent(new CustomEvent("inbox:unread-changed"))
 
       const currentSelectedId = selectedIdRef.current
@@ -112,7 +113,9 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
         onSelect?.(data[0]?.id ?? null)
       }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Erro ao carregar conversas.")
+      if (!options?.silent || conversations.length === 0) {
+        setError(loadError instanceof Error ? loadError.message : "Erro ao carregar conversas.")
+      }
     } finally {
       if (!options?.silent) {
         setIsLoading(false)

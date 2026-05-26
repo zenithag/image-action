@@ -16,6 +16,14 @@ import { readTenantInstances, type StoredTenantChannelInstance } from "@/lib/ser
 type InboxData = {
   conversations: InboxConversationSummary[]
   messages: InboxMessage[]
+  deletedConversations: DeletedInboxConversationCutoff[]
+}
+
+type DeletedInboxConversationCutoff = {
+  tenantSlug: string
+  channelInstanceId: string
+  externalContactId: string
+  deletedAt: string
 }
 
 type UpsertInboundMessageInput = {
@@ -74,7 +82,7 @@ async function readInboxData(): Promise<InboxData> {
   return readJsonStore({
     key: storeKey,
     filePath: dataFile,
-    fallback: { conversations: [], messages: [] },
+    fallback: { conversations: [], messages: [], deletedConversations: [] },
     normalize: (parsed) => ({
       conversations: Array.isArray((parsed as Partial<InboxData>)?.conversations)
         ? (parsed as InboxData).conversations
@@ -82,12 +90,55 @@ async function readInboxData(): Promise<InboxData> {
       messages: Array.isArray((parsed as Partial<InboxData>)?.messages)
         ? (parsed as InboxData).messages
         : [],
+      deletedConversations: Array.isArray((parsed as Partial<InboxData>)?.deletedConversations)
+        ? (parsed as InboxData).deletedConversations.filter(isDeletedConversationCutoff)
+        : [],
     }),
   })
 }
 
+function isDeletedConversationCutoff(value: unknown): value is DeletedInboxConversationCutoff {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    typeof value.tenantSlug === "string" &&
+    typeof value.channelInstanceId === "string" &&
+    typeof value.externalContactId === "string" &&
+    typeof value.deletedAt === "string"
+  )
+}
+
 function getChannelKey(tenantSlug: string, channelInstanceId: string) {
   return `${tenantSlug}:${channelInstanceId}`
+}
+
+function getDeletedConversationKey(item: Pick<DeletedInboxConversationCutoff, "tenantSlug" | "channelInstanceId" | "externalContactId">) {
+  return `${item.tenantSlug}:${item.channelInstanceId}:${item.externalContactId}`
+}
+
+function getDeletedConversationCutoffTime(
+  data: InboxData,
+  item: Pick<DeletedInboxConversationCutoff, "tenantSlug" | "channelInstanceId" | "externalContactId">,
+) {
+  const key = getDeletedConversationKey(item)
+  const cutoff = data.deletedConversations
+    .filter((deleted) => getDeletedConversationKey(deleted) === key)
+    .map((deleted) => new Date(deleted.deletedAt).getTime())
+    .filter(Number.isFinite)
+    .sort((left, right) => right - left)[0]
+
+  return cutoff ?? 0
+}
+
+function isAfterDeletedConversationCutoff(
+  data: InboxData,
+  item: Pick<DeletedInboxConversationCutoff, "tenantSlug" | "channelInstanceId" | "externalContactId"> & { createdAt: string },
+) {
+  const cutoff = getDeletedConversationCutoffTime(data, item)
+
+  return cutoff <= 0 || getMessageTimestamp(item) > cutoff
 }
 
 async function getChannelCutoffTimes() {
@@ -120,7 +171,10 @@ function isVisibleAfterConnection(
 }
 
 function applyConnectionCutoffs(data: InboxData, cutoffs: Map<string, number>): InboxData {
-  const messages = data.messages.filter((message) => isVisibleAfterConnection(message, cutoffs))
+  const messages = data.messages.filter((message) =>
+    isVisibleAfterConnection(message, cutoffs) &&
+    isAfterDeletedConversationCutoff(data, message)
+  )
   const messagesByConversation = new Map<string, InboxMessage[]>()
 
   for (const message of messages) {
@@ -160,6 +214,7 @@ function applyConnectionCutoffs(data: InboxData, cutoffs: Map<string, number>): 
   return {
     conversations,
     messages,
+    deletedConversations: data.deletedConversations,
   }
 }
 
@@ -183,7 +238,11 @@ export async function listAllInboxMessages() {
 }
 
 async function writeInboxData(data: InboxData) {
-  await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: { conversations: [], messages: [] } }, data)
+  await writeJsonStore({
+    key: storeKey,
+    filePath: dataFile,
+    fallback: { conversations: [], messages: [], deletedConversations: [] },
+  }, data)
 }
 
 function getConversationId(tenantSlug: string, channelInstanceId: string, externalContactId: string) {
@@ -384,6 +443,15 @@ export async function deleteInboxConversation(tenantSlug: string, conversationId
       return null
     }
 
+    const deletedAt = new Date().toISOString()
+    const deletedConversation: DeletedInboxConversationCutoff = {
+      tenantSlug: conversation.tenantSlug,
+      channelInstanceId: conversation.channelInstanceId,
+      externalContactId: conversation.externalContactId,
+      deletedAt,
+    }
+    const deletedKey = getDeletedConversationKey(deletedConversation)
+
     await writeInboxData({
       conversations: data.conversations.filter((item) =>
         !(item.tenantSlug === tenantSlug && item.id === conversationId)
@@ -391,6 +459,10 @@ export async function deleteInboxConversation(tenantSlug: string, conversationId
       messages: data.messages.filter((message) =>
         !(message.tenantSlug === tenantSlug && message.conversationId === conversationId)
       ),
+      deletedConversations: [
+        deletedConversation,
+        ...data.deletedConversations.filter((item) => getDeletedConversationKey(item) !== deletedKey),
+      ],
     })
 
     publishInboxRealtime({
@@ -465,6 +537,11 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
   return withInboxMutation(async () => {
     const data = await readInboxData()
     const now = input.createdAt ?? new Date().toISOString()
+
+    if (!isAfterDeletedConversationCutoff(data, { ...input, createdAt: now })) {
+      return { conversation: null, message: null }
+    }
+
     const generatedConversationId = getConversationId(input.tenantSlug, input.channelInstanceId, input.externalContactId)
     const existingConversation = data.conversations.find((conversation) =>
       conversation.id === generatedConversationId ||
@@ -534,6 +611,7 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
     await writeInboxData({
       conversations: sortConversations(nextConversations),
       messages: messageExists ? data.messages : [...data.messages, nextMessage],
+      deletedConversations: data.deletedConversations,
     })
 
     if (!messageExists) {
@@ -556,6 +634,11 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
 export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) {
   return withInboxMutation(async () => {
     const data = await readInboxData()
+
+    if (!isAfterDeletedConversationCutoff(data, input)) {
+      return { conversation: null, message: null, created: false }
+    }
+
     const generatedConversationId = getConversationId(input.tenantSlug, input.channelInstanceId, input.externalContactId)
     const existingConversation = data.conversations.find((conversation) =>
       conversation.id === generatedConversationId ||
@@ -636,6 +719,7 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
     await writeInboxData({
       conversations: sortConversations(conversations),
       messages: [...data.messages, message],
+      deletedConversations: data.deletedConversations,
     })
 
     publishInboxRealtime({
@@ -697,6 +781,7 @@ export async function appendOperatorInboxMessage(input: {
         data.conversations.map((item) => item.id === conversation.id ? nextConversation : item)
       ),
       messages: [...data.messages, message],
+      deletedConversations: data.deletedConversations,
     })
 
     publishInboxRealtime({
@@ -761,6 +846,7 @@ export async function appendAssistantInboxMessage(input: {
         data.conversations.map((item) => item.id === conversation.id ? nextConversation : item)
       ),
       messages: [...data.messages, message],
+      deletedConversations: data.deletedConversations,
     })
 
     publishInboxRealtime({
@@ -835,6 +921,7 @@ export async function appendAssistantInboxMediaMessage(input: {
         data.conversations.map((item) => item.id === conversation.id ? nextConversation : item)
       ),
       messages: [...data.messages, message],
+      deletedConversations: data.deletedConversations,
     })
 
     publishInboxRealtime({
@@ -1081,6 +1168,7 @@ export async function pruneInboxBeforeChannelInstanceTime(
       await writeInboxData({
         conversations: sortConversations(conversations),
         messages,
+        deletedConversations: data.deletedConversations,
       })
     }
 
