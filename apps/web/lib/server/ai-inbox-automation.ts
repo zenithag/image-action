@@ -1532,6 +1532,13 @@ function formatCatalogProductNeedsBaseReply(product: CatalogItem) {
   ].join("\n\n")
 }
 
+function formatCatalogProductNeedsReferenceReply(product: CatalogItem) {
+  return [
+    `Encontrei no catálogo: ${product.name}${product.sku ? ` (${product.sku})` : ""}, mas não consegui usar uma imagem real desse produto como referência.`,
+    "Me envie uma imagem de referência desse produto/material para eu aplicar na composição.",
+  ].join("\n\n")
+}
+
 function formatCompositionMissingInputsReply(input: {
   hasBaseImage: boolean
   hasVisualReference: boolean
@@ -2009,6 +2016,9 @@ export async function processInboundMessageWithAi(input: {
     : colorReferences[0]
       ? { item: colorReferences[0].item, color: getPrimaryCatalogColor(colorReferences[0]) }
       : null
+  const primaryReferenceHasUsableCatalogImage = Boolean(
+    primaryReference?.item && hasCatalogReferenceImage(primaryReference.item)
+  )
   const catalogReferenceItems = uniqueCatalogItems([
     ...(productReference ? [productReference] : []),
     ...productReferences,
@@ -2046,7 +2056,7 @@ export async function processInboundMessageWithAi(input: {
   const hasSessionBaseImage = Boolean(compositionSession.baseImage?.imageUrl)
   const hasBaseImage = Boolean(effectiveLatestBaseImageMessage || hasSessionBaseImage)
   const currentMessageHasCatalogProduct = Boolean(
-    primaryReference ||
+    (primaryReference && primaryReferenceHasUsableCatalogImage) ||
     colorReferences.length > 0
   )
   const currentMessageHasKnownVisualReference = Boolean(
@@ -2189,7 +2199,10 @@ export async function processInboundMessageWithAi(input: {
     }))
   }
 
-  if (primaryReference && !hasBaseImage && nextAction !== "handoff_to_operator") {
+  if (primaryReference && !primaryReferenceHasUsableCatalogImage && nextAction !== "handoff_to_operator") {
+    nextAction = "ask_for_reference_image"
+    reply = formatCatalogProductNeedsReferenceReply(primaryReference.item)
+  } else if (primaryReference && !hasBaseImage && nextAction !== "handoff_to_operator") {
     nextAction = "ask_for_base_image"
     reply = formatCatalogProductNeedsBaseReply(primaryReference.item)
   }
@@ -2198,12 +2211,13 @@ export async function processInboundMessageWithAi(input: {
     ? compositionSession.referenceImage
     : null
   const hasReferenceForComposition = Boolean(
-    primaryReference ||
+    (primaryReference && primaryReferenceHasUsableCatalogImage) ||
     sessionReferenceForComposition ||
     freeTextReference
   )
   const catalogReferenceHasEnoughContext = Boolean(
     primaryReference &&
+    primaryReferenceHasUsableCatalogImage &&
     hasBaseImage &&
     (
       pendingSessionPrompt ||

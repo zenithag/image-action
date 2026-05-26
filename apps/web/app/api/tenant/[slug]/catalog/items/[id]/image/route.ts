@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { getCatalogReferenceImageDataUrl } from "@/lib/server/catalog-reference-image"
+import { getCatalogReferenceImageUrl } from "@/lib/server/catalog-reference-image"
 import { listCatalogItems } from "@/lib/server/catalog-store"
 
 export const runtime = "nodejs"
@@ -41,10 +41,10 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.redirect(item.imageUrl)
   }
 
-  const generatedReferenceImage = await getCatalogReferenceImageDataUrl(item)
+  const catalogReferenceImage = getCatalogReferenceImageUrl(item)
 
-  if (generatedReferenceImage) {
-    const response = responseFromDataUrl(generatedReferenceImage)
+  if (catalogReferenceImage) {
+    const response = responseFromDataUrl(catalogReferenceImage)
 
     if (response) {
       return response
