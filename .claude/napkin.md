@@ -39,8 +39,8 @@
 1. **[2026-04-05] Multi-tenant: isolamento por tenant é princípio core**
    Do instead: todo dado, asset e job deve ser isolado por `tenant_id`. Usar `@studio/tenant-context` para prefixos de storage.
 
-2. **[2026-04-16] Composições não podem alterar estrutura do ambiente**
-   Do instead: prompts de imagem devem preservar ângulo, perspectiva, enquadramento, janelas, portas, layout e arquitetura; alterar apenas cor de parede, piso, teto, revestimentos, móveis/decor solicitados.
+2. **[2026-04-16] Composições não podem alterar posição ou ângulo da foto base**
+   Do instead: prompts de imagem devem preservar fielmente câmera, ângulo, perspectiva, enquadramento, posição, janelas, portas, layout e arquitetura da imagem original; adaptar somente a referência/produto/material aplicado.
 
 3. **[2026-04-16] Pintura de parede deve ser edição localizada determinística**
    Do instead: para tinta/cor de parede/piso/teto, usar `SEGMENTATION_PROVIDER=grounded_sam` para máscara por texto + SAM, com fallback local SegFormer; recolorir/renderizar pixels da foto original dentro da máscara preservando luminância/sombra/textura. Não chamar modelo gerador para pintura localizada.

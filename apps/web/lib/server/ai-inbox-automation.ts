@@ -570,6 +570,69 @@ function isBaseChoiceOnlyAnswer(text: string) {
   return /^(1|opcao 1|opção 1|original|a original|imagem original|foto original|primeira|a primeira|2|opcao 2|opção 2|nova|a nova|imagem nova|resultado|a gerada|gerada|ultima|a ultima)$/.test(normalized)
 }
 
+function isVagueCompositionRequest(text: string | null | undefined) {
+  const normalized = normalizeSearchText(text || "").trim()
+
+  if (!normalized || normalized === "imagem recebida" || isBaseChoiceOnlyAnswer(normalized)) {
+    return false
+  }
+
+  const hasVagueRequest = (
+    /^(quero\s+)?(?:simular|fazer|gerar|criar|renderizar)\s+(?:outra|nova|novo)(?:\s+(?:imagem|foto|composicao|composição|simulacao|simulação))?$/.test(normalized) ||
+    /^(?:outra|nova)\s+(?:imagem|foto|composicao|composição|simulacao|simulação)$/.test(normalized) ||
+    /^(?:simular|fazer|gerar|criar|renderizar)\s+(?:de novo|novamente|mais uma)$/.test(normalized) ||
+    /^(?:de novo|novamente|mais uma)$/.test(normalized) ||
+    includesAny(normalized, [
+      "simular outra imagem",
+      "simular outra foto",
+      "simular de novo",
+      "fazer outra imagem",
+      "fazer outra foto",
+      "fazer outra composicao",
+      "fazer outra composição",
+      "gerar outra imagem",
+      "gerar outra foto",
+      "criar outra imagem",
+      "criar outra foto",
+      "nova simulacao",
+      "nova simulação",
+      "nova composicao",
+      "nova composição",
+      "mais uma simulacao",
+      "mais uma simulação",
+    ])
+  )
+
+  if (!hasVagueRequest) {
+    return false
+  }
+
+  return !includesAny(normalized, [
+    "bancada",
+    "cadeira",
+    "chao",
+    "chão",
+    "cor",
+    "janela",
+    "madeira",
+    "mesa",
+    "movel",
+    "móvel",
+    "parede",
+    "pintura",
+    "piso",
+    "porta",
+    "porcelanato",
+    "produto",
+    "revestimento",
+    "sofa",
+    "sofá",
+    "teto",
+    "textura",
+    "tinta",
+  ])
+}
+
 function wantsDifferentBaseImage(text: string) {
   const normalized = normalizeSearchText(text)
 
@@ -665,6 +728,12 @@ function formatPreviousCompositionChoiceQuestion() {
     "2. Usar a imagem original como base",
     "3. Começar um novo processo",
   ].join("\n")
+}
+
+function formatSelectedBaseDirectionQuestion(choice: CompositionBaseChoice) {
+  return choice === "result"
+    ? "Perfeito. Vou usar a última composição como base. O que você quer alterar nela?"
+    : "Perfeito. Vou usar a imagem original como base. O que você quer simular nela?"
 }
 
 function getPendingBaseChoiceRequest(messages: InboxMessage[], currentMessageId: string, currentContent = "") {
@@ -1533,7 +1602,7 @@ function hasSpecificCompositionDirection(text: string | null | undefined) {
   const normalized = normalizeSearchText(text || "")
   const compact = normalized.trim()
 
-  if (!compact || compact === "imagem recebida") {
+  if (!compact || compact === "imagem recebida" || isVagueCompositionRequest(compact)) {
     return false
   }
 
@@ -1572,7 +1641,8 @@ function hasSubstantiveCompositionText(text: string | null | undefined) {
     normalized &&
     normalized !== "imagem recebida" &&
     normalized !== "foto" &&
-    normalized !== "imagem"
+    normalized !== "imagem" &&
+    !isVagueCompositionRequest(normalized)
   )
 }
 
@@ -1590,7 +1660,7 @@ function classificationProvidesCompositionDirection(
   classification: AiClassificationResult,
   text: string | null | undefined,
 ) {
-  if (!hasSubstantiveCompositionText(text) || isReferenceOnlyText(text)) {
+  if (!hasSubstantiveCompositionText(text) || isReferenceOnlyText(text) || isVagueCompositionRequest(text)) {
     return false
   }
 
@@ -1694,7 +1764,8 @@ export async function processInboundMessageWithAi(input: {
     return { ok: false, skipped: "conversation_not_found" }
   }
 
-  const newImageRequest = isNewTopicRequest(inboundMessage.content)
+  const vagueCompositionRequest = isVagueCompositionRequest(inboundMessage.content)
+  const newImageRequest = isNewTopicRequest(inboundMessage.content) && !vagueCompositionRequest
   const contextResetTime = newImageRequest
     ? getMessageTime(inboundMessage.createdAt)
     : conversation.contextResetAt
@@ -2138,6 +2209,20 @@ export async function processInboundMessageWithAi(input: {
       pendingPrompt: undefined,
       pendingBaseChoice: true,
     }))
+  } else if (
+    vagueCompositionRequest &&
+    latestCompletedCompositionJob?.resultImageUrl &&
+    !pendingPreviousCompositionChoiceRequest
+  ) {
+    nextAction = "reply_in_chat"
+    nextStateOverride = "awaiting_selection"
+    reply = formatPreviousCompositionChoiceQuestion()
+    setCompositionSession((session) => ({
+      ...session,
+      step: "awaiting_base_choice",
+      pendingPrompt: undefined,
+      pendingBaseChoice: true,
+    }))
   } else if (isOnlyAutoStartTrigger) {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
@@ -2323,40 +2408,74 @@ export async function processInboundMessageWithAi(input: {
       pendingBaseChoice: false,
     }))
   } else if (isPendingBaseChoiceAnswer) {
-    nextAction = "create_composition_job"
-    compositionBaseChoice = baseChoiceAnswer
-    compositionPromptOverride = pendingBaseChoiceRequest
-    reply = baseChoiceAnswer === "result"
-      ? "Vou usar a imagem nova gerada como base para continuar a composicao."
-      : "Vou usar a imagem original que voce enviou como base para continuar a composicao."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
+    const selectedBaseChoice = baseChoiceAnswer ?? "original"
+    compositionBaseChoice = selectedBaseChoice
+    if (hasCompositionDirection([pendingBaseChoiceRequest])) {
+      nextAction = "create_composition_job"
+      compositionPromptOverride = pendingBaseChoiceRequest
+      reply = selectedBaseChoice === "result"
+        ? "Vou usar a imagem nova gerada como base para continuar a composição."
+        : "Vou usar a imagem original que você enviou como base para continuar a composição."
+      setCompositionSession((session) => ({
+        ...session,
+        step: "composing",
+        pendingPrompt: undefined,
+        pendingBaseChoice: false,
+      }))
+    } else {
+      nextAction = "ask_for_reference_image"
+      nextStateOverride = "collecting_preferences"
+      reply = formatSelectedBaseDirectionQuestion(selectedBaseChoice)
+      setCompositionSession((session) => ({
+        ...session,
+        step: "awaiting_reference_image",
+        preferredBase: selectedBaseChoice,
+        pendingPrompt: undefined,
+        pendingBaseChoice: false,
+      }))
+    }
   } else if (
     conversation.state === "awaiting_base_image" &&
     (pendingBaseChoiceRequest || pendingSessionPrompt) &&
     inboundMessage.contentType === "image"
   ) {
-    nextAction = "create_composition_job"
+    const pendingImagePrompt = pendingSessionPrompt || pendingBaseChoiceRequest
     compositionBaseChoice = "original"
-    compositionPromptOverride = pendingSessionPrompt || pendingBaseChoiceRequest
-    reply = "Recebi a nova imagem. Vou usar essa foto como base para criar a composicao solicitada."
-    setCompositionSession((session) => ({
-      ...session,
-      step: "composing",
-      baseImage: {
-        kind: "base",
-        messageId: inboundMessage.id,
-        imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
-        label: "imagem enviada pelo cliente",
-        createdAt: inboundMessage.createdAt,
-      },
-      pendingPrompt: undefined,
-      pendingBaseChoice: false,
-    }))
+    if (hasCompositionDirection([pendingImagePrompt])) {
+      nextAction = "create_composition_job"
+      compositionPromptOverride = pendingImagePrompt
+      reply = "Recebi a nova imagem. Vou usar essa foto como base para criar a composição solicitada."
+      setCompositionSession((session) => ({
+        ...session,
+        step: "composing",
+        baseImage: {
+          kind: "base",
+          messageId: inboundMessage.id,
+          imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
+          label: "imagem enviada pelo cliente",
+          createdAt: inboundMessage.createdAt,
+        },
+        pendingPrompt: undefined,
+        pendingBaseChoice: false,
+      }))
+    } else {
+      nextAction = "ask_for_reference_image"
+      nextStateOverride = "collecting_preferences"
+      reply = "Recebi a nova imagem do ambiente. Agora me diga o que você quer simular nela e qual referência deve ser aplicada."
+      setCompositionSession((session) => ({
+        ...session,
+        step: "awaiting_reference_image",
+        baseImage: {
+          kind: "base",
+          messageId: inboundMessage.id,
+          imageUrl: getMessageMediaUrl(input.tenantSlug, inboundMessage),
+          label: "imagem enviada pelo cliente",
+          createdAt: inboundMessage.createdAt,
+        },
+        pendingPrompt: undefined,
+        pendingBaseChoice: false,
+      }))
+    }
   } else if (conversation.state === "awaiting_selection" && pendingBaseChoiceRequest && wantsDifferentBaseImage(inboundMessage.content)) {
     nextAction = "ask_for_base_image"
     nextStateOverride = "awaiting_base_image"
@@ -2505,6 +2624,38 @@ export async function processInboundMessageWithAi(input: {
       pendingSessionPrompt,
       pendingBaseChoiceRequest,
     ]) || semanticDirectionFromClassifier
+
+  if (
+    nextAction === "create_composition_job" &&
+    !hasDirectionForComposition &&
+    !previousCompositionChoiceAnswer
+  ) {
+    nextAction = !hasBaseImage ? "ask_for_base_image" : "ask_for_reference_image"
+    nextStateOverride = mapNextActionToState(nextAction)
+    reply = formatCompositionMissingInputsReply({
+      hasBaseImage,
+      hasVisualReference: hasVisualReferenceForComposition,
+      hasDirection: hasDirectionForComposition,
+      tenantSlug: input.tenantSlug,
+      catalogEnabled: settings.assistant.catalogEnabled,
+    })
+    setCompositionSession((session) => ({
+      ...session,
+      step: !hasBaseImage
+        ? "awaiting_base_image"
+        : hasVisualReferenceForComposition
+          ? "product_selected"
+          : settings.assistant.catalogEnabled
+            ? "browsing_catalog"
+            : "awaiting_reference_image",
+      selectedProducts: primaryReference
+        ? upsertSessionProduct(session, toSessionProduct(primaryReference.item, primaryReference.color))
+        : session.selectedProducts,
+      pendingPrompt: undefined,
+      pendingBaseChoice: false,
+    }))
+  }
+
   const shouldAskForCompositionInputs =
     !newImageRequest &&
     !isOnlyAutoStartTrigger &&

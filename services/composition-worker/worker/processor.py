@@ -25,9 +25,11 @@ async def generate_composition(
         "type": "text",
         "text": (
             "ORDEM DAS IMAGENS: IMAGEM 1 = foto base/cena final enviada pelo cliente. "
-            "Preserve camera, perspectiva, arquitetura, layout, fundo e composicao espacial da IMAGEM 1. "
+            "Preserve camera, angulo, perspectiva, enquadramento, arquitetura, layout, fundo e composicao espacial da IMAGEM 1. "
+            "Nao mova, gire, recorte, recentralize ou reinterprete a foto base. "
             "IMAGEM 2 = referencia visual de produto/material, quando existir. "
-            "Use a referencia somente para material, textura, cor, padrao ou produto; nunca use a referencia como cena, fundo ou novo ambiente."
+            "Use a referencia somente para material, textura, cor, padrao ou produto; nunca use a referencia como cena, fundo ou novo ambiente. "
+            "Adapte a referencia para caber na IMAGEM 1; nunca adapte a IMAGEM 1 para combinar com a referencia."
         ),
     }]
 
@@ -101,7 +103,8 @@ def _build_prompt(mode: str, input_payload: dict | None) -> str:
             f"Cor: {tags.get('cor', '')}." if tags.get("cor") else "",
             f"Material: {tags.get('material', '')}." if tags.get("material") else "",
             f"Estilo: {tags.get('estilo', '')}." if tags.get("estilo") else "",
-            "Mantenha enquadramento, perspectiva, camera, arquitetura, layout, janelas, portas, iluminacao e sombras originais da IMAGEM 1.",
+            "Mantenha enquadramento, angulo, perspectiva, camera, arquitetura, layout, janelas, portas, iluminacao e sombras originais da IMAGEM 1.",
+            "A imagem final deve ser fiel a foto base; apenas o produto/material/referencia aplicada pode mudar.",
             "Nao crie uma nova casa, fachada, sala, parede ou ambiente parecido; altere somente o item/superficie solicitado.",
             "Gere uma imagem fotorrealista com o produto aplicado.",
         ]
@@ -111,9 +114,10 @@ def _build_prompt(mode: str, input_payload: dict | None) -> str:
         item_name = payload.get("item_name", "o produto")
         return (
             f"Insira {item_name} na IMAGEM 1 de forma natural e harmonizada. "
-            "Mantenha a mesma cena, camera, iluminacao e perspectiva da IMAGEM 1. "
+            "Mantenha a mesma cena, camera, angulo, enquadramento, iluminacao e perspectiva da IMAGEM 1. "
+            "Adapte o produto para a foto base sem mover ou reinterpretar a foto base. "
             "Nao gere uma nova cena. "
             "Gere uma imagem fotorrealista."
         )
 
-    return "Gere uma composicao visual editando a IMAGEM 1 e preservando a cena original; use as demais imagens apenas como referencia visual."
+    return "Gere uma composicao visual editando a IMAGEM 1 e preservando cena, camera, angulo, enquadramento e perspectiva originais; use as demais imagens apenas como referencia visual a ser aplicada na foto base."
