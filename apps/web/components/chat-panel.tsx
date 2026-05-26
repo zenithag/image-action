@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -83,6 +84,66 @@ function getInboxMessageMediaUrl(tenantSlug: string, message: InboxMessage) {
   return `/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(message.conversationId)}/messages/${encodeURIComponent(message.id)}/media`
 }
 
+function trimUrlPunctuation(url: string) {
+  const match = url.match(/^(.+?)([.,!?;:]+)?$/)
+
+  return {
+    href: match?.[1] ?? url,
+    suffix: match?.[2] ?? "",
+  }
+}
+
+function renderTextWithLinks(text: string) {
+  const parts: ReactNode[] = []
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    const markdownLabel = match[1]
+    const markdownUrl = match[2]
+    const plainUrl = match[3]
+    const parsed = trimUrlPunctuation(markdownUrl || plainUrl || "")
+    const label = markdownLabel || parsed.href
+
+    parts.push(
+      <a
+        key={`${parsed.href}-${match.index}`}
+        href={parsed.href}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium underline decoration-current/35 underline-offset-2 transition-colors hover:text-primary"
+      >
+        {label}
+      </a>
+    )
+
+    if (parsed.suffix) {
+      parts.push(parsed.suffix)
+    }
+
+    lastIndex = pattern.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts
+}
+
+function MessageText({ children }: { children: string }) {
+  return (
+    <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed font-sans">
+      {renderTextWithLinks(children)}
+    </p>
+  )
+}
+
 function addStudioReference(draft: StudioDraft, artifact: StudioDraft["baseImage"]) {
   if (!artifact) return draft.references ?? []
 
@@ -121,7 +182,7 @@ function MediaMessage({
           fallbackLabel="Imagem indisponível"
           fallbackHint="A mídia pode ter expirado no WhatsApp."
         />
-        {caption && <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{caption}</p>}
+        {caption && <MessageText>{caption}</MessageText>}
         {onSendToStudio && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             <button
@@ -153,7 +214,7 @@ function MediaMessage({
           {message.mediaDurationSeconds ? <span>{Math.round(message.mediaDurationSeconds)}s</span> : null}
         </div>
         <audio controls src={mediaUrl} className="w-full" />
-        {caption && <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{caption}</p>}
+        {caption && <MessageText>{caption}</MessageText>}
       </div>
     )
   }
@@ -162,7 +223,7 @@ function MediaMessage({
     return (
       <div className="space-y-2">
         <video controls src={mediaUrl} className="max-h-[360px] max-w-full rounded-lg bg-black" />
-        {caption && <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{caption}</p>}
+        {caption && <MessageText>{caption}</MessageText>}
       </div>
     )
   }
@@ -187,12 +248,12 @@ function MediaMessage({
           </span>
           <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
         </a>
-        {caption && <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{caption}</p>}
+        {caption && <MessageText>{caption}</MessageText>}
       </div>
     )
   }
 
-  return <p className="whitespace-pre-wrap text-[14px] leading-relaxed font-sans">{message.content}</p>
+  return <MessageText>{message.content}</MessageText>
 }
 
 export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversationDeleted }: ChatPanelProps) {
