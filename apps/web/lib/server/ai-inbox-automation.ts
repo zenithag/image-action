@@ -1990,9 +1990,14 @@ export async function processInboundMessageWithAi(input: {
     : []
   const colorReferences = findCatalogColorReferences(catalogItems, input.message.content)
   const skuReference = findCatalogSkuReference(catalogItems, input.message.content)
-  const productReferences = uniqueCatalogItems([
+  const exactProductReferences = uniqueCatalogItems([
     ...(skuReference ? [skuReference] : []),
-    ...findCatalogProductReferences(catalogItems, input.message.content),
+    ...findCatalogItemsMentionedInText(catalogItems, input.message.content),
+  ])
+  const fuzzyProductReferences = findCatalogProductReferences(catalogItems, input.message.content)
+  const productReferences = uniqueCatalogItems([
+    ...exactProductReferences,
+    ...fuzzyProductReferences,
   ])
   const sessionProductReference = !isStaleConversationGap && (
     conversation.state === "awaiting_base_image" ||
@@ -2010,7 +2015,7 @@ export async function processInboundMessageWithAi(input: {
       isCatalogRepeatRequest(input.message.content)
     ))
   )
-  const productReference = productReferences[0] ?? sessionProductReference ?? null
+  const productReference = exactProductReferences[0] ?? sessionProductReference ?? fuzzyProductReferences[0] ?? null
   const primaryReference = productReference
     ? { item: productReference, color: undefined as string | undefined }
     : colorReferences[0]
@@ -2052,7 +2057,6 @@ export async function processInboundMessageWithAi(input: {
     input.conversationId,
   )
   const latestCompositionResultMessage = findCompositionResultMessage(messages, latestCompletedCompositionJob)
-  const explicitBaseChoice = getExplicitCompositionBaseChoice(input.message.content)
   const hasSessionBaseImage = Boolean(compositionSession.baseImage?.imageUrl)
   const hasBaseImage = Boolean(effectiveLatestBaseImageMessage || hasSessionBaseImage)
   const currentMessageHasCatalogProduct = Boolean(
@@ -2106,7 +2110,12 @@ export async function processInboundMessageWithAi(input: {
   let nextAction = classification.next_action
   let reply = classification.reply?.trim() || getDefaultReply(nextAction)
   let compositionJobId: string | undefined
-  const compositionBaseChoice: CompositionBaseChoice | null = explicitBaseChoice
+  const compositionBaseChoice = inferCompositionBaseChoice({
+    text: input.message.content,
+    session: compositionSession,
+    latestBaseImageMessage: effectiveLatestBaseImageMessage,
+    latestCompletedJob: latestCompletedCompositionJob,
+  })
   const hasCompositionConfirmation = isCompositionConfirmationRequest(input.message.content)
   let shouldPersistCompositionSession = false
   const shouldIncludeWelcome = isFirstInboundMessage(messages, input.message.id)
