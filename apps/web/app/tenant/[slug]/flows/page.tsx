@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useMemo, useState } from "react"
+import { use, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import {
   addEdge,
   Background,
@@ -20,6 +20,7 @@ import {
   Bot,
   Check,
   Clock,
+  Download,
   ImagePlus,
   GitBranch,
   Layers3,
@@ -33,6 +34,7 @@ import {
   Split,
   Tag,
   Trash2,
+  Upload,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -55,6 +57,10 @@ type FlowEdge = Edge
 type LibraryPayload = {
   folders: ConversationFlowLibraryFolder[]
   unfiledFlows: ConversationFlowLibraryItem[]
+}
+
+type ImportedFlowPayload = {
+  flow: ConversationFlow
 }
 
 const blockTypes: Array<{ type: ConversationFlowNodeType; label: string; icon: typeof MessageSquare }> = [
@@ -289,6 +295,17 @@ function contentDefaults(type: ConversationFlowContentItem["type"]): Conversatio
   return { type, url: "", caption: "" }
 }
 
+function exportFileName(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+
+  return `${normalized || "fluxo"}.conversation-flow.json`
+}
+
 async function requestJson<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, init)
   const payload = await response.json().catch(() => null) as T | { error?: string } | null
@@ -309,6 +326,7 @@ export default function TenantFlowsPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = use(params)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
   const [library, setLibrary] = useState<LibraryPayload>({ folders: [], unfiledFlows: [] })
   const [publishedFlows, setPublishedFlows] = useState<ConversationFlowLibraryItem[]>([])
   const [settings, setSettings] = useState<TenantSettings | null>(null)
@@ -321,6 +339,7 @@ export default function TenantFlowsPage({
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const allFlows = useMemo(
     () => [...library.unfiledFlows, ...library.folders.flatMap((folder) => folder.flows)],
@@ -577,6 +596,56 @@ export default function TenantFlowsPage({
     }
   }
 
+  function exportFlow() {
+    if (!selectedFlow) return
+
+    const flowName = flowMeta.name.trim() || selectedFlow.name
+    const payload = {
+      schema: "comofica.conversation-flow",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      flow: {
+        name: flowName,
+        description: flowMeta.description.trim(),
+        graph: flowStateToGraph(nodes, edges),
+      },
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+
+    anchor.href = url
+    anchor.download = exportFileName(flowName)
+    anchor.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  async function importFlow(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsImporting(true)
+    setError(null)
+
+    try {
+      const payload = JSON.parse(await file.text()) as unknown
+      const imported = await requestJson<ImportedFlowPayload>(`/api/tenant/${slug}/conversation-flows/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      await loadData(imported.flow.id)
+    } catch (importError) {
+      const message = importError instanceof SyntaxError
+        ? "Arquivo JSON invalido."
+        : importError instanceof Error ? importError.message : "Nao foi possivel importar o fluxo."
+      setError(message)
+    } finally {
+      setIsImporting(false)
+      event.target.value = ""
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <header className="flex min-h-[64px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-5 lg:px-7">
@@ -627,6 +696,26 @@ export default function TenantFlowsPage({
               <option key={flow.id} value={flow.id}>{flow.name}</option>
             ))}
           </select>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={(event) => void importFlow(event)}
+            className="hidden"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => importInputRef.current?.click()}
+            disabled={isImporting}
+          >
+            {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            Importar
+          </Button>
+          <Button size="sm" variant="outline" onClick={exportFlow} disabled={!selectedFlow}>
+            <Download className="h-4 w-4" />
+            Exportar
+          </Button>
           <Button size="sm" variant="outline" onClick={saveFlow} disabled={!selectedFlowId || isSaving}>
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Salvar

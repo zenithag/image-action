@@ -33,6 +33,10 @@ type CreateFlowInput = {
   createdBy?: string | null
 }
 
+type ImportFlowInput = CreateFlowInput & {
+  graph: unknown
+}
+
 type UpdateFlowInput = {
   name?: string
   description?: string
@@ -453,6 +457,31 @@ export async function createConversationFlow(tenantSlug: string, input: CreateFl
       description: normalizeText(input.description),
       status: "draft",
       draftGraph: createDefaultConversationFlowGraph(),
+      publishedVersionId: null,
+      createdBy: input.createdBy ?? null,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await writeFlowsData({ ...data, flows: [flow, ...data.flows] })
+    return flow
+  })
+}
+
+export async function importConversationFlow(tenantSlug: string, input: ImportFlowInput) {
+  return withFlowsMutation(async () => {
+    const data = await readFlowsData()
+    const now = new Date().toISOString()
+    const flow: ConversationFlow = {
+      id: crypto.randomUUID(),
+      tenantSlug,
+      folderId: input.folderId ?? null,
+      copiedFromFlowId: null,
+      scope: "tenant",
+      name: normalizeText(input.name) || "Fluxo importado",
+      description: normalizeText(input.description),
+      status: "draft",
+      draftGraph: normalizeConversationFlowGraph(input.graph),
       publishedVersionId: null,
       createdBy: input.createdBy ?? null,
       createdAt: now,
