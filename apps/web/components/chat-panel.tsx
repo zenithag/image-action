@@ -15,20 +15,25 @@ import {
   Download,
   Eraser,
   FileText,
+  GitBranch,
   Image as ImageIcon,
   ArrowLeft,
   Loader2,
   Mic,
   Paperclip,
+  Pause,
   Phone,
+  Play,
   RefreshCw,
   Send,
+  Square,
   Trash2,
   User,
   Video,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SafeImage } from "@/components/safe-image"
+import type { ConversationFlowActiveSession, ConversationFlowLibraryItem } from "@/lib/conversation-flow-types"
 
 interface ChatPanelProps {
   tenantSlug: string
@@ -268,6 +273,10 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
   const [isReturningToAi, setIsReturningToAi] = useState(false)
   const [isResettingContext, setIsResettingContext] = useState(false)
   const [isDeletingConversation, setIsDeletingConversation] = useState(false)
+  const [publishedFlows, setPublishedFlows] = useState<ConversationFlowLibraryItem[]>([])
+  const [selectedFlowId, setSelectedFlowId] = useState("")
+  const [activeFlowSession, setActiveFlowSession] = useState<ConversationFlowActiveSession | null>(null)
+  const [isFlowActionPending, setIsFlowActionPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -296,19 +305,22 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
     }
 
     try {
-      const [conversationResponse, messagesResponse] = await Promise.all([
+      const [conversationResponse, messagesResponse, activeFlowResponse] = await Promise.all([
         fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}`, { cache: "no-store" }),
         fetch(`/api/tenant/${tenantSlug}/inbox/conversations/${encodeURIComponent(conversationId)}/messages`, { cache: "no-store" }),
+        fetch(`/api/tenant/${tenantSlug}/conversation-flows/sessions/active?conversationId=${encodeURIComponent(conversationId)}`, { cache: "no-store" }),
       ])
 
-      if (!conversationResponse.ok || !messagesResponse.ok) {
+      if (!conversationResponse.ok || !messagesResponse.ok || !activeFlowResponse.ok) {
         throw new Error("Nao foi possivel carregar a conversa.")
       }
 
       const nextConversation = await conversationResponse.json() as InboxConversationSummary
       const nextMessages = await messagesResponse.json() as InboxMessage[]
+      const flowPayload = await activeFlowResponse.json() as { session?: ConversationFlowActiveSession | null }
       setConversation(nextConversation)
       setMessages(nextMessages)
+      setActiveFlowSession(flowPayload.session ?? null)
       setError(null)
     } catch (loadError) {
       if (!options?.silent || !conversation || messages.length === 0) {
@@ -324,6 +336,32 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
   useEffect(() => {
     void loadConversation()
   }, [tenantSlug, conversationId])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadPublishedFlows() {
+      try {
+        const response = await fetch(`/api/tenant/${tenantSlug}/conversation-flows?published=1`, { cache: "no-store" })
+        if (!response.ok) return
+
+        const payload = await response.json() as { flows?: ConversationFlowLibraryItem[] }
+        if (isMounted) {
+          const flows = payload.flows ?? []
+          setPublishedFlows(flows)
+          setSelectedFlowId((current) => current || flows[0]?.id || "")
+        }
+      } catch {
+        // Fluxos indisponiveis nao devem impedir o atendimento.
+      }
+    }
+
+    void loadPublishedFlows()
+
+    return () => {
+      isMounted = false
+    }
+  }, [tenantSlug])
 
   useInboxRealtime(tenantSlug, (event) => {
     if (!conversationId || event.conversationId !== conversationId) {
@@ -564,6 +602,58 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
     }
   }
 
+  async function startSelectedFlow() {
+    if (!conversationId || !selectedFlowId || isFlowActionPending || isChannelInstanceRemoved) return
+
+    setIsFlowActionPending(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/conversation-flows/${encodeURIComponent(selectedFlowId)}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      })
+      const payload = await response.json().catch(() => null) as { session?: ConversationFlowActiveSession; error?: string } | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nao foi possivel iniciar o fluxo.")
+      }
+
+      setActiveFlowSession(payload?.session ?? null)
+      void loadConversation({ silent: true })
+    } catch (flowError) {
+      setError(flowError instanceof Error ? flowError.message : "Erro ao iniciar fluxo.")
+    } finally {
+      setIsFlowActionPending(false)
+    }
+  }
+
+  async function controlFlowSession(action: "pause" | "resume" | "stop") {
+    if (!activeFlowSession || isFlowActionPending) return
+
+    setIsFlowActionPending(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${tenantSlug}/conversation-flows/sessions/${encodeURIComponent(activeFlowSession.id)}/${action}`, {
+        method: "POST",
+      })
+      const payload = await response.json().catch(() => null) as { session?: ConversationFlowActiveSession; error?: string } | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nao foi possivel controlar a sessao do fluxo.")
+      }
+
+      setActiveFlowSession(payload?.session ?? null)
+      void loadConversation({ silent: true })
+    } catch (flowError) {
+      setError(flowError instanceof Error ? flowError.message : "Erro ao controlar fluxo.")
+    } finally {
+      setIsFlowActionPending(false)
+    }
+  }
+
   async function deleteConversation() {
     if (!conversationId || !conversation || isDeletingConversation) return
 
@@ -694,6 +784,50 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
         </div>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {activeFlowSession && activeFlowSession.status !== "completed" && activeFlowSession.status !== "failed" ? (
+            <div className="hidden items-center gap-1 rounded-[10px] border border-border bg-card px-2 py-1 lg:flex">
+              <GitBranch className="h-3.5 w-3.5 text-primary" />
+              <span className="max-w-32 truncate text-xs font-medium text-foreground">{activeFlowSession.flow?.name ?? "Fluxo ativo"}</span>
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-primary">{activeFlowSession.status}</span>
+              {activeFlowSession.status === "paused" ? (
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void controlFlowSession("resume")} disabled={isFlowActionPending}>
+                  {isFlowActionPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void controlFlowSession("pause")} disabled={isFlowActionPending}>
+                  {isFlowActionPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => void controlFlowSession("stop")} disabled={isFlowActionPending}>
+                <Square className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <div className="hidden items-center gap-1 rounded-[10px] border border-border bg-card px-1.5 py-1 lg:flex">
+              <select
+                value={selectedFlowId}
+                onChange={(event) => setSelectedFlowId(event.target.value)}
+                className="h-7 max-w-36 rounded-[8px] border border-transparent bg-transparent px-1 text-xs text-foreground outline-none"
+                disabled={publishedFlows.length === 0}
+              >
+                {publishedFlows.length === 0 ? (
+                  <option value="">Sem fluxos</option>
+                ) : publishedFlows.map((flow) => (
+                  <option key={flow.id} value={flow.id}>{flow.name}</option>
+                ))}
+              </select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => void startSelectedFlow()}
+                disabled={!selectedFlowId || isFlowActionPending || isChannelInstanceRemoved}
+                title="Iniciar fluxo"
+              >
+                {isFlowActionPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          )}
           {isChannelInstanceRemoved ? (
             <Button
               variant="outline"

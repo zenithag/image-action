@@ -296,6 +296,7 @@ export async function POST(request: Request) {
       channelInstanceId: instance.id,
       conversationId: result.conversation.id,
       messageId: result.message.id,
+      allowDefaultFlow: result.createdConversation === true,
     })
     scheduleAppJobProcessing()
   }

@@ -657,6 +657,7 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
     return {
       conversation: nextConversation,
       message: messageExists ? null : nextMessage,
+      createdConversation: !existingConversation,
     }
   })
 }

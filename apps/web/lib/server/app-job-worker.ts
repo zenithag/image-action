@@ -4,8 +4,15 @@ import {
   completeAppJob,
   enqueueProcessCompositionQueue,
   failAppJob,
+  type AdvanceConversationFlowPayload,
+  type ProcessCompositionQueuePayload,
   type ProcessInboundMessagePayload,
 } from "@/lib/server/app-job-queue"
+import {
+  advanceConversationFlowSession,
+  consumeConversationFlowInboundMessage,
+  startDefaultConversationFlowIfAvailable,
+} from "@/lib/server/conversation-flow-runner"
 import { processNextCompositionJob } from "@/lib/server/composition-processor"
 import { findInboxMessage } from "@/lib/server/inbox-store"
 import { findTenantInstance } from "@/lib/server/tenant-channel-instances-store"
@@ -49,6 +56,29 @@ async function processAppJob() {
         throw new Error("Instancia do canal nao encontrada para processar mensagem inbound.")
       }
 
+      const flowResult = await consumeConversationFlowInboundMessage({
+        tenantSlug: payload.tenantSlug,
+        conversationId: payload.conversationId,
+        message,
+      })
+
+      if (flowResult.consumed) {
+        await completeAppJob(job.id)
+        return true
+      }
+
+      const defaultSession = payload.allowDefaultFlow
+        ? await startDefaultConversationFlowIfAvailable({
+          tenantSlug: payload.tenantSlug,
+          conversationId: payload.conversationId,
+        })
+        : null
+
+      if (defaultSession) {
+        await completeAppJob(job.id)
+        return true
+      }
+
       await processInboundMessageWithAi({
         tenantSlug: payload.tenantSlug,
         instance,
@@ -56,7 +86,11 @@ async function processAppJob() {
         message,
       })
     } else if (job.type === "process_composition_queue") {
-      await processCompositionQueue(job.payload.tenantSlug)
+      const payload = job.payload as ProcessCompositionQueuePayload
+      await processCompositionQueue(payload.tenantSlug)
+    } else if (job.type === "advance_conversation_flow") {
+      const payload = job.payload as AdvanceConversationFlowPayload
+      await advanceConversationFlowSession(payload.sessionId)
     } else {
       const unreachable: never = job.type
       throw new Error(`Tipo de job nao suportado: ${unreachable}`)
