@@ -20,6 +20,7 @@ import {
   Bot,
   Check,
   Clock,
+  Copy,
   Download,
   ImagePlus,
   GitBranch,
@@ -35,6 +36,7 @@ import {
   Tag,
   Trash2,
   Upload,
+  X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -327,6 +329,7 @@ export default function TenantFlowsPage({
 }) {
   const { slug } = use(params)
   const importInputRef = useRef<HTMLInputElement | null>(null)
+  const exportTextAreaRef = useRef<HTMLTextAreaElement | null>(null)
   const [library, setLibrary] = useState<LibraryPayload>({ folders: [], unfiledFlows: [] })
   const [publishedFlows, setPublishedFlows] = useState<ConversationFlowLibraryItem[]>([])
   const [settings, setSettings] = useState<TenantSettings | null>(null)
@@ -341,6 +344,9 @@ export default function TenantFlowsPage({
   const [isPublishing, setIsPublishing] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [exportJson, setExportJson] = useState("")
+  const [exportName, setExportName] = useState("")
   const allFlows = useMemo(
     () => [...library.unfiledFlows, ...library.folders.flatMap((folder) => folder.flows)],
     [library]
@@ -596,9 +602,8 @@ export default function TenantFlowsPage({
     }
   }
 
-  function exportFlow() {
-    if (!selectedFlow) return
-
+  function buildExportPayload() {
+    if (!selectedFlow) return null
     const flowName = flowMeta.name.trim() || selectedFlow.name
     const payload = {
       schema: "comofica.conversation-flow",
@@ -610,13 +615,50 @@ export default function TenantFlowsPage({
         graph: flowStateToGraph(nodes, edges),
       },
     }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+    return {
+      fileName: exportFileName(flowName),
+      json: JSON.stringify(payload, null, 2),
+    }
+  }
+
+  function exportFlow() {
+    const exportPayload = buildExportPayload()
+    if (!exportPayload) return
+
+    setExportName(exportPayload.fileName)
+    setExportJson(exportPayload.json)
+    setNotice(null)
+    setError(null)
+  }
+
+  async function copyExportJson() {
+    if (!exportJson) return
+
+    exportTextAreaRef.current?.focus()
+    exportTextAreaRef.current?.select()
+
+    try {
+      await navigator.clipboard.writeText(exportJson)
+      setNotice("JSON do fluxo copiado.")
+    } catch {
+      const copied = document.execCommand("copy")
+      setNotice(copied ? "JSON do fluxo copiado." : "JSON selecionado. Pressione Cmd+C para copiar.")
+      setError(null)
+    }
+  }
+
+  function downloadExportJson() {
+    if (!exportJson || !exportName) return
+
+    const blob = new Blob([exportJson], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
 
     anchor.href = url
-    anchor.download = exportFileName(flowName)
+    anchor.download = exportName
+    document.body.append(anchor)
     anchor.click()
+    anchor.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
@@ -731,6 +773,43 @@ export default function TenantFlowsPage({
         <div className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-5 py-2 text-xs text-destructive">
           {error}
         </div>
+      )}
+
+      {notice && (
+        <div className="shrink-0 border-b border-emerald-500/20 bg-emerald-500/10 px-5 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+          {notice}
+        </div>
+      )}
+
+      {exportJson && (
+        <section className="shrink-0 border-b border-border bg-card px-4 py-3 sm:px-5 lg:px-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Exportação do fluxo</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{exportName}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => void copyExportJson()}>
+                <Copy className="h-4 w-4" />
+                Copiar JSON
+              </Button>
+              <Button size="sm" variant="outline" onClick={downloadExportJson}>
+                <Download className="h-4 w-4" />
+                Baixar arquivo
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setExportJson("")}>
+                <X className="h-4 w-4" />
+                Fechar
+              </Button>
+            </div>
+          </div>
+          <textarea
+            ref={exportTextAreaRef}
+            readOnly
+            value={exportJson}
+            className="mt-3 h-40 w-full resize-y rounded-[8px] border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none"
+          />
+        </section>
       )}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:grid-rows-1">
