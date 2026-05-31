@@ -47,6 +47,9 @@ export type TenantSettings = {
     humanHandoffKeywords: string[]
     catalogCategories: string[]
   }
+  automation: {
+    defaultConversationFlowId: string
+  }
   team: {
     members: TenantSettingsTeamMember[]
   }
@@ -77,6 +80,7 @@ export type TenantSettingsInput = Partial<{
   branding: Partial<TenantSettings["branding"]>
   channels: Partial<TenantSettings["channels"]>
   assistant: Partial<TenantSettings["assistant"]>
+  automation: Partial<TenantSettings["automation"]>
   team: Partial<TenantSettings["team"]>
   notifications: Partial<TenantSettings["notifications"]>
   security: Partial<TenantSettings["security"]>

@@ -1,21 +1,27 @@
 import { Pool } from "pg"
 
-export type AppJobType = "process_inbound_message" | "process_composition_queue"
+export type AppJobType = "process_inbound_message" | "process_composition_queue" | "advance_conversation_flow"
 
 export type ProcessInboundMessagePayload = {
   tenantSlug: string
   channelInstanceId: string
   conversationId: string
   messageId: string
+  allowDefaultFlow?: boolean
 }
 
 export type ProcessCompositionQueuePayload = {
   tenantSlug: string
 }
 
+export type AdvanceConversationFlowPayload = {
+  sessionId: string
+}
+
 export type AppJobPayloadByType = {
   process_inbound_message: ProcessInboundMessagePayload
   process_composition_queue: ProcessCompositionQueuePayload
+  advance_conversation_flow: AdvanceConversationFlowPayload
 }
 
 export type AppJob<TType extends AppJobType = AppJobType> = {
@@ -352,6 +358,14 @@ export async function enqueueProcessInboundMessage(payload: ProcessInboundMessag
 export async function enqueueProcessCompositionQueue(tenantSlug: string) {
   return enqueueAppJob("process_composition_queue", { tenantSlug }, {
     maxAttempts: 3,
+  })
+}
+
+export async function enqueueAdvanceConversationFlow(payload: AdvanceConversationFlowPayload, options: { runAt?: Date } = {}) {
+  return enqueueAppJob("advance_conversation_flow", payload, {
+    dedupeKey: `flow:${payload.sessionId}:${options.runAt?.toISOString() ?? "now"}`,
+    maxAttempts: 5,
+    runAt: options.runAt,
   })
 }
 

@@ -2,12 +2,15 @@ import { stat } from "node:fs/promises"
 import path from "node:path"
 
 import type { NextAction } from "@studio/contracts"
+import sharp from "sharp"
 
 import type { CatalogItem } from "@/lib/catalog-types"
 import type { CompositionJobReference, CompositionMode } from "@/lib/composition-types"
 import type { AiClassificationResult } from "@/lib/ai-types"
 import type {
   InboxCompositionSession,
+  InboxCompositionSessionImage,
+  InboxCompositionPendingImagePair,
   InboxCompositionSessionProduct,
   InboxConversationState,
   InboxMessage,
@@ -20,6 +23,8 @@ import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/
 import { hasCatalogReferenceImage } from "@/lib/server/catalog-reference-image"
 import { ensureCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
 import { createCompositionJob, listCompositionJobs } from "@/lib/server/composition-jobs-store"
+import { saveGeneratedAsset } from "@/lib/server/generated-assets-store"
+import { normalizeImageForUpload } from "@/lib/server/image-normalization"
 import {
   appendAssistantInboxMessage,
   createEmptyInboxCompositionSession,
@@ -35,6 +40,7 @@ import { getRuntimePublicDir } from "@/lib/server/runtime-paths"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import type { StoredTenantChannelInstance } from "@/lib/server/tenant-channel-instances-store"
 import { sendUazapiText } from "@/lib/server/uazapi-client"
+import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
 
 const STALE_CONVERSATION_MS = 15 * 60 * 1000
 
@@ -124,26 +130,49 @@ function isAlbumNotice(text: string) {
   return /^album:\s*\d+\s*(image|images|imagem|imagens)/i.test(text.trim())
 }
 
+function getAlbumNoticeImageCount(text: string) {
+  const match = text.trim().match(/^album:\s*(\d+)\s*(?:image|images|imagem|imagens)/i)
+  const count = match ? Number.parseInt(match[1], 10) : 0
+
+  return Number.isFinite(count) && count > 0 ? count : 0
+}
+
 function shouldDeferAlbumImageReply(messages: InboxMessage[], message: InboxMessage) {
   if (message.contentType !== "image" || message.content.trim() !== "Imagem recebida") {
     return false
   }
 
   const messageTime = getMessageTime(message.createdAt)
-
-  return [...messages].reverse().some((item) => {
-    if (item.id === message.id || item.direction !== "inbound") {
+  const albumNotice = [...messages].reverse().find((item) => {
+    if (item.id === message.id || item.direction !== "inbound" || item.contentType !== "text" || !isAlbumNotice(item.content)) {
       return false
     }
 
     const elapsedMs = messageTime - getMessageTime(item.createdAt)
 
-    if (elapsedMs < 0 || elapsedMs > 90_000) {
+    return elapsedMs >= 0 && elapsedMs <= 90_000
+  })
+
+  if (!albumNotice) {
+    return false
+  }
+
+  const expectedImages = getAlbumNoticeImageCount(albumNotice.content)
+  const imagesAfterNotice = messages.filter((item) => {
+    if (item.direction !== "inbound" || item.contentType !== "image") {
       return false
     }
 
-    return item.contentType === "text" && isAlbumNotice(item.content)
+    const itemTime = getMessageTime(item.createdAt)
+    const elapsedAfterNotice = itemTime - getMessageTime(albumNotice.createdAt)
+    const elapsedBeforeCurrent = messageTime - itemTime
+
+    return elapsedAfterNotice >= 0 && elapsedAfterNotice <= 90_000 && elapsedBeforeCurrent >= 0
   })
+
+  const targetImages = expectedImages >= 2 ? 2 : expectedImages
+
+  return targetImages > 0 && imagesAfterNotice.length < targetImages
 }
 
 function isClientReferenceImageInstruction(text: string) {
@@ -252,9 +281,22 @@ function isUseRecentImagesRequest(text: string) {
 }
 
 type ImagePairRoleChoice = "first_base" | "second_base"
+type ImagePairPosition = "first" | "second"
 
 function getImagePairRoleChoice(text: string): ImagePairRoleChoice | null {
   const normalized = normalizeSearchText(text).trim()
+  const firstReferenceSecondBase = /primeir[ao][^.?!,\n]*(?:referencia|ref|produto|material|modelo|inspiracao|textura|acabamento)[\s\S]*(?:segund[ao]|2)[^.?!,\n]*(?:cenario|cena|ambiente|paisagem|base|foto real|imagem real)/.test(normalized)
+  const firstBaseSecondReference = /primeir[ao][^.?!,\n]*(?:cenario|cena|ambiente|paisagem|base|foto real|imagem real)[\s\S]*(?:segund[ao]|2)[^.?!,\n]*(?:referencia|ref|produto|material|modelo|inspiracao|textura|acabamento)/.test(normalized)
+  const secondReferenceFirstBase = /(?:segund[ao]|2)[^.?!,\n]*(?:referencia|ref|produto|material|modelo|inspiracao|textura|acabamento)[\s\S]*primeir[ao][^.?!,\n]*(?:cenario|cena|ambiente|paisagem|base|foto real|imagem real)/.test(normalized)
+  const secondBaseFirstReference = /(?:segund[ao]|2)[^.?!,\n]*(?:cenario|cena|ambiente|paisagem|base|foto real|imagem real)[\s\S]*primeir[ao][^.?!,\n]*(?:referencia|ref|produto|material|modelo|inspiracao|textura|acabamento)/.test(normalized)
+
+  if (firstReferenceSecondBase || secondBaseFirstReference) {
+    return "second_base"
+  }
+
+  if (firstBaseSecondReference || secondReferenceFirstBase) {
+    return "first_base"
+  }
 
   if (/^(1|opcao 1|opção 1|primeira|a primeira|primeira cena|primeira e cena|primeira é cena|primeiro ambiente|primeira e ambiente|primeira é ambiente)$/.test(normalized)) {
     return "first_base"
@@ -265,20 +307,22 @@ function getImagePairRoleChoice(text: string): ImagePairRoleChoice | null {
   }
 
   if (
-    includesAny(normalized, ["primeira imagem e a cena", "primeira foto e a cena", "primeira como cena"]) ||
+    includesAny(normalized, ["primeira imagem e a cena", "primeira foto e a cena", "primeira como cena", "primeira imagem e o cenario", "primeira foto e o cenario", "primeira como cenario", "primeira como ambiente"]) ||
     (
       includesAny(normalized, ["primeira imagem", "primeira foto"]) &&
-      includesAny(normalized, ["cena", "ambiente", "base"])
+      includesAny(normalized, ["cena", "cenario", "ambiente", "paisagem", "base"]) &&
+      !includesAny(normalized, ["primeira imagem e referencia", "primeira foto e referencia", "primeira como referencia"])
     )
   ) {
     return "first_base"
   }
 
   if (
-    includesAny(normalized, ["segunda imagem e a cena", "segunda foto e a cena", "segunda como cena"]) ||
+    includesAny(normalized, ["segunda imagem e a cena", "segunda foto e a cena", "segunda como cena", "segunda imagem e o cenario", "segunda foto e o cenario", "segunda como cenario", "segunda como ambiente"]) ||
     (
       includesAny(normalized, ["segunda imagem", "segunda foto"]) &&
-      includesAny(normalized, ["cena", "ambiente", "base"])
+      includesAny(normalized, ["cena", "cenario", "ambiente", "paisagem", "base"]) &&
+      !includesAny(normalized, ["segunda imagem e referencia", "segunda foto e referencia", "segunda como referencia"])
     )
   ) {
     return "second_base"
@@ -287,10 +331,42 @@ function getImagePairRoleChoice(text: string): ImagePairRoleChoice | null {
   return null
 }
 
+function getBasePositionFromRoleChoice(choice: ImagePairRoleChoice): ImagePairPosition {
+  return choice === "first_base" ? "first" : "second"
+}
+
+function getReferencePositionFromBase(basePosition: ImagePairPosition): ImagePairPosition {
+  return basePosition === "first" ? "second" : "first"
+}
+
+function getImagePairRoleChoiceFromBase(basePosition: ImagePairPosition): ImagePairRoleChoice {
+  return basePosition === "first" ? "first_base" : "second_base"
+}
+
+function hasImagePairCue(text: string) {
+  const normalized = normalizeSearchText(text)
+
+  return isUseRecentImagesRequest(normalized) ||
+    includesAny(normalized, [
+      "duas fotos",
+      "duas imagens",
+      "imagem da esquerda",
+      "imagem da direita",
+      "foto da esquerda",
+      "foto da direita",
+      "imagem de cima",
+      "imagem de baixo",
+      "primeira imagem",
+      "primeira foto",
+      "segunda imagem",
+      "segunda foto",
+    ])
+}
+
 function isImagePairRoleQuestion(content: string) {
   const normalized = normalizeSearchText(content)
 
-  return (normalized.includes("qual e o ambiente") || normalized.includes("qual e a cena")) &&
+  return (normalized.includes("qual e o ambiente") || normalized.includes("qual e o cenario") || normalized.includes("qual e a cena")) &&
     normalized.includes("qual e a referencia")
 }
 
@@ -332,10 +408,259 @@ function getPendingImagePairRoleRequest(messages: InboxMessage[], currentMessage
 
 function formatImagePairRoleQuestion() {
   return [
-    "Recebi duas imagens. Qual é o ambiente e qual é a referência?",
-    "O ambiente é a foto real que será preservada como base. A referência é o produto, material, cor, textura ou estilo que deve ser aplicado.",
+    "Recebi duas imagens. Qual é o ambiente/cenário e qual é a referência?",
+    "O ambiente/cenário é a foto real que será preservada como base. A referência é o produto, material, cor, textura ou estilo que deve ser aplicado.",
     "Responda 1 se a primeira imagem for o ambiente e a segunda for a referência.",
     "Responda 2 se a primeira imagem for a referência e a segunda for o ambiente.",
+  ].join("\n\n")
+}
+
+function formatImagePairRoleConfirmation(basePosition: ImagePairPosition) {
+  if (basePosition === "first") {
+    return "Entendi que a primeira imagem é o cenário e a segunda é a referência. Confirma?"
+  }
+
+  return "Entendi que a primeira imagem é a referência e a segunda é o cenário. Confirma?"
+}
+
+function formatImagePairResolvedReply(input: {
+  baseLabel: string
+  referenceLabel: string
+  hasDirection: boolean
+  confirmationReply: string
+}) {
+  if (input.hasDirection) {
+    return input.confirmationReply
+  }
+
+  return [
+    `Perfeito. Vou usar ${input.baseLabel} como ambiente/cenário e ${input.referenceLabel} como referência.`,
+    "Agora me diga exatamente o que você quer aplicar no ambiente e onde essa referência deve entrar.",
+  ].join("\n\n")
+}
+
+function createSessionImageFromMessage(
+  tenantSlug: string,
+  message: InboxMessage,
+  kind: InboxCompositionSessionImage["kind"],
+  label: string,
+): InboxCompositionSessionImage {
+  return {
+    kind,
+    messageId: message.id,
+    imageUrl: getMessageMediaUrl(tenantSlug, message),
+    label,
+    createdAt: message.createdAt,
+  }
+}
+
+function getImagePairFromMessages(
+  tenantSlug: string,
+  firstMessage: InboxMessage,
+  secondMessage: InboxMessage,
+  source: InboxCompositionPendingImagePair["source"],
+  proposedBase?: ImagePairPosition,
+): InboxCompositionPendingImagePair {
+  return {
+    source,
+    status: proposedBase ? "awaiting_confirmation" : "awaiting_role",
+    firstImage: createSessionImageFromMessage(tenantSlug, firstMessage, "base", "primeira imagem enviada"),
+    secondImage: createSessionImageFromMessage(tenantSlug, secondMessage, "reference", "segunda imagem enviada"),
+    proposedBase,
+    createdAt: secondMessage.createdAt,
+  }
+}
+
+function getRecentImagePair(messages: InboxMessage[], currentMessage: InboxMessage, maxElapsedMs = 90_000) {
+  if (currentMessage.contentType !== "image") {
+    return null
+  }
+
+  const currentTime = getMessageTime(currentMessage.createdAt)
+  const previousImage = [...messages]
+    .filter((message) =>
+      message.id !== currentMessage.id &&
+      message.direction === "inbound" &&
+      message.contentType === "image" &&
+      Boolean(message.mediaUrl || message.imageUrl)
+    )
+    .sort((left, right) => getMessageTime(right.createdAt) - getMessageTime(left.createdAt))
+    .find((message) => {
+      const elapsedMs = currentTime - getMessageTime(message.createdAt)
+      return elapsedMs >= 0 && elapsedMs <= maxElapsedMs
+    }) ?? null
+
+  if (!previousImage) {
+    return null
+  }
+
+  return getMessageTime(previousImage.createdAt) <= currentTime
+    ? [previousImage, currentMessage] as const
+    : [currentMessage, previousImage] as const
+}
+
+function getLatestTwoInboundImages(messages: InboxMessage[]) {
+  const images = [...messages]
+    .filter((message) =>
+      message.direction === "inbound" &&
+      message.contentType === "image" &&
+      Boolean(message.mediaUrl || message.imageUrl)
+    )
+    .sort((left, right) => getMessageTime(right.createdAt) - getMessageTime(left.createdAt))
+    .slice(0, 2)
+    .sort((left, right) => getMessageTime(left.createdAt) - getMessageTime(right.createdAt))
+
+  return images.length === 2 ? [images[0], images[1]] as const : null
+}
+
+function getPendingImagePairReply(pair: InboxCompositionPendingImagePair) {
+  return pair.status === "awaiting_confirmation" && pair.proposedBase
+    ? formatImagePairRoleConfirmation(pair.proposedBase)
+    : formatImagePairRoleQuestion()
+}
+
+function isGeneratedImagePairUrl(value?: string) {
+  return value?.startsWith("/generated/inbox-image-pairs/") === true
+}
+
+function sessionImagesPointToSameSource(
+  left?: Pick<InboxCompositionSessionImage, "messageId" | "imageUrl"> | null,
+  right?: Pick<InboxCompositionSessionImage, "messageId" | "imageUrl"> | null,
+) {
+  if (!left || !right) {
+    return false
+  }
+
+  return Boolean(
+    (left.messageId && right.messageId && left.messageId === right.messageId && left.imageUrl === right.imageUrl) ||
+    (left.imageUrl && right.imageUrl && left.imageUrl === right.imageUrl)
+  )
+}
+
+function getSafeGeneratedSegment(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 120) || "image"
+}
+
+async function splitCollageImagePair(input: {
+  tenantSlug: string
+  image: InboxCompositionSessionImage
+  messages: InboxMessage[]
+}) {
+  const message = input.image.messageId
+    ? input.messages.find((item) => item.id === input.image.messageId) ?? null
+    : null
+
+  if (!message) {
+    return { ok: false as const, reason: "collage_message_not_found" as const }
+  }
+
+  const media = await resolveWhatsAppMedia(message)
+  const metadata = await sharp(media.bytes).rotate().metadata()
+  const width = metadata.width ?? 0
+  const height = metadata.height ?? 0
+
+  if (width < 400 || height < 400) {
+    return { ok: false as const, reason: "collage_too_small" as const }
+  }
+
+  const isHorizontalPair = width >= height * 1.25
+  const isVerticalPair = height >= width * 1.25
+
+  if (!isHorizontalPair && !isVerticalPair) {
+    return { ok: false as const, reason: "collage_layout_ambiguous" as const }
+  }
+
+  const firstExtract = isHorizontalPair
+    ? { left: 0, top: 0, width: Math.floor(width / 2), height }
+    : { left: 0, top: 0, width, height: Math.floor(height / 2) }
+  const secondExtract = isHorizontalPair
+    ? { left: Math.floor(width / 2), top: 0, width: width - Math.floor(width / 2), height }
+    : { left: 0, top: Math.floor(height / 2), width, height: height - Math.floor(height / 2) }
+  const firstBytes = await sharp(media.bytes).rotate().extract(firstExtract).toBuffer()
+  const secondBytes = await sharp(media.bytes).rotate().extract(secondExtract).toBuffer()
+  const firstNormalized = await normalizeImageForUpload(firstBytes, media.mimeType)
+  const secondNormalized = await normalizeImageForUpload(secondBytes, media.mimeType)
+  const basePath = `/generated/inbox-image-pairs/${getSafeGeneratedSegment(input.tenantSlug)}/${getSafeGeneratedSegment(message.id)}`
+  const firstPath = `${basePath}-first.${firstNormalized.fileExtension}`
+  const secondPath = `${basePath}-second.${secondNormalized.fileExtension}`
+
+  await saveGeneratedAsset(firstPath, firstNormalized.bytes, firstNormalized.mimeType)
+  await saveGeneratedAsset(secondPath, secondNormalized.bytes, secondNormalized.mimeType)
+
+  return {
+    ok: true as const,
+    firstImage: {
+      kind: "base" as const,
+      messageId: message.id,
+      imageUrl: firstPath,
+      label: isHorizontalPair ? "primeira imagem extraída da esquerda" : "primeira imagem extraída de cima",
+      createdAt: message.createdAt,
+    },
+    secondImage: {
+      kind: "reference" as const,
+      messageId: message.id,
+      imageUrl: secondPath,
+      label: isHorizontalPair ? "segunda imagem extraída da direita" : "segunda imagem extraída de baixo",
+      createdAt: message.createdAt,
+    },
+  }
+}
+
+async function resolvePendingImagePair(input: {
+  tenantSlug: string
+  pair: InboxCompositionPendingImagePair
+  roleChoice: ImagePairRoleChoice
+  messages: InboxMessage[]
+}) {
+  const basePosition = getBasePositionFromRoleChoice(input.roleChoice)
+  let firstImage = input.pair.firstImage
+  let secondImage = input.pair.secondImage
+
+  if (input.pair.source === "collage") {
+    if (!input.pair.collageImage) {
+      return { ok: false as const, reason: "missing_collage_image" as const }
+    }
+
+    const split = await splitCollageImagePair({
+      tenantSlug: input.tenantSlug,
+      image: input.pair.collageImage,
+      messages: input.messages,
+    })
+
+    if (!split.ok) {
+      return split
+    }
+
+    firstImage = split.firstImage
+    secondImage = split.secondImage
+  }
+
+  if (!firstImage?.imageUrl || !secondImage?.imageUrl) {
+    return { ok: false as const, reason: "missing_pair_images" as const }
+  }
+
+  const baseImage = basePosition === "first" ? firstImage : secondImage
+  const referenceImage = getReferencePositionFromBase(basePosition) === "first" ? firstImage : secondImage
+
+  return {
+    ok: true as const,
+    baseImage: {
+      ...baseImage,
+      kind: "base" as const,
+      label: basePosition === "first" ? "primeira imagem usada como ambiente/cenário" : "segunda imagem usada como ambiente/cenário",
+    },
+    referenceImage: {
+      ...referenceImage,
+      kind: "reference" as const,
+      label: getReferencePositionFromBase(basePosition) === "first" ? "primeira imagem usada como referência" : "segunda imagem usada como referência",
+    },
+  }
+}
+
+function formatImagePairSplitFailedReply() {
+  return [
+    "Recebi uma imagem com duas partes, mas não consegui separar cenário e referência com segurança.",
+    "Me envie o ambiente/cenário e a referência como duas imagens separadas para eu continuar sem misturar os papéis.",
   ].join("\n\n")
 }
 
@@ -891,6 +1216,11 @@ async function resolveCompositionBase(input: {
 }) {
   const resultBase = getCompletedJobCompositionBase(input)
   const originalBase = getOriginalCompositionBase(input)
+  const sessionBase = getSessionCompositionBase(input.session)
+
+  if (sessionBase && isGeneratedImagePairUrl(sessionBase.imageUrl)) {
+    return sessionBase
+  }
 
   if (input.choice === "result" && resultBase && await isCompositionBaseAvailable(resultBase)) {
     return resultBase
@@ -903,8 +1233,6 @@ async function resolveCompositionBase(input: {
   if (originalBase) {
     return originalBase
   }
-
-  const sessionBase = getSessionCompositionBase(input.session)
 
   if (sessionBase) {
     return sessionBase
@@ -2189,8 +2517,165 @@ export async function processInboundMessageWithAi(input: {
   const currentImageUrl = inboundMessage.contentType === "image"
     ? getMessageMediaUrl(input.tenantSlug, inboundMessage)
     : undefined
+  let forcedRouteReply: string | null = null
+  let forcedRouteTraceReason: string | null = null
+  let handledImagePairThisTurn = false
 
-  if (currentImageUrl) {
+  async function acceptImagePairRole(pair: InboxCompositionPendingImagePair, roleChoice: ImagePairRoleChoice) {
+    const resolvedPair = await resolvePendingImagePair({
+      tenantSlug: input.tenantSlug,
+      pair,
+      roleChoice,
+      messages,
+    })
+
+    if (!resolvedPair.ok) {
+      setCompositionSession((session) => ({
+        ...session,
+        pendingImagePair: undefined,
+        pendingBaseChoice: false,
+      }))
+
+      forcedRouteReply = formatImagePairSplitFailedReply()
+      forcedRouteTraceReason = resolvedPair.reason
+      handledImagePairThisTurn = true
+      return
+    }
+
+    const promptHasDirection = hasCompositionDirection([
+      compositionSession.pendingPrompt,
+      getCompositionPrompt(inboundMessage, messages),
+    ])
+    const prompt = promptHasDirection
+      ? compositionSession.pendingPrompt ?? buildCompositionPrompt(
+        inboundMessage,
+        messages,
+        resolvedPair.referenceImage.label || "imagem de referência enviada pelo cliente",
+      )
+      : undefined
+
+    setCompositionSession((session) => ({
+      ...session,
+      step: "awaiting_reference_image",
+      baseImage: resolvedPair.baseImage,
+      referenceImage: resolvedPair.referenceImage,
+      workingImage: undefined,
+      preferredBase: undefined,
+      selectedProducts: [],
+      pendingPrompt: prompt,
+      pendingBaseChoice: false,
+      pendingImagePair: undefined,
+    }))
+
+    forcedRouteReply = formatImagePairResolvedReply({
+      baseLabel: resolvedPair.baseImage.label || "a imagem do ambiente",
+      referenceLabel: resolvedPair.referenceImage.label || "a imagem de referência",
+      hasDirection: promptHasDirection,
+      confirmationReply: formatCompositionConfirmationReply({
+        baseLabel: resolvedPair.baseImage.label || "imagem do ambiente",
+        referenceSummary: resolvedPair.referenceImage.label || "imagem de referência enviada",
+      }),
+    })
+    forcedRouteTraceReason = "image_pair_resolved"
+    handledImagePairThisTurn = true
+  }
+
+  const pendingImagePair = compositionSession.pendingImagePair
+  const textRoleChoice = getImagePairRoleChoice(inboundMessage.content)
+  const pendingRoleQuestion = getPendingImagePairRoleRequest(messages, inboundMessage.id, inboundMessage.content)
+  const pendingConfirmationChoice = pendingImagePair?.proposedBase && isCompositionConfirmationRequest(inboundMessage.content)
+    ? getImagePairRoleChoiceFromBase(pendingImagePair.proposedBase)
+    : null
+
+  if (pendingImagePair && (textRoleChoice || pendingConfirmationChoice)) {
+    const roleChoice = textRoleChoice ?? pendingConfirmationChoice
+
+    if (roleChoice) {
+      await acceptImagePairRole(pendingImagePair, roleChoice)
+    }
+  } else if (pendingImagePair) {
+    forcedRouteReply = getPendingImagePairReply(pendingImagePair)
+    forcedRouteTraceReason = "pending_image_pair"
+    handledImagePairThisTurn = true
+  } else if (!pendingImagePair && pendingRoleQuestion && textRoleChoice) {
+    const latestTwoImages = getLatestTwoInboundImages(messages)
+
+    if (latestTwoImages) {
+      const [firstMessage, secondMessage] = latestTwoImages
+      await acceptImagePairRole(
+        getImagePairFromMessages(input.tenantSlug, firstMessage, secondMessage, "album"),
+        textRoleChoice,
+      )
+    }
+  } else if (!pendingImagePair && inboundMessage.contentType === "text" && textRoleChoice) {
+    const latestTwoImages = getLatestTwoInboundImages(messages)
+
+    if (latestTwoImages) {
+      const [firstMessage, secondMessage] = latestTwoImages
+      await acceptImagePairRole(
+        getImagePairFromMessages(input.tenantSlug, firstMessage, secondMessage, "album"),
+        textRoleChoice,
+      )
+    }
+  } else if (!pendingImagePair && inboundMessage.contentType === "text" && isUseRecentImagesRequest(inboundMessage.content)) {
+    const latestTwoImages = getLatestTwoInboundImages(messages)
+
+    if (latestTwoImages) {
+      const [firstMessage, secondMessage] = latestTwoImages
+      const pair = getImagePairFromMessages(input.tenantSlug, firstMessage, secondMessage, "album")
+
+      setCompositionSession((session) => ({
+        ...session,
+        pendingImagePair: pair,
+        pendingBaseChoice: false,
+      }))
+      forcedRouteReply = getPendingImagePairReply(pair)
+      forcedRouteTraceReason = "pending_image_pair"
+      handledImagePairThisTurn = true
+    }
+  } else if (!pendingImagePair && currentImageUrl) {
+    const recentPair = getRecentImagePair(messages, inboundMessage)
+    const proposedBase = textRoleChoice ? getBasePositionFromRoleChoice(textRoleChoice) : undefined
+
+    if (recentPair) {
+      const [firstMessage, secondMessage] = recentPair
+      const pair = getImagePairFromMessages(input.tenantSlug, firstMessage, secondMessage, "album", proposedBase)
+
+      setCompositionSession((session) => ({
+        ...session,
+        pendingImagePair: pair,
+        pendingBaseChoice: false,
+      }))
+      forcedRouteReply = getPendingImagePairReply(pair)
+      forcedRouteTraceReason = "pending_image_pair"
+      handledImagePairThisTurn = true
+    } else if (hasImagePairCue(inboundMessage.content)) {
+      const pair: InboxCompositionPendingImagePair = {
+        source: "collage",
+        status: proposedBase ? "awaiting_confirmation" : "awaiting_role",
+        collageImage: {
+          kind: "base",
+          messageId: inboundMessage.id,
+          imageUrl: currentImageUrl,
+          label: "imagem composta enviada pelo cliente",
+          createdAt: inboundMessage.createdAt,
+        },
+        proposedBase,
+        createdAt: inboundMessage.createdAt,
+      }
+
+      setCompositionSession((session) => ({
+        ...session,
+        pendingImagePair: pair,
+        pendingBaseChoice: false,
+      }))
+      forcedRouteReply = getPendingImagePairReply(pair)
+      forcedRouteTraceReason = "pending_image_pair"
+      handledImagePairThisTurn = true
+    }
+  }
+
+  if (currentImageUrl && !handledImagePairThisTurn) {
     const currentImageIsReference = Boolean(
       !primaryReference &&
       (
@@ -2212,6 +2697,7 @@ export async function processInboundMessageWithAi(input: {
         },
         pendingPrompt: undefined,
         pendingBaseChoice: false,
+        pendingImagePair: undefined,
       }))
     } else {
       setCompositionSession((session) => ({
@@ -2227,11 +2713,12 @@ export async function processInboundMessageWithAi(input: {
         preferredBase: undefined,
         pendingPrompt: undefined,
         pendingBaseChoice: false,
+        pendingImagePair: undefined,
       }))
     }
   }
 
-  if (primaryReference) {
+  if (primaryReference && !handledImagePairThisTurn) {
     const catalogPendingPrompt = !hasBaseImage
       ? buildCompositionPrompt(
         inboundMessage,
@@ -2252,25 +2739,49 @@ export async function processInboundMessageWithAi(input: {
     }))
   }
 
-  if (primaryReference && !primaryReferenceHasUsableCatalogImage && nextAction !== "handoff_to_operator") {
-    nextAction = "ask_for_reference_image"
-    reply = formatCatalogProductNeedsReferenceReply(primaryReference.item)
-  } else if (primaryReference && !hasBaseImage && nextAction !== "handoff_to_operator") {
-    nextAction = "ask_for_base_image"
-    reply = formatCatalogProductNeedsBaseReply(primaryReference.item)
+  if (forcedRouteReply) {
+    nextAction = "reply_in_chat"
+    reply = forcedRouteReply
+
+    await recordAiTrace({
+      tenantSlug: input.tenantSlug,
+      conversationId: input.conversationId,
+      messageId: input.message.id,
+      stage: "automation",
+      status: forcedRouteTraceReason === "image_pair_resolved" ? "success" : "warning",
+      event: forcedRouteTraceReason === "image_pair_resolved"
+        ? "composition_image_pair_resolved"
+        : "composition_route_guard_blocked",
+      details: {
+        reason: forcedRouteTraceReason,
+      },
+    })
   }
 
   const sessionReferenceForComposition = compositionSession.referenceImage?.imageUrl || compositionSession.referenceImage?.messageId
     ? compositionSession.referenceImage
     : null
+
+  if (!forcedRouteReply && primaryReference && !primaryReferenceHasUsableCatalogImage && !sessionReferenceForComposition && nextAction !== "handoff_to_operator") {
+    nextAction = "ask_for_reference_image"
+    reply = formatCatalogProductNeedsReferenceReply(primaryReference.item)
+  } else if (!forcedRouteReply && primaryReference && !hasBaseImage && nextAction !== "handoff_to_operator") {
+    nextAction = "ask_for_base_image"
+    reply = formatCatalogProductNeedsBaseReply(primaryReference.item)
+  }
+
+  const shouldUseCatalogReferenceForComposition = Boolean(
+    primaryReference &&
+    primaryReferenceHasUsableCatalogImage &&
+    !sessionReferenceForComposition
+  )
   const hasReferenceForComposition = Boolean(
-    (primaryReference && primaryReferenceHasUsableCatalogImage) ||
+    shouldUseCatalogReferenceForComposition ||
     sessionReferenceForComposition ||
     freeTextReference
   )
   const catalogReferenceHasEnoughContext = Boolean(
-    primaryReference &&
-    primaryReferenceHasUsableCatalogImage &&
+    shouldUseCatalogReferenceForComposition &&
     hasBaseImage &&
     (
       pendingSessionPrompt ||
@@ -2280,6 +2791,7 @@ export async function processInboundMessageWithAi(input: {
   )
 
   if (
+    !forcedRouteReply &&
     catalogReferenceHasEnoughContext &&
     nextAction !== "handoff_to_operator" &&
     nextAction !== "create_composition_job"
@@ -2288,7 +2800,7 @@ export async function processInboundMessageWithAi(input: {
     reply = getDefaultReply(nextAction)
   }
 
-  if (nextAction === "create_composition_job") {
+  if (!forcedRouteReply && nextAction === "create_composition_job") {
     const compositionBase = await resolveCompositionBase({
       choice: compositionBaseChoice,
       latestBaseImageMessage: previousInboundImageMessage ?? effectiveLatestBaseImageMessage,
@@ -2298,7 +2810,54 @@ export async function processInboundMessageWithAi(input: {
       tenantSlug: input.tenantSlug,
     })
 
-    if (!compositionBase || !hasReferenceForComposition) {
+    const compositionRouteBlock = compositionSession.pendingImagePair
+      ? {
+        reason: "pending_image_pair",
+        reply: getPendingImagePairReply(compositionSession.pendingImagePair),
+      }
+      : compositionBase && sessionImagesPointToSameSource(compositionSession.baseImage, sessionReferenceForComposition)
+        ? {
+          reason: "same_base_and_reference",
+          reply: [
+            "Preciso separar a imagem do ambiente e a imagem de referência antes de gerar.",
+            formatImagePairRoleQuestion(),
+          ].join("\n\n"),
+        }
+        : !compositionBase
+          ? {
+            reason: "missing_base",
+            reply: "Para criar a composição, me envie a imagem do ambiente que você quer modificar.",
+          }
+          : !hasReferenceForComposition
+            ? {
+              reason: "missing_reference",
+              reply: formatCompositionMissingInputsReply({
+                hasBaseImage: true,
+                hasVisualReference: false,
+                hasDirection: currentMessageHasDirection,
+                tenantSlug: input.tenantSlug,
+                catalogEnabled: settings.assistant.catalogEnabled,
+              }),
+            }
+            : null
+
+    if (compositionRouteBlock) {
+      nextAction = "reply_in_chat"
+      reply = compositionRouteBlock.reply
+
+      await recordAiTrace({
+        tenantSlug: input.tenantSlug,
+        conversationId: input.conversationId,
+        messageId: input.message.id,
+        stage: "automation",
+        status: "warning",
+        event: "composition_route_guard_blocked",
+        details: {
+          reason: compositionRouteBlock.reason,
+          nextAction,
+        },
+      })
+    } else if (!compositionBase || !hasReferenceForComposition) {
       nextAction = "reply_in_chat"
       reply = classification.reply?.trim() || "Para criar a composição, me envie a imagem que você quer modificar e a referência que quer aplicar."
     } else {
@@ -2310,7 +2869,7 @@ export async function processInboundMessageWithAi(input: {
         }
         : null
       const visualReferences: CompositionJobReference[] = [
-        ...(primaryReference ? [{
+        ...(shouldUseCatalogReferenceForComposition && primaryReference ? [{
           source: "catalog" as const,
           catalogItemId: primaryReference.item.id,
           catalogItemName: primaryReference.item.name,
@@ -2325,7 +2884,7 @@ export async function processInboundMessageWithAi(input: {
         }] : []),
       ]
       const referencePrompt = [
-        primaryReference
+        shouldUseCatalogReferenceForComposition && primaryReference
           ? primaryReference.item.name + (primaryReference.color ? " - cor " + primaryReference.color : "")
           : "",
         clientReferenceForComposition
@@ -2342,7 +2901,7 @@ export async function processInboundMessageWithAi(input: {
         reply = formatCompositionConfirmationReply({
           baseLabel: compositionBase.label,
           referenceSummary: formatReferenceSummary({
-            primaryReference,
+            primaryReference: shouldUseCatalogReferenceForComposition ? primaryReference : null,
             sessionReference: sessionReferenceForComposition,
             freeTextReference,
           }),
@@ -2353,6 +2912,7 @@ export async function processInboundMessageWithAi(input: {
           preferredBase: compositionBase.choice,
           pendingPrompt: prompt,
           pendingBaseChoice: false,
+          pendingImagePair: undefined,
         }))
       } else {
       const result = await createCompositionJob(input.tenantSlug, {
@@ -2367,9 +2927,9 @@ export async function processInboundMessageWithAi(input: {
         baseImageUrl: compositionBase.imageUrl,
         referenceMessageId: clientReferenceForComposition?.messageId,
         referenceImageUrl: clientReferenceForComposition?.imageUrl,
-        catalogItemId: primaryReference?.item.id,
-        catalogItemName: primaryReference?.item.name,
-        catalogColorReference: primaryReference?.color,
+        catalogItemId: shouldUseCatalogReferenceForComposition ? primaryReference?.item.id : undefined,
+        catalogItemName: shouldUseCatalogReferenceForComposition ? primaryReference?.item.name : undefined,
+        catalogColorReference: shouldUseCatalogReferenceForComposition ? primaryReference?.color : undefined,
         references: visualReferences.length > 0 ? visualReferences : undefined,
         prompt,
       })
@@ -2391,9 +2951,11 @@ export async function processInboundMessageWithAi(input: {
 
       compositionJobId = job.id
       setCompositionSession((session) => {
-        const product = primaryReference
+        const product = shouldUseCatalogReferenceForComposition && primaryReference
           ? toSessionProduct(primaryReference.item, primaryReference.color)
-          : session.selectedProducts[0]
+          : sessionReferenceForComposition
+            ? undefined
+            : session.selectedProducts[0]
         const base: "original" | "result" = compositionBase.choice
         const status: "queued" | "failed" = job.status === "failed" ? "failed" : "queued"
 
@@ -2413,6 +2975,7 @@ export async function processInboundMessageWithAi(input: {
           selectedProducts: product ? upsertSessionProduct(session, product) : session.selectedProducts,
           pendingPrompt: undefined,
           pendingBaseChoice: false,
+          pendingImagePair: undefined,
           changes: [
             {
               id: crypto.randomUUID(),

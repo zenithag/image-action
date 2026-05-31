@@ -7,13 +7,14 @@ import { SocketProvider } from "@/lib/realtime/socket-provider"
 import { AppSidebar } from "@/components/app-sidebar"
 import { getTenantBrandingVariables, normalizeTenantBrandingSnapshot, type TenantBrandingSnapshot } from "@/lib/tenant-branding"
 import type { TenantSettings } from "@/lib/tenant-settings-types"
-import { BarChart3, Grid2X2, Image as ImageIcon, MessageSquare, Paintbrush, Settings, Smartphone, Users } from "lucide-react"
+import { BarChart3, GitBranch, Grid2X2, Image as ImageIcon, MessageSquare, Paintbrush, Settings, Smartphone, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const mobileNavItems = [
   { href: "/tenant/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/tenant/compositions", label: "Compos.", icon: ImageIcon },
   { href: "/tenant/editor", label: "Estúdio", icon: Paintbrush },
+  { href: "/tenant/flows", label: "Fluxos", icon: GitBranch },
   { href: "/tenant/catalog", label: "Catálogo", icon: Grid2X2 },
   { href: "/tenant/contacts", label: "Contatos", icon: Users },
   { href: "/tenant/whatsapp", label: "Whats", icon: Smartphone },

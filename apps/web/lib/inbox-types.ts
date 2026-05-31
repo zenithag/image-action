@@ -58,6 +58,17 @@ export type InboxCompositionSessionChange = {
   completedAt?: string
 }
 
+export type InboxCompositionPendingImagePair = {
+  source: "album" | "collage"
+  status: "awaiting_role" | "awaiting_confirmation"
+  firstImage?: InboxCompositionSessionImage
+  secondImage?: InboxCompositionSessionImage
+  collageImage?: InboxCompositionSessionImage
+  proposedBase?: "first" | "second"
+  createdAt: string
+  updatedAt?: string
+}
+
 export type InboxCompositionSession = {
   step: InboxCompositionSessionStep
   baseImage?: InboxCompositionSessionImage
@@ -67,6 +78,7 @@ export type InboxCompositionSession = {
   selectedProducts: InboxCompositionSessionProduct[]
   pendingPrompt?: string
   pendingBaseChoice?: boolean
+  pendingImagePair?: InboxCompositionPendingImagePair
   changes: InboxCompositionSessionChange[]
   updatedAt: string
 }

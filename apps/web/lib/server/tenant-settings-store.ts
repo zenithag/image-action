@@ -214,6 +214,9 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
       humanHandoffKeywords: [],
       catalogCategories: [],
     },
+    automation: {
+      defaultConversationFlowId: "",
+    },
     team: {
       members: [],
     },
@@ -258,6 +261,10 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
     assistant: {
       ...existing.assistant,
       ...input.assistant,
+    },
+    automation: {
+      ...existing.automation,
+      ...input.automation,
     },
     team: {
       ...existing.team,
@@ -316,6 +323,9 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
       systemPrompt: normalizeText(next.assistant.systemPrompt),
       humanHandoffKeywords: normalizeUniqueList(next.assistant.humanHandoffKeywords),
       catalogCategories: normalizeUniqueList(next.assistant.catalogCategories),
+    },
+    automation: {
+      defaultConversationFlowId: normalizeText(next.automation.defaultConversationFlowId),
     },
     team: {
       members: normalizeTeamMembers(next.team.members),

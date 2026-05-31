@@ -2,6 +2,7 @@ import type {
   InboxCompositionSession,
   InboxCompositionSessionChange,
   InboxCompositionSessionImage,
+  InboxCompositionPendingImagePair,
   InboxCompositionSessionProduct,
   InboxCompositionSessionStep,
   InboxConversationSummary,
@@ -351,6 +352,34 @@ function normalizeSessionChange(value: unknown): InboxCompositionSessionChange |
   }
 }
 
+function normalizePendingImagePair(value: unknown): InboxCompositionPendingImagePair | undefined {
+  if (!isRecord(value) || typeof value.createdAt !== "string") {
+    return undefined
+  }
+
+  const source = value.source === "collage" ? "collage" : value.source === "album" ? "album" : undefined
+  const status = value.status === "awaiting_confirmation"
+    ? "awaiting_confirmation"
+    : value.status === "awaiting_role"
+      ? "awaiting_role"
+      : undefined
+
+  if (!source || !status) {
+    return undefined
+  }
+
+  return {
+    source,
+    status,
+    firstImage: normalizeSessionImage(value.firstImage),
+    secondImage: normalizeSessionImage(value.secondImage),
+    collageImage: normalizeSessionImage(value.collageImage),
+    proposedBase: value.proposedBase === "first" || value.proposedBase === "second" ? value.proposedBase : undefined,
+    createdAt: value.createdAt,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
+  }
+}
+
 export function normalizeInboxCompositionSession(value: unknown): InboxCompositionSession {
   if (!isRecord(value)) {
     return createEmptyInboxCompositionSession()
@@ -376,6 +405,7 @@ export function normalizeInboxCompositionSession(value: unknown): InboxCompositi
     selectedProducts,
     pendingPrompt: typeof value.pendingPrompt === "string" ? value.pendingPrompt : undefined,
     pendingBaseChoice: value.pendingBaseChoice === true,
+    pendingImagePair: normalizePendingImagePair(value.pendingImagePair),
     changes,
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString(),
   }
@@ -627,6 +657,7 @@ export async function upsertInboundInboxMessage(input: UpsertInboundMessageInput
     return {
       conversation: nextConversation,
       message: messageExists ? null : nextMessage,
+      createdConversation: !existingConversation,
     }
   })
 }
