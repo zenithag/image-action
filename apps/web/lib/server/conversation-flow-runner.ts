@@ -791,8 +791,17 @@ async function handleImageCapture(
   await updateInboxConversationCompositionSession(session.tenantSlug, session.conversationId, (compositionSession) => ({
     ...compositionSession,
     step: labels.sessionStep,
+    pendingImagePair: undefined,
+    pendingBaseChoice: false,
+    pendingPrompt: undefined,
     ...(labels.kind === "base"
-      ? { baseImage: capturedImage }
+      ? {
+        baseImage: capturedImage,
+        referenceImage: undefined,
+        workingImage: undefined,
+        preferredBase: undefined,
+        selectedProducts: [],
+      }
       : { referenceImage: capturedImage }),
   }))
   await updateInboxConversation(session.tenantSlug, session.conversationId, {
