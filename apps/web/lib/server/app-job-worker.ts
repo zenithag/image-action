@@ -1,4 +1,5 @@
 import { processInboundMessageWithAi } from "@/lib/server/ai-inbox-automation"
+import { isComoFicaTriggerMessage } from "@/lib/server/automation-triggers"
 import {
   claimNextAppJob,
   completeAppJob,
@@ -67,7 +68,8 @@ async function processAppJob() {
         return true
       }
 
-      const defaultSession = payload.allowDefaultFlow
+      const canStartAutomation = payload.allowDefaultFlow === true && isComoFicaTriggerMessage(message?.content)
+      const defaultSession = canStartAutomation
         ? await startDefaultConversationFlowIfAvailable({
           tenantSlug: payload.tenantSlug,
           conversationId: payload.conversationId,
@@ -76,6 +78,11 @@ async function processAppJob() {
         : null
 
       if (defaultSession) {
+        await completeAppJob(job.id)
+        return true
+      }
+
+      if (!canStartAutomation) {
         await completeAppJob(job.id)
         return true
       }
