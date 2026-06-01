@@ -28,6 +28,9 @@
 7. **[2026-05-04] Worker do Dokploy precisa de deployment oficial**
    Do instead: depois de criar/configurar `app-job-worker`, acionar `Deploy` no Dokploy e validar `applicationStatus = done`; `docker service create` manual roda no Swarm, mas deixa o app como `idle` no painel.
 
+8. **[2026-06-01] `wa_lastMsgTimestamp` da UAZAPI pode ficar atrasado**
+   Do instead: no sync do WhatsApp, não descartar chats só pelo timestamp do chat; buscar mensagens pelos IDs disponíveis (`wa_chatid`, `wa_chatlid`, `wa_fastid`) e aplicar `syncStartedAt` em cada mensagem.
+
 ## Shell & Command Reliability
 1. **[2026-04-05] pnpm 10.30.0 é o package manager**
    Do instead: sempre usar `pnpm` (não npm/yarn). Workspace definido em `pnpm-workspace.yaml` com `apps/*` e `packages/*`.

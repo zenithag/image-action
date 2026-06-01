@@ -71,6 +71,7 @@ async function processAppJob() {
         ? await startDefaultConversationFlowIfAvailable({
           tenantSlug: payload.tenantSlug,
           conversationId: payload.conversationId,
+          allowOperatorConversation: true,
         })
         : null
 

@@ -667,7 +667,7 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
     const data = await readInboxData()
 
     if (!isAfterDeletedConversationCutoff(data, input)) {
-      return { conversation: null, message: null, created: false }
+      return { conversation: null, message: null, created: false, createdConversation: false }
     }
 
     const generatedConversationId = getConversationId(input.tenantSlug, input.channelInstanceId, input.externalContactId)
@@ -686,7 +686,7 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
     )
 
     if (messageExists) {
-      return { conversation: existingConversation ?? null, message: null, created: false }
+      return { conversation: existingConversation ?? null, message: null, created: false, createdConversation: false }
     }
 
     const contentType = input.contentType ?? (input.imageUrl || input.mediaUrl ? "image" : "text")
@@ -761,7 +761,7 @@ export async function upsertSyncedInboxMessage(input: UpsertSyncedMessageInput) 
       message,
     })
 
-    return { conversation, message, created: true }
+    return { conversation, message, created: true, createdConversation: !existingConversation }
   })
 }
 

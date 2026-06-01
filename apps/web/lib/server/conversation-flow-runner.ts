@@ -105,6 +105,10 @@ function isImageCaptureNode(node?: ConversationFlowNode | null) {
   return node?.type === "scenario_image" || node?.type === "reference_image"
 }
 
+function isInputNode(node?: ConversationFlowNode | null) {
+  return node?.type === "menu" || node?.type === "text_input" || isImageCaptureNode(node)
+}
+
 function getNestedRecord(root: Record<string, unknown>, key: string) {
   const current = root[key]
   if (typeof current === "object" && current !== null && !Array.isArray(current)) {
@@ -191,7 +195,7 @@ function canConsumeUserInput(session: ConversationFlowSession, graph: Conversati
   }
 
   const node = nodeById(graph, session.awaitingNodeId || session.currentNodeId)
-  return node?.type === "menu" || isImageCaptureNode(node)
+  return isInputNode(node)
 }
 
 function normalizeInboundInput(input?: string | InboxMessage | FlowInboundInput | null): FlowInboundInput | null {
@@ -626,6 +630,86 @@ async function handleMenu(session: ConversationFlowSession, graph: ConversationF
   return moveToNode(session, nextNodeId(graph, node.id, answer.id))
 }
 
+async function handleTextInput(session: ConversationFlowSession, graph: ConversationFlowGraph, node: ConversationFlowNode, input?: FlowInboundInput | null): Promise<AdvanceResult> {
+  if (!input && !session.lastUserMessage) {
+    await sendContent(session, { type: "text", text: asString(node.data.question) || "Descreva como quer continuar." })
+    const timeoutMinutes = Math.max(0, asNumber(node.data.timeout_minutes, 0))
+    const expiresAt = timeoutMinutes > 0 ? new Date(Date.now() + timeoutMinutes * 60_000) : null
+
+    await updateConversationFlowSession(session.id, {
+      status: "waiting",
+      awaitingNodeId: node.id,
+      waitingSinceAt: new Date().toISOString(),
+      expiresAt: expiresAt?.toISOString() ?? null,
+    })
+
+    if (expiresAt) {
+      await enqueueAdvanceConversationFlow({ sessionId: session.id }, { runAt: expiresAt })
+      scheduleAppJobProcessing()
+    }
+
+    await logConversationFlowEvent({
+      tenantSlug: session.tenantSlug,
+      sessionId: session.id,
+      flowId: session.flowId,
+      conversationId: session.conversationId,
+      nodeId: node.id,
+      type: "text_input_requested",
+    })
+
+    return "waiting"
+  }
+
+  const value = asString(input?.text ?? session.lastUserMessage)
+  const minLength = Math.max(1, asNumber(node.data.min_length, 2))
+  const isTextMessage = !input?.message || input.message.contentType === "text"
+
+  if (!isTextMessage || value.length < minLength) {
+    const context = { ...session.context }
+    const errorPath = `text_input_errors.${node.id}`
+    setContextPath(context, errorPath, asNumber(getContextPath(context, errorPath), 0) + 1)
+    await sendContent(session, {
+      type: "text",
+      text: asString(node.data.invalid_text) || "Me envie uma descrição em texto para continuar.",
+    })
+    await updateConversationFlowSession(session.id, {
+      status: "waiting",
+      awaitingNodeId: node.id,
+      waitingSinceAt: new Date().toISOString(),
+      context,
+      lastUserMessage: null,
+    })
+
+    return "waiting"
+  }
+
+  const field = asString(node.data.field) || "text_input"
+  const context = { ...session.context }
+  setContextPath(context, field, value)
+  setContextPath(context, "last_text_input", {
+    nodeId: node.id,
+    field,
+    value,
+  })
+
+  await updateConversationFlowSession(session.id, {
+    context,
+    lastUserMessage: null,
+  })
+
+  await logConversationFlowEvent({
+    tenantSlug: session.tenantSlug,
+    sessionId: session.id,
+    flowId: session.flowId,
+    conversationId: session.conversationId,
+    nodeId: node.id,
+    type: "text_input_received",
+    payload: { field, value },
+  })
+
+  return moveToNode(session, nextNodeId(graph, node.id))
+}
+
 async function handleImageCapture(
   session: ConversationFlowSession,
   graph: ConversationFlowGraph,
@@ -987,6 +1071,10 @@ async function handleNode(session: ConversationFlowSession, graph: ConversationF
     return handleMenu(session, graph, node, input?.text)
   }
 
+  if (node.type === "text_input") {
+    return handleTextInput(session, graph, node, input)
+  }
+
   if (isImageCaptureNode(node)) {
     return handleImageCapture(session, graph, node, input)
   }
@@ -1173,10 +1261,15 @@ export async function startConversationFlow(input: {
 export async function startDefaultConversationFlowIfAvailable(input: {
   tenantSlug: string
   conversationId: string
+  allowOperatorConversation?: boolean
 }) {
   const conversation = await findInboxConversation(input.tenantSlug, input.conversationId)
 
-  if (!conversation || conversation.handledBy !== "ai") {
+  if (!conversation) {
+    return null
+  }
+
+  if (conversation.handledBy !== "ai" && !input.allowOperatorConversation) {
     return null
   }
 

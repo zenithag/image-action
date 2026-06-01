@@ -98,6 +98,7 @@ function normalizeNodeType(value: unknown): ConversationFlowNodeType {
   if (
     value === "start" ||
     value === "content" ||
+    value === "text_input" ||
     value === "menu" ||
     value === "action" ||
     value === "condition" ||

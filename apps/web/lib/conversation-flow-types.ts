@@ -6,6 +6,7 @@ export type ConversationFlowEventStatus = "ok" | "skipped" | "failed"
 export type ConversationFlowNodeType =
   | "start"
   | "content"
+  | "text_input"
   | "menu"
   | "action"
   | "condition"
@@ -91,6 +92,7 @@ export type ConversationFlowNodeData = {
   changeStrength?: number
   no_response_enabled?: boolean
   no_response_wait_minutes?: number
+  min_length?: number
 }
 
 export type ConversationFlowNode = {
