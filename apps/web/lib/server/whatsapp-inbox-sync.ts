@@ -7,6 +7,7 @@ import {
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { readTenantInstances, updateTenantInstance } from "@/lib/server/tenant-channel-instances-store"
 import {
+  UazapiError,
   type UazapiChat,
   type UazapiMessage,
   findUazapiChats,
@@ -215,7 +216,17 @@ export async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
         for (const lookupChatId of getChatLookupIds(chat)) {
           if (lookupChatId.endsWith("@g.us")) continue
 
-          const lookupMessages = await findUazapiMessages(provider, instance.instanceToken, lookupChatId, 20)
+          let lookupMessages: UazapiMessage[]
+
+          try {
+            lookupMessages = await findUazapiMessages(provider, instance.instanceToken, lookupChatId, 20)
+          } catch (error) {
+            if (error instanceof UazapiError && error.httpStatus === 404) {
+              continue
+            }
+
+            throw error
+          }
 
           for (const message of lookupMessages) {
             const key = getMessageId(message) || `${getMessageChatId(message) || lookupChatId}:${getMessageTimestampTime(message)}`
