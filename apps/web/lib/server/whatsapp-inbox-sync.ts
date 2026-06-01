@@ -1,4 +1,5 @@
 import { enqueueProcessInboundMessage, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
+import { isComoFicaTriggerMessage } from "@/lib/server/automation-triggers"
 import { readProviders } from "@/lib/server/channel-providers-store"
 import {
   pruneInboxBeforeChannelInstanceTime,
@@ -285,7 +286,7 @@ export async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
                   channelInstanceId: instance.id,
                   conversationId: result.conversation.id,
                   messageId: result.message.id,
-                  allowDefaultFlow: result.createdConversation === true,
+                  allowDefaultFlow: isComoFicaTriggerMessage(result.message.content),
                 })
                 scheduleAppJobProcessing()
                 aiProcessedMessages += 1

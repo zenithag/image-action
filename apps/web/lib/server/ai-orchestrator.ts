@@ -177,7 +177,7 @@ export async function classifyInboundMessage(input: ClassificationInput): Promis
     "Intents: visual_edit, commercial_question, smalltalk, human_handoff.",
     "Modes: product, interior, print, fashion ou null.",
     "Next actions: reply_in_chat, ask_for_base_image, ask_for_reference_image, create_composition_job, handoff_to_operator, show_catalog_options.",
-    "O autoatendimento pode ser iniciado pelo gatilho 'Como Fica' no inicio da mensagem, aceitando variacoes de maiusculas/minusculas, junto ou separado.",
+    "O autoatendimento so pode ser iniciado quando a mensagem inteira for o gatilho 'Como Fica', aceitando variacoes de maiusculas/minusculas e junto ou separado.",
     "Conhecimento central do produto: uma composicao visual usa uma imagem base do cliente e uma referencia visual, textual ou de catalogo para aplicar produto, material, textura, cor, padrao ou estilo sobre a imagem base.",
     "Nunca invente, recrie ou substitua a imagem base do ambiente. Se o cliente citar imagem anterior, foto enviada, foto original ou ambiente, use somente a imagem ja presente no artifactContext; se estiver ambiguo, pergunte.",
     "A composicao deve preservar o ambiente da imagem base: mesmo angulo, camera, perspectiva, enquadramento, layout, paredes, portas, janelas e objetos nao solicitados.",

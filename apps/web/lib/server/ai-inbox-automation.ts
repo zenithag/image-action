@@ -18,6 +18,7 @@ import type {
 import { findCatalogColorReferences, formatCatalogColorReferences, getPrimaryCatalogColor } from "@/lib/server/catalog-color-utils"
 import { readProviders } from "@/lib/server/channel-providers-store"
 import { classifyInboundMessage } from "@/lib/server/ai-orchestrator"
+import { getComoFicaTriggerMatch } from "@/lib/server/automation-triggers"
 import { recordAiTrace } from "@/lib/server/ai-observability-store"
 import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { hasCatalogReferenceImage } from "@/lib/server/catalog-reference-image"
@@ -255,23 +256,6 @@ function getFreeTextReferenceForComposition(input: {
   }
 
   return text
-}
-
-function getComoFicaTriggerMatch(text: string) {
-  const normalized = normalizeSearchText(text).trim()
-  const compact = normalized.replace(/[^a-z0-9]+/g, "")
-
-  if (!compact.startsWith("comofica")) {
-    return null
-  }
-
-  return {
-    isOnlyTrigger: compact === "comofica",
-  }
-}
-
-function isComoFicaAutoStartRequest(text: string) {
-  return Boolean(getComoFicaTriggerMatch(text))
 }
 
 function isUseRecentImagesRequest(text: string) {
@@ -2260,7 +2244,6 @@ export async function processInboundMessageWithAi(input: {
   const isStaleConversationGap = idleMs >= STALE_CONVERSATION_MS
   const autoStartTrigger = getComoFicaTriggerMatch(inboundMessage.content)
   const autoStartRequested = Boolean(autoStartTrigger)
-  const isOnlyAutoStartTrigger = Boolean(autoStartTrigger?.isOnlyTrigger)
   const settings = await getTenantSettings(input.tenantSlug)
 
   if (conversation.handledBy !== "ai" && !autoStartRequested) {

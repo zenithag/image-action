@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import type { InboxMessageContentType } from "@/lib/inbox-types"
 import { enqueueProcessInboundMessage, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
+import { isComoFicaTriggerMessage } from "@/lib/server/automation-triggers"
 import { readProviders } from "@/lib/server/channel-providers-store"
 import { upsertInboundInboxMessage } from "@/lib/server/inbox-store"
 import {
@@ -296,7 +297,7 @@ export async function POST(request: Request) {
       channelInstanceId: instance.id,
       conversationId: result.conversation.id,
       messageId: result.message.id,
-      allowDefaultFlow: result.createdConversation === true,
+      allowDefaultFlow: isComoFicaTriggerMessage(result.message.content),
     })
     scheduleAppJobProcessing()
   }
