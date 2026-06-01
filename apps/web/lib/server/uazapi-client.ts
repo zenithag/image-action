@@ -48,6 +48,7 @@ export type UazapiResponseBody = {
 export type UazapiChat = {
   wa_chatid?: string
   wa_fastid?: string
+  wa_chatlid?: string
   wa_name?: string
   wa_contactName?: string
   name?: string
@@ -58,6 +59,8 @@ export type UazapiMessage = {
   id?: string
   messageid?: string
   messageId?: string
+  chatid?: string
+  chatId?: string
   owner?: string
   fromMe?: boolean
   messageType?: string

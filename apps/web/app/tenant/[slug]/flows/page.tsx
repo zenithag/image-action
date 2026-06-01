@@ -67,6 +67,7 @@ type ImportedFlowPayload = {
 
 const blockTypes: Array<{ type: ConversationFlowNodeType; label: string; icon: typeof MessageSquare }> = [
   { type: "content", label: "Conteúdo", icon: MessageSquare },
+  { type: "text_input", label: "Entrada de texto", icon: MessageSquare },
   { type: "scenario_image", label: "Cenário", icon: ImagePlus },
   { type: "reference_image", label: "Referência", icon: ImagePlus },
   { type: "create_composition", label: "Gerar composição", icon: Sparkles },
@@ -107,6 +108,17 @@ function defaultData(type: ConversationFlowNodeType): ConversationFlowNodeData {
         { id: "answer_1", label: "Opção 1" },
         { id: "answer_2", label: "Opção 2" },
       ],
+    }
+  }
+
+  if (type === "text_input") {
+    return {
+      label: "Entrada de texto",
+      question: "Descreva como você quer que a referência seja aplicada no cenário.",
+      invalid_text: "Me envie uma descrição em texto para continuar.",
+      field: "composition.preference",
+      min_length: 2,
+      timeout_minutes: 0,
     }
   }
 
@@ -156,6 +168,7 @@ function nodeLabel(type: ConversationFlowNodeType) {
   if (type === "scenario_image") return "Cenário"
   if (type === "reference_image") return "Referência"
   if (type === "create_composition") return "Gerar composição"
+  if (type === "text_input") return "Entrada de texto"
   return blockTypes.find((item) => item.type === type)?.label ?? type
 }
 
@@ -163,6 +176,7 @@ function nodeColor(type: ConversationFlowNodeType) {
   return {
     start: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
     content: "border-teal-500/25 bg-teal-500/10 text-teal-700 dark:text-teal-300",
+    text_input: "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
     menu: "border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300",
     action: "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     condition: "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
@@ -179,6 +193,10 @@ function branchHandles(data: FlowNode["data"]) {
   if (data.nodeType === "menu") {
     const handles = (data.answers ?? []).map((answer) => ({ id: answer.id, label: answer.label }))
     return data.timeout_minutes ? [...handles, { id: "timeout", label: "Timeout" }] : handles
+  }
+
+  if (data.nodeType === "text_input") {
+    return data.timeout_minutes ? [{ id: "timeout", label: "Timeout" }] : []
   }
 
   if (data.nodeType === "condition") {
@@ -1129,6 +1147,62 @@ export default function TenantFlowsPage({
                     </div>
                   ))}
                   <Button variant="outline" size="sm" onClick={() => addAnswer(selectedNode)}>Adicionar opção</Button>
+                </div>
+              )}
+
+              {selectedNode.data.nodeType === "text_input" && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Entrada de texto</p>
+                  <label className="block text-xs font-semibold text-muted-foreground">
+                    Mensagem antes de esperar a resposta
+                    <textarea
+                      value={selectedNode.data.question ?? ""}
+                      onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, question: event.target.value }))}
+                      className="mt-1 h-24 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-muted-foreground">
+                    Resposta quando não vier texto
+                    <textarea
+                      value={selectedNode.data.invalid_text ?? ""}
+                      onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, invalid_text: event.target.value }))}
+                      className="mt-1 h-20 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-xs font-semibold text-muted-foreground">
+                      Salvar em
+                      <input
+                        value={selectedNode.data.field ?? "composition.preference"}
+                        onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, field: event.target.value }))}
+                        className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-muted-foreground">
+                      Mínimo de caracteres
+                      <input
+                        value={selectedNode.data.min_length ?? 2}
+                        type="number"
+                        min={1}
+                        onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, min_length: Number(event.target.value) }))}
+                        className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-xs font-semibold text-muted-foreground">
+                    Timeout em minutos
+                    <input
+                      value={selectedNode.data.timeout_minutes ?? 0}
+                      type="number"
+                      min={0}
+                      onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, timeout_minutes: Number(event.target.value) }))}
+                      className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <select value={edgeTarget(selectedNode.id, "timeout")} onChange={(event) => setHandleEdge(selectedNode.id, "timeout", event.target.value)} className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                    <option value="">Encerrar no timeout</option>
+                    {nodeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
                 </div>
               )}
 

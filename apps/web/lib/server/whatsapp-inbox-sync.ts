@@ -62,7 +62,15 @@ function firstText(...values: unknown[]) {
 }
 
 function getChatId(chat: UazapiChat) {
-  return firstText(chat.wa_chatid, chat.wa_fastid)
+  return firstText(chat.wa_chatid, chat.wa_chatlid, chat.wa_fastid)
+}
+
+function getChatLookupIds(chat: UazapiChat) {
+  return [...new Set([
+    firstText(chat.wa_chatid),
+    firstText(chat.wa_chatlid),
+    firstText(chat.wa_fastid),
+  ].filter(Boolean))]
 }
 
 function getPhoneFromJid(jid: string) {
@@ -75,6 +83,12 @@ function getContactName(chat: UazapiChat, chatid: string) {
 
 function getMessageId(message: UazapiMessage) {
   return firstText(message.id, message.messageid, message.messageId)
+}
+
+function getMessageChatId(message: UazapiMessage) {
+  const record = message as Record<string, unknown>
+
+  return firstText(message.chatid, message.chatId, record.remoteJid, record.remoteJID)
 }
 
 function getProviderTimestampTime(timestamp: unknown) {
@@ -195,13 +209,27 @@ export async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
       for (const chat of chats) {
         const chatid = getChatId(chat)
         if (!chatid || chatid.endsWith("@g.us")) continue
-        const chatLastMessageTime = getProviderTimestampTime(chat.wa_lastMsgTimestamp)
-        if (chatLastMessageTime && chatLastMessageTime < syncStartedTime) continue
 
-        const messages = await findUazapiMessages(provider, instance.instanceToken, chatid, 20)
+        const messagesByKey = new Map<string, UazapiMessage>()
+
+        for (const lookupChatId of getChatLookupIds(chat)) {
+          if (lookupChatId.endsWith("@g.us")) continue
+
+          const lookupMessages = await findUazapiMessages(provider, instance.instanceToken, lookupChatId, 20)
+
+          for (const message of lookupMessages) {
+            const key = getMessageId(message) || `${getMessageChatId(message) || lookupChatId}:${getMessageTimestampTime(message)}`
+            if (!messagesByKey.has(key)) {
+              messagesByKey.set(key, message)
+            }
+          }
+        }
+
+        const messages = [...messagesByKey.values()]
+          .sort((first, second) => getMessageTimestampTime(first) - getMessageTimestampTime(second))
         scannedMessages += messages.length
 
-        for (const message of messages.reverse()) {
+        for (const message of messages) {
           const content = normalizeUazapiMessageContent(message)
           if (!content.text && content.contentType === "text") continue
           const createdAt = getMessageCreatedAt(message)
@@ -220,7 +248,7 @@ export async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
             tenantSlug: slug,
             channelInstanceId: instance.id,
             channelInstanceName: instance.name,
-            externalContactId: chatid,
+            externalContactId: getMessageChatId(message) || chatid,
             contactName: getContactName(chat, chatid),
             phone: getPhoneFromJid(chatid),
             text: content.text,
@@ -246,6 +274,7 @@ export async function runInboxSync(slug: string): Promise<InboxSyncRunResult> {
                   channelInstanceId: instance.id,
                   conversationId: result.conversation.id,
                   messageId: result.message.id,
+                  allowDefaultFlow: result.createdConversation === true,
                 })
                 scheduleAppJobProcessing()
                 aiProcessedMessages += 1
