@@ -31,6 +31,9 @@
 8. **[2026-06-01] `wa_lastMsgTimestamp` da UAZAPI pode ficar atrasado**
    Do instead: no sync do WhatsApp, não descartar chats só pelo timestamp do chat; buscar mensagens pelos IDs disponíveis (`wa_chatid`, `wa_chatlid`, `wa_fastid`) e aplicar `syncStartedAt` em cada mensagem.
 
+9. **[2026-06-03] Bloco de fluxo só espera resposta se `type` for input**
+   Do instead: ao configurar fluxos, validar o `type` real do nó (`text_input`, `menu`, `scenario_image`, `reference_image`); campos como `question` e `field` dentro de `content` são ignorados pelo runner como espera de entrada.
+
 ## Shell & Command Reliability
 1. **[2026-04-05] pnpm 10.30.0 é o package manager**
    Do instead: sempre usar `pnpm` (não npm/yarn). Workspace definido em `pnpm-workspace.yaml` com `apps/*` e `packages/*`.
