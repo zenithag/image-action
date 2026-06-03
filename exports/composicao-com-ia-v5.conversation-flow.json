@@ -1,0 +1,273 @@
+{
+  "schema": "comofica.conversation-flow",
+  "version": 1,
+  "exportedAt": "2026-06-03T01:50:00.000Z",
+  "flow": {
+    "name": "Composição com IA",
+    "description": "Coleta cenário, referência, orientação do cliente e confirmação explícita antes de gerar a composição visual com IA.",
+    "graph": {
+      "nodes": [
+        {
+          "id": "start",
+          "type": "start",
+          "position": {
+            "x": 80,
+            "y": 120
+          },
+          "data": {
+            "label": "Boas-vindas",
+            "contents": []
+          }
+        },
+        {
+          "id": "scenario_image",
+          "type": "scenario_image",
+          "position": {
+            "x": 440,
+            "y": 120
+          },
+          "data": {
+            "label": "Receber cenário",
+            "question": "Oi! Para eu te mostrar como pode ficar, me envie uma foto do ambiente que você quer transformar. Pode ser uma parede, piso, cômodo ou a área onde quer visualizar a mudança.",
+            "invalid_text": "Preciso de uma imagem do cenário para continuar. Envie uma foto do ambiente que será transformado.",
+            "timeout_minutes": 0,
+            "required": true
+          }
+        },
+        {
+          "id": "scenario_ack",
+          "type": "content",
+          "position": {
+            "x": 800,
+            "y": 120
+          },
+          "data": {
+            "label": "Cenário recebido",
+            "contents": [
+              {
+                "type": "text",
+                "text": "Perfeito, já tenho o cenário. Agora preciso da referência visual que será aplicada nele."
+              }
+            ]
+          }
+        },
+        {
+          "id": "reference_image",
+          "type": "reference_image",
+          "position": {
+            "x": 1160,
+            "y": 120
+          },
+          "data": {
+            "label": "Receber referência",
+            "question": "Envie a imagem de referência: produto, material, cor, textura, estampa ou estilo que você quer ver aplicado no cenário.",
+            "invalid_text": "Para continuar, preciso de uma imagem de referência. Envie a foto do produto, material, cor, textura ou estilo desejado.",
+            "timeout_minutes": 0,
+            "required": true
+          }
+        },
+        {
+          "id": "composition_notice",
+          "type": "content",
+          "position": {
+            "x": 2240,
+            "y": 60
+          },
+          "data": {
+            "label": "Avisar geração",
+            "contents": [
+              {
+                "type": "text",
+                "text": "Ótimo. Vou preparar a composição usando o cenário, a referência e a forma de aplicação que você descreveu. Isso pode levar alguns instantes."
+              }
+            ]
+          }
+        },
+        {
+          "id": "create_composition",
+          "type": "create_composition",
+          "position": {
+            "x": 2600,
+            "y": 60
+          },
+          "data": {
+            "label": "Gerar composição",
+            "prompt": "Criar uma composição visual realista aplicando a referência enviada sobre o cenário conforme a descrição do cliente. Preservar enquadramento, iluminação, perspectiva, proporção e estrutura fixa do ambiente. Usar a referência apenas como produto, material, cor, textura ou estilo a aplicar.",
+            "mode": "interior",
+            "changeStrength": 70
+          }
+        },
+        {
+          "id": "queued_message",
+          "type": "content",
+          "position": {
+            "x": 2960,
+            "y": 60
+          },
+          "data": {
+            "label": "Composição em fila",
+            "contents": [
+              {
+                "type": "text",
+                "text": "Sua composição entrou na fila de geração. Assim que ficar pronta, eu envio o resultado por aqui."
+              }
+            ]
+          }
+        },
+        {
+          "id": "operator_handoff",
+          "type": "action",
+          "position": {
+            "x": 2240,
+            "y": 300
+          },
+          "data": {
+            "label": "Transferir operador",
+            "action": "set_operator"
+          }
+        },
+        {
+          "id": "operator_message",
+          "type": "content",
+          "position": {
+            "x": 2600,
+            "y": 300
+          },
+          "data": {
+            "label": "Avisar operador",
+            "contents": [
+              {
+                "type": "text",
+                "text": "Combinado. Transferi sua conversa para um operador continuar o atendimento."
+              }
+            ]
+          }
+        },
+        {
+          "id": "application_description",
+          "type": "text_input",
+          "position": {
+            "x": 1520,
+            "y": 120
+          },
+          "data": {
+            "label": "Descrever aplicação",
+            "question": "Agora me diga como você quer aplicar essa referência no cenário. Ex.: aplicar o revestimento só na parede do fundo, trocar o piso mantendo os móveis, usar essa cor em todas as paredes.",
+            "invalid_text": "Preciso de uma orientação em texto para continuar. Me diga onde e como aplicar a referência no cenário.",
+            "field": "composition.preference",
+            "min_length": 4,
+            "timeout_minutes": 0
+          }
+        },
+        {
+          "id": "confirm_generation",
+          "type": "menu",
+          "position": {
+            "x": 1880,
+            "y": 120
+          },
+          "data": {
+            "label": "Confirmar geração",
+            "question": "Perfeito. Posso gerar a composição agora usando o cenário, a referência e a orientação que você acabou de enviar?",
+            "invalid_text": "Responda com uma das opções: gerar agora, ajustar orientação ou falar com operador.",
+            "max_errors": 3,
+            "timeout_minutes": 0,
+            "answers": [
+              {
+                "id": "confirm_generate",
+                "label": "Sim, gerar agora"
+              },
+              {
+                "id": "adjust_instruction",
+                "label": "Não, quero ajustar"
+              },
+              {
+                "id": "talk_to_operator",
+                "label": "Falar com operador"
+              }
+            ]
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "start_scenario",
+          "source": "start",
+          "target": "scenario_image",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "scenario_ack",
+          "source": "scenario_image",
+          "target": "scenario_ack",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "ack_reference",
+          "source": "scenario_ack",
+          "target": "reference_image",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "notice_create",
+          "source": "composition_notice",
+          "target": "create_composition",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "create_queued",
+          "source": "create_composition",
+          "target": "queued_message",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "operator_message",
+          "source": "operator_handoff",
+          "target": "operator_message",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "reference_application_description",
+          "source": "reference_image",
+          "target": "application_description",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "application_description_confirm",
+          "source": "application_description",
+          "target": "confirm_generation",
+          "sourceHandle": null,
+          "targetHandle": null
+        },
+        {
+          "id": "confirm_generation_compose",
+          "source": "confirm_generation",
+          "target": "composition_notice",
+          "sourceHandle": "confirm_generate",
+          "targetHandle": null
+        },
+        {
+          "id": "confirm_generation_adjust",
+          "source": "confirm_generation",
+          "target": "application_description",
+          "sourceHandle": "adjust_instruction",
+          "targetHandle": null
+        },
+        {
+          "id": "confirm_generation_operator",
+          "source": "confirm_generation",
+          "target": "operator_handoff",
+          "sourceHandle": "talk_to_operator",
+          "targetHandle": null
+        }
+      ]
+    }
+  }
+}
