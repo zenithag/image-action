@@ -331,18 +331,18 @@ function AppsCarousel() {
 const heroScenes = [
   {
     label: "Porcelanato",
-    before: { src: "/images/compare/porcelanato/antes.jpg" },
-    after: { src: "/images/compare/porcelanato/depois.png" },
+    before: { src: "/images/compare/porcelanato/antes.webp" },
+    after: { src: "/images/compare/porcelanato/depois.webp" },
   },
   {
     label: "Móveis planejados",
-    before: { src: "/images/compare/planejados/antes.jpg" },
-    after: { src: "/images/compare/planejados/depois.png" },
+    before: { src: "/images/compare/planejados/antes.webp" },
+    after: { src: "/images/compare/planejados/depois.webp" },
   },
   {
     label: "Pintura",
-    before: { src: "/images/compare/tinta/antes.jpg" },
-    after: { src: "/images/compare/tinta/depois.png" },
+    before: { src: "/images/compare/tinta/antes.webp" },
+    after: { src: "/images/compare/tinta/depois.webp" },
   },
 ]
 
