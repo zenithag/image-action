@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@studio/contracts", "@studio/tenant-context"],
   serverExternalPackages: ["pg"],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

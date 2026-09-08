@@ -99,3 +99,11 @@ Key services in docker-compose: PostgreSQL (:5433), MinIO (:9000/:9001), Zitadel
 ## UI Stack
 
 shadcn/ui with New York style variant. Components in `apps/web/components/ui/`. Config in `apps/web/components.json`. Uses `class-variance-authority`, `clsx`, `tailwind-merge`. State management via Zustand. Charts via Recharts.
+
+## Public Site Content Source
+
+The public marketing site (currently `apps/web/app/page.tsx`, component `LandingPage`) is being rebuilt per a business spec: **Guia de Estratégia, Arquitetura e Copy do Novo Site** (v1.0, 23/08/2026), one level up at `../materiais/COMOFICA_AI_Guia_Estrategia_Arquitetura_Copy_Site.pdf` (also available as editable `.docx` in `../00 - DOCUMENTOS MESTRES/`). It specifies the full sitemap (home + `/plataforma` + one page per ICP), page-by-page copy, SEO metadata, shared components, and a claims matrix (what can/can't be stated publicly — PUBLICAR / SOB DEMANDA / FUTURO / PROIBIDO). Product facts (what's actually built, limits, pricing policy) are governed by the separate **Manual Mestre** at `../materiais/COMOFICA_AI_Manual_Mestre_v2.docx` — it takes precedence over the site guide on any product-fact conflict.
+
+`apps/web/app/home-2/page.tsx` (component `HomeTwo`, added 26/08/2026) is an early, partial prototype toward this spec — it only covers hero, a channel proof strip, and the before/after comparator, not the full page set or copy. It is not yet wired as the live `/` route.
+
+Do not invent product capabilities, integrations, pricing, timelines, or client names when writing site copy — see the guide's claims matrix (chapter 18) and the parent `CLAUDE.md` at `CLIENTES/ComoFica.ai/CLAUDE.md` for tone/voice/never-say rules, which apply to any copy written in this repo.
