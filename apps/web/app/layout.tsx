@@ -19,17 +19,17 @@ const dmSans = DM_Sans({
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://comofica.ai";
-const siteName = "Como Fica";
-const siteTitle = "Como Fica — Visualize antes de comprar, direto no WhatsApp";
+const siteName = "ComoFica.ai";
+const siteTitle = "ComoFica.ai - Visualização comercial com inteligência artificial";
 const siteDescription =
-  "Ferramenta que aplica seu produto na foto do ambiente do cliente. Sem app, sem cadastro. O cliente decide na hora, dentro do WhatsApp.";
+  "Transforme produtos, acabamentos e possibilidades em simulações visuais para o atendimento, o site e o WhatsApp da sua empresa.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: {
-    default: siteTitle,
-    template: `%s · ${siteName}`,
-  },
+  // Cada página define seu próprio título completo (já com "- ComoFica.ai"
+  // no final, como no Guia de Estratégia do Site) — sem template automático
+  // pra não duplicar o sufixo da marca.
+  title: siteTitle,
   description: siteDescription,
   applicationName: siteName,
   alternates: { canonical: "/" },

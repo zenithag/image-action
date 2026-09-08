@@ -41,6 +41,22 @@
   --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 8px);
+
+  /* Marca ComoFica.ai (site institucional) — aditivo, não substitui os tokens
+     do produto (--primary etc.) usados pelo console autenticado. */
+  --color-brand-blue: #00165a;
+  --color-brand-blue-light: #0a2472;
+  --color-brand-tiffany: #01cfb0;
+  /* #00a88f (o tom "oficial" mais próximo do turquesa puro) só dá 3:1 contra
+     branco — abaixo do mínimo AA de 4.5:1 pra texto pequeno (eyebrows, badges,
+     números de passo usam esse token). Escurecido pra #007a68 (5.3:1 contra
+     branco, 4.8:1 contra o mist) mantendo o mesmo matiz — achado na QA final
+     (Guia, cap. 16.2: "contraste compatível com WCAG AA"). */
+  --color-brand-tiffany-dark: #007a68;
+  /* Neutro claro com leve tom de marca — usado pra alternar respiro entre
+     seções brancas e evitar cinza genérico (Guia, cap. 15.2: "alternar
+     blocos claros e escuros para criar ritmo sem repetir seções"). */
+  --color-brand-mist: #f2f5fb;
 }
 
 :root {
@@ -252,4 +268,19 @@ body::before {
 }
 [data-density="spacious"] {
   /* Spacious / Editorial mode */
+}
+
+/* Guia de Estratégia do site, cap. 16.2: "respeitar prefers-reduced-motion".
+   Rede de segurança global — as transições do site público já são discretas
+   (cor, sombra, um pequeno giro de ícone), mas isso garante que ninguém que
+   peça menos movimento veja alguma, mesmo se uma futura adicionar mais. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
