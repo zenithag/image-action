@@ -75,11 +75,11 @@ const porcelanato: BeforeAfterItem = {
   after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação de porcelanato aplicada ao ambiente" },
 }
 
-const planejados: BeforeAfterItem = {
-  id: "planejados",
-  tabLabel: "Móveis planejados",
-  before: { src: "/images/compare/planejados/antes.webp", alt: "Ambiente original, antes da simulação de móveis planejados" },
-  after: { src: "/images/compare/planejados/depois.webp", alt: "Simulação de móveis planejados no ambiente" },
+const moveisDecoracao: BeforeAfterItem = {
+  id: "moveis-decoracao",
+  tabLabel: "Sala decorada",
+  before: { src: "/images/compare/moveis-decoracao/antes.webp", alt: "Sala de estar vazia, sem móveis nem decoração, antes da simulação" },
+  after: { src: "/images/compare/moveis-decoracao/depois.webp", alt: "Simulação da mesma sala decorada, com sofá, poltrona e composição de objetos" },
 }
 
 const imobiliarias: BeforeAfterItem = {
@@ -393,7 +393,7 @@ export const MOVEIS_CONTENT: SolutionPageContent = {
       "Ajude o cliente a explorar sofás, mesas, armários, iluminação e composições no próprio espaço antes de escolher - com uso pelo atendimento, pelo site ou pelo WhatsApp.",
     secondaryCtaLabel: "Ver aplicações",
     secondaryCtaHref: "#aplicacoes",
-    demoItems: [planejados],
+    demoItems: [moveisDecoracao],
   },
   problem: {
     eyebrow: "O problema",
