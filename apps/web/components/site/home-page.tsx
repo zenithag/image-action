@@ -161,7 +161,6 @@ export function HomePage() {
           primaryCta={{ label: homeCta.label, href: buildWhatsAppLink(homeCta.message), external: true }}
           secondaryCta={{ label: "Ver como funciona", href: "#como-funciona" }}
           microcopy="Faça a demonstração com uma imagem, produto ou imóvel do seu negócio."
-          proofItems={["Plataforma própria", "Site da sua empresa", "WhatsApp da sua empresa"]}
           visual={<BeforeAfterDemo tone="white" items={[heroDemoItem]} caption="Simulação visual ilustrativa" />}
         />
 
