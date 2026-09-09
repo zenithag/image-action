@@ -9,12 +9,16 @@ import { pageSocialMetadata } from "@/lib/seo"
 const title = "ComoFica.ai - Visualização comercial com inteligência artificial"
 const description =
   "Transforme produtos, acabamentos e possibilidades em simulações visuais para o atendimento, o site e o WhatsApp da sua empresa."
+// Texto só do card social (WhatsApp, LinkedIn etc.) — mais direto e visual,
+// pensado pra acompanhar a imagem de antes/depois do opengraph-image.jpg.
+// A meta description acima (copy aprovada no guia) não muda.
+const ogDescription = "Envie uma foto do ambiente e veja como fica antes de decidir. Pela plataforma, pelo site ou pelo WhatsApp da sua empresa."
 
 export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: "/" },
-  ...pageSocialMetadata("/", title, description),
+  ...pageSocialMetadata("/", title, description, ogDescription),
 }
 
 export default async function Home() {
