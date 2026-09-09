@@ -89,6 +89,19 @@ const imobiliarias: BeforeAfterItem = {
   after: { src: "/images/compare/imobiliarias/depois.webp", alt: "Simulação do mesmo ambiente decorado e mobiliado" },
 }
 
+const construcao: BeforeAfterItem = {
+  id: "construcao",
+  tabLabel: "Construção e Reforma",
+  before: {
+    src: "/images/compare/construcao/antes.webp",
+    alt: "Unidade em fase de acabamento bruto, com contrapiso e paredes sem pintura, antes da simulação",
+  },
+  after: {
+    src: "/images/compare/construcao/depois.webp",
+    alt: "Simulação da mesma unidade pronta e decorada, com piso, pintura e mobiliário",
+  },
+}
+
 export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
   ctaKey: "construtoras-incorporadoras",
   hero: {
@@ -99,7 +112,7 @@ export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
     secondaryCtaLabel: "Explorar aplicações",
     secondaryCtaHref: "#aplicacoes",
     microcopy: "A demonstração pode usar um ambiente, uma imagem ou um render autorizado do seu projeto.",
-    demoItems: [planejados],
+    demoItems: [construcao],
   },
   problem: {
     eyebrow: "O problema",
