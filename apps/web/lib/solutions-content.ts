@@ -71,8 +71,8 @@ export interface SolutionPageContent {
 const porcelanato: BeforeAfterItem = {
   id: "porcelanato",
   tabLabel: "Acabamento",
-  before: { src: "/images/compare/porcelanato/antes.webp", alt: "Ambiente original, antes da simulação" },
-  after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação de porcelanato aplicada ao ambiente" },
+  before: { src: "/images/compare/porcelanato/antes.webp", alt: "Sala de estar com parede lisa e piso simples, antes da simulação de acabamento" },
+  after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação da mesma sala com parede em ripado de madeira e piso renovado" },
 }
 
 const moveisDecoracao: BeforeAfterItem = {

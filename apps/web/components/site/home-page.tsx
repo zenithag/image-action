@@ -17,16 +17,16 @@ import { CTA_MESSAGES, buildWhatsAppLink } from "@/lib/site-config"
 const heroDemoItem = {
   id: "porcelanato-hero",
   tabLabel: "Acabamento",
-  before: { src: "/images/compare/porcelanato/antes.webp", alt: "Ambiente original, antes da simulação" },
-  after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação de porcelanato aplicada ao ambiente" },
+  before: { src: "/images/compare/porcelanato/antes.webp", alt: "Sala de estar com parede lisa e piso simples, antes da simulação" },
+  after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação da mesma sala com parede em ripado de madeira e piso renovado" },
 }
 
 const demoItems = [
   {
     id: "acabamento",
     tabLabel: "Acabamento",
-    before: { src: "/images/compare/porcelanato/antes.webp", alt: "Ambiente original, antes da simulação de acabamento" },
-    after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação de porcelanato aplicada ao ambiente" },
+    before: { src: "/images/compare/porcelanato/antes.webp", alt: "Sala de estar com parede lisa e piso simples, antes da simulação de acabamento" },
+    after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação da mesma sala com parede em ripado de madeira e piso renovado" },
   },
   {
     id: "mobiliario",
