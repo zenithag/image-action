@@ -35,10 +35,22 @@ const demoItems = [
     after: { src: "/images/compare/planejados/depois.png", alt: "Simulação de móveis planejados no ambiente" },
   },
   {
-    id: "reforma",
-    tabLabel: "Reforma e ambientação",
+    id: "ambientacao",
+    tabLabel: "Ambientação",
     before: { src: "/images/compare/tinta/antes.jpg", alt: "Ambiente original, antes da simulação de pintura" },
     after: { src: "/images/compare/tinta/depois.png", alt: "Simulação de pintura aplicada ao ambiente" },
+  },
+  {
+    id: "construcao-reforma",
+    tabLabel: "Construção e Reforma",
+    before: {
+      src: "/images/compare/construcao/antes.webp",
+      alt: "Unidade em fase de acabamento bruto, com contrapiso e paredes sem pintura, antes da simulação",
+    },
+    after: {
+      src: "/images/compare/construcao/depois.webp",
+      alt: "Simulação da mesma unidade pronta e decorada, com piso, pintura e mobiliário",
+    },
   },
 ]
 
