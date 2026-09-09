@@ -72,7 +72,7 @@ export function BeforeAfterDemo({ items, className, caption, initialPosition = 5
           alt={active.before.alt}
           fill
           priority
-          quality={95}
+          quality={82}
           sizes="(max-width: 800px) 92vw, 1200px"
           className="object-cover"
         />
@@ -82,7 +82,7 @@ export function BeforeAfterDemo({ items, className, caption, initialPosition = 5
             alt={active.after.alt}
             fill
             priority
-            quality={95}
+            quality={82}
             sizes="(max-width: 800px) 92vw, 1200px"
             className="object-cover"
           />
