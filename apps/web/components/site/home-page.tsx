@@ -31,8 +31,8 @@ const demoItems = [
   {
     id: "mobiliario",
     tabLabel: "Mobiliário",
-    before: { src: "/images/compare/planejados/antes.webp", alt: "Ambiente original, antes da simulação de móveis planejados" },
-    after: { src: "/images/compare/planejados/depois.webp", alt: "Simulação de móveis planejados no ambiente" },
+    before: { src: "/images/compare/moveis-decoracao/antes.webp", alt: "Sala de estar vazia, sem móveis nem decoração, antes da simulação" },
+    after: { src: "/images/compare/moveis-decoracao/depois.webp", alt: "Simulação da mesma sala decorada, com sofá, poltrona e composição de objetos" },
   },
   {
     id: "ambientacao",
