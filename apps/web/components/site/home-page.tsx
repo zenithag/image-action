@@ -23,6 +23,18 @@ const heroDemoItem = {
 
 const demoItems = [
   {
+    id: "construcao-reforma",
+    tabLabel: "Construção e Reforma",
+    before: {
+      src: "/images/compare/construcao/antes.webp",
+      alt: "Unidade em fase de acabamento bruto, com contrapiso e paredes sem pintura, antes da simulação",
+    },
+    after: {
+      src: "/images/compare/construcao/depois.webp",
+      alt: "Simulação da mesma unidade pronta e decorada, com piso, pintura e mobiliário",
+    },
+  },
+  {
     id: "acabamento",
     tabLabel: "Acabamento",
     before: { src: "/images/compare/porcelanato/antes.webp", alt: "Sala de estar com parede lisa e piso simples, antes da simulação de acabamento" },
@@ -39,18 +51,6 @@ const demoItems = [
     tabLabel: "Ambientação",
     before: { src: "/images/compare/tinta/antes.webp", alt: "Ambiente original, antes da simulação de pintura" },
     after: { src: "/images/compare/tinta/depois.webp", alt: "Simulação de pintura aplicada ao ambiente" },
-  },
-  {
-    id: "construcao-reforma",
-    tabLabel: "Construção e Reforma",
-    before: {
-      src: "/images/compare/construcao/antes.webp",
-      alt: "Unidade em fase de acabamento bruto, com contrapiso e paredes sem pintura, antes da simulação",
-    },
-    after: {
-      src: "/images/compare/construcao/depois.webp",
-      alt: "Simulação da mesma unidade pronta e decorada, com piso, pintura e mobiliário",
-    },
   },
 ]
 
