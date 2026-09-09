@@ -15,15 +15,15 @@ import { UseCaseGrid } from "@/components/site/use-case-grid"
 import { CTA_MESSAGES, buildWhatsAppLink } from "@/lib/site-config"
 
 const heroDemoItem = {
-  id: "construcao-hero",
-  tabLabel: "Construção e Reforma",
+  id: "banheiro-hero",
+  tabLabel: "Acabamento",
   before: {
-    src: "/images/compare/construcao/antes.webp",
-    alt: "Unidade em fase de acabamento bruto, com contrapiso e paredes sem pintura, antes da simulação",
+    src: "/images/compare/banheiro/antes.webp",
+    alt: "Banheiro em fase de acabamento bruto, com contrapiso, box sem instalar e pontos hidráulicos aparentes, antes da simulação",
   },
   after: {
-    src: "/images/compare/construcao/depois.webp",
-    alt: "Simulação da mesma unidade pronta e decorada, com piso, pintura e mobiliário",
+    src: "/images/compare/banheiro/depois.webp",
+    alt: "Simulação do mesmo banheiro pronto, com revestimento em mármore, banheira de imersão e acabamento de alto padrão",
   },
 }
 
@@ -161,13 +161,13 @@ export function HomePage() {
           primaryCta={{ label: homeCta.label, href: buildWhatsAppLink(homeCta.message), external: true }}
           secondaryCta={{ label: "Ver como funciona", href: "#como-funciona" }}
           microcopy="Faça a demonstração com uma imagem, produto ou imóvel do seu negócio."
-          proofItems={["Plataforma própria", "Integração ao site", "WhatsApp da empresa", "White label"]}
+          proofItems={["Plataforma própria", "Integração ao site", "WhatsApp da empresa"]}
           visual={<BeforeAfterDemo tone="white" items={[heroDemoItem]} caption="Simulação visual ilustrativa" />}
         />
 
         <ProofStrip
           label="Uma experiência, três canais"
-          items={["Plataforma", "Site", "WhatsApp", "White label"]}
+          items={["Plataforma", "Site", "WhatsApp"]}
         />
 
         {/* 6.3 Demonstração principal */}

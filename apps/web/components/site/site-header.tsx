@@ -43,15 +43,7 @@ export function SiteHeader() {
   const homeCta = CTA_MESSAGES.home
 
   return (
-    <>
-      {/* Bypass Blocks (WCAG 2.4.1) — invisível até receber foco por teclado. */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-brand-blue focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
-      >
-        Pular para o conteúdo
-      </a>
-      <header className="sticky top-0 z-40 border-b border-black/5 bg-white/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-black/5 bg-white/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label="ComoFica.ai, início" className="shrink-0">
           <Image
@@ -178,6 +170,5 @@ export function SiteHeader() {
         </Sheet>
       </div>
     </header>
-    </>
   )
 }
