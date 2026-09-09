@@ -3,7 +3,14 @@
 import Image from "next/image"
 import { useId, useState } from "react"
 
+import { BLUR_PLACEHOLDERS } from "@/lib/blur-placeholders"
 import { cn } from "@/lib/utils"
+
+/** Deriva a chave do blur placeholder a partir do caminho público da imagem (ex.: "/images/compare/banheiro/antes.webp" -> "banheiro/antes"). */
+function blurDataURLFor(src: string): string | undefined {
+  const match = src.match(/\/images\/compare\/([^/]+\/[^/.]+)/)
+  return match ? BLUR_PLACEHOLDERS[match[1]] : undefined
+}
 
 export interface BeforeAfterItem {
   id: string
@@ -75,6 +82,8 @@ export function BeforeAfterDemo({ items, className, caption, initialPosition = 5
           quality={82}
           sizes="(max-width: 800px) 92vw, 1200px"
           className="object-cover"
+          placeholder={blurDataURLFor(active.before.src) ? "blur" : undefined}
+          blurDataURL={blurDataURLFor(active.before.src)}
         />
         <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${position}%)` }}>
           <Image
@@ -85,6 +94,8 @@ export function BeforeAfterDemo({ items, className, caption, initialPosition = 5
             quality={82}
             sizes="(max-width: 800px) 92vw, 1200px"
             className="object-cover"
+            placeholder={blurDataURLFor(active.after.src) ? "blur" : undefined}
+            blurDataURL={blurDataURLFor(active.after.src)}
           />
         </div>
 
