@@ -99,12 +99,12 @@ const homeFaq = [
   {
     question: "O que é a ComoFica.ai?",
     answer:
-      "É uma plataforma de visualização comercial com IA que ajuda empresas, equipes e clientes a ver como produtos, acabamentos e ideias podem ficar em ambientes antes da decisão.",
+      "É uma plataforma de visualização comercial com IA que ajuda você, sua equipe e seus clientes a ver como produtos, acabamentos e ideias podem ficar em ambientes antes da decisão.",
   },
   {
     question: "Onde a experiência funciona?",
     answer:
-      "Na plataforma própria, integrada ao site do parceiro e no WhatsApp da empresa. O cliente escolhe quais canais ativar e quem terá acesso.",
+      "Na plataforma própria, integrada ao seu site e no WhatsApp da sua empresa. Você escolhe quais canais ativar e quem terá acesso.",
   },
   {
     question: "Preciso cadastrar um catálogo?",
@@ -131,7 +131,7 @@ const homeFaq = [
   {
     question: "Por que usar a ComoFica em vez de apenas uma IA genérica?",
     answer:
-      "Uma IA genérica atende muitas tarefas. A ComoFica organiza um trabalho específico com fluxo intuitivo, marca do parceiro, catálogo, equipe, histórico, analytics, site, WhatsApp e antes/depois.",
+      "Uma IA genérica atende muitas tarefas. A ComoFica organiza um trabalho específico com fluxo intuitivo, a marca da sua empresa, catálogo, equipe, histórico, analytics, site, WhatsApp e antes/depois.",
   },
   {
     question: "A plataforma pode integrar com outros sistemas?",
@@ -157,17 +157,17 @@ export function HomePage() {
           tone="white"
           eyebrow="Plataforma de visualização comercial com IA"
           title="Mostre o que o cliente ainda não consegue ver."
-          subheadline="A ComoFica.ai transforma fotos de ambientes, produtos e possibilidades em simulações visuais prontas para apoiar a decisão - pela plataforma da empresa, no site ou no WhatsApp, com a marca do parceiro."
+          subheadline="A ComoFica.ai transforma fotos de ambientes, produtos e possibilidades em simulações visuais prontas para apoiar a decisão - pela plataforma própria, no seu site ou no seu WhatsApp, com a sua marca."
           primaryCta={{ label: homeCta.label, href: buildWhatsAppLink(homeCta.message), external: true }}
           secondaryCta={{ label: "Ver como funciona", href: "#como-funciona" }}
           microcopy="Faça a demonstração com uma imagem, produto ou imóvel do seu negócio."
-          proofItems={["Plataforma própria", "Integração ao site", "WhatsApp da empresa"]}
+          proofItems={["Plataforma própria", "Site da sua empresa", "WhatsApp da sua empresa"]}
           visual={<BeforeAfterDemo tone="white" items={[heroDemoItem]} caption="Simulação visual ilustrativa" />}
         />
 
         <ProofStrip
           label="Uma experiência, três canais"
-          items={["Plataforma própria", "Site", "WhatsApp"]}
+          items={["Plataforma própria", "Site da sua empresa", "WhatsApp da sua empresa"]}
         />
 
         {/* 6.3 Demonstração principal */}
@@ -209,7 +209,7 @@ export function HomePage() {
             <p className="mt-5 text-lg leading-7 text-muted-foreground">
               A ComoFica.ai é uma plataforma de visualização comercial com inteligência artificial. Ela transforma
               produtos, acabamentos e ideias em simulações visuais no contexto de um ambiente, sem exigir prompts
-              complexos e sem obrigar a empresa a abandonar seus canais atuais.
+              complexos e sem obrigar a sua empresa a abandonar seus canais atuais.
             </p>
             <p className="mt-4 font-medium text-brand-blue">
               O valor não está apenas na imagem gerada. Está em tornar a visualização acessível à equipe, ao cliente e
@@ -240,21 +240,21 @@ export function HomePage() {
             {
               title: "Plataforma própria",
               description:
-                "Sua equipe acessa pelo celular, tablet ou computador, gera simulações, acompanha históricos, administra usuários e consulta analytics em um painel com a marca da empresa.",
+                "Sua equipe acessa pelo celular, tablet ou computador, gera simulações, acompanha históricos, administra usuários e consulta analytics em um painel com a marca da sua empresa.",
               linkLabel: "Conhecer a plataforma",
               href: "/plataforma",
             },
             {
               title: "Integração ao site",
               description:
-                "A experiência pode ser incorporada ao site do parceiro para que clientes externos explorem produtos e possibilidades sem depender do atendimento presencial.",
+                "A experiência pode ser incorporada ao seu site para que seus clientes explorem produtos e possibilidades sem depender do atendimento presencial.",
               linkLabel: "Ver uso no site",
               href: "/plataforma#site",
             },
             {
-              title: "WhatsApp da empresa",
+              title: "WhatsApp da sua empresa",
               description:
-                "A solicitação pode acontecer no número que a empresa já utiliza. A equipe mantém o atendimento humano e ativa a geração quando fizer sentido, com o resultado devolvido na conversa.",
+                "A solicitação pode acontecer no número que a sua empresa já utiliza. A equipe mantém o atendimento humano e ativa a geração quando fizer sentido, com o resultado devolvido na conversa.",
               linkLabel: "Ver uso no WhatsApp",
               href: "/plataforma#whatsapp",
             },
@@ -267,7 +267,7 @@ export function HomePage() {
         <DifferentiationBlock
           tone="mist"
           eyebrow="Por que ComoFica.ai"
-          title="Não é apenas acesso a uma IA. É uma experiência pronta para a operação da empresa."
+          title="Não é apenas acesso a uma IA. É uma experiência pronta para a operação da sua empresa."
           bullets={[
             "Sem prompts complexos: fluxo configurado para aplicação de produtos e possibilidades.",
             "Com a sua marca: experiência white label para equipe e clientes finais.",

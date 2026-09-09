@@ -2,8 +2,8 @@ import { Globe, MessageCircle, Smartphone } from "lucide-react"
 
 const CHANNELS = [
   { icon: Smartphone, label: "Plataforma própria", detail: "Painel da equipe" },
-  { icon: Globe, label: "Integração ao site", detail: "Clientes externos" },
-  { icon: MessageCircle, label: "WhatsApp da empresa", detail: "Atendimento direto" },
+  { icon: Globe, label: "Site da sua empresa", detail: "Clientes externos" },
+  { icon: MessageCircle, label: "WhatsApp da sua empresa", detail: "Atendimento direto" },
 ]
 
 /**

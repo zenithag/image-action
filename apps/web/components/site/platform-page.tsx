@@ -23,19 +23,19 @@ export function PlatformPage() {
           tone="blue"
           eyebrow="A plataforma ComoFica.ai"
           title="Leve a visualização para o canal onde a decisão acontece."
-          subheadline="Sua equipe e seus clientes podem transformar ambientes, produtos e possibilidades em simulações visuais pela plataforma da empresa, no site ou no WhatsApp - com uma experiência adaptada à sua marca e ao seu processo."
+          subheadline="Sua equipe e seus clientes podem transformar ambientes, produtos e possibilidades em simulações visuais pela plataforma própria, no seu site ou no seu WhatsApp - com uma experiência adaptada à sua marca e ao seu processo."
           primaryCta={{ label: cta.label, href: buildWhatsAppLink(cta.message), external: true }}
           secondaryCta={{ label: "Explorar as formas de usar", href: "#modos-de-acesso" }}
-          proofItems={["Plataforma própria", "Site", "WhatsApp", "White label", "Multiusuário", "Analytics"]}
+          proofItems={["Plataforma própria", "Site da sua empresa", "WhatsApp da sua empresa", "White label", "Multiusuário", "Analytics"]}
           visual={<ChannelDiagram />}
         />
 
         <FeatureDetail
           id="diferenciais"
           tone="white"
-          eyebrow="O que a empresa compra"
+          eyebrow="O que a sua empresa compra"
           title="Mais do que gerar uma imagem: colocar a visualização em operação."
-          text="Uma assinatura genérica entrega uma IA para alguém usar. A ComoFica entrega uma experiência especializada para uma empresa operar: canais, marca, equipe, catálogo, históricos, regras de acesso, comparação antes/depois e acompanhamento de uso."
+          text="Uma assinatura genérica entrega uma IA para alguém usar. A ComoFica entrega uma experiência especializada para a sua empresa operar: canais, marca, equipe, catálogo, históricos, regras de acesso, comparação antes/depois e acompanhamento de uso."
           highlight="A tecnologia trabalha em segundo plano. Para o usuário, a experiência deve parecer simples, clara e integrada ao atendimento."
         />
 
@@ -57,7 +57,7 @@ export function PlatformPage() {
           tone="white"
           eyebrow="Plataforma própria"
           title="Um painel para gerar, acompanhar e aprender com o uso."
-          text="A interface própria pode ser acessada por smartphone, tablet, iPad ou computador. Nela, a empresa administra usuários, gera imagens, acompanha conversas e históricos e consulta analytics da operação."
+          text="A interface própria pode ser acessada por smartphone, tablet, iPad ou computador. Nela, você administra usuários, gera imagens, acompanha conversas e históricos e consulta analytics da operação."
           bullets={[
             "Gerações de imagens de ambientes",
             "Múltiplos usuários por empresa",
@@ -65,7 +65,7 @@ export function PlatformPage() {
             "Painel de analytics",
             "Comparação antes/depois",
             "Uso com catálogo ou foto de referência",
-            "Personalização com a marca do parceiro",
+            "Personalização com a marca da sua empresa",
           ]}
         />
 
@@ -74,7 +74,7 @@ export function PlatformPage() {
           tone="mist"
           eyebrow="Integração ao site"
           title="Visualização disponível para quem visita o site da sua empresa."
-          text="A ComoFica pode ser integrada ao site do parceiro para que clientes externos explorem produtos e possibilidades. A empresa define onde a experiência aparece, quais itens ou casos de uso ficam disponíveis e qual será o próximo passo após a simulação."
+          text="A ComoFica pode ser integrada ao seu site para que seus clientes explorem produtos e possibilidades. Você define onde a experiência aparece, quais itens ou casos de uso ficam disponíveis e qual será o próximo passo após a simulação."
           bullets={[
             "Chamar um vendedor",
             "Solicitar uma demonstração",
@@ -87,15 +87,15 @@ export function PlatformPage() {
         <FeatureDetail
           id="whatsapp"
           tone="white"
-          eyebrow="WhatsApp da empresa"
+          eyebrow="WhatsApp da sua empresa"
           title="A visualização entra no WhatsApp que sua equipe e seus clientes já utilizam."
-          text="O número da empresa é conectado à plataforma por leitura de QR code. O atendimento humano pode continuar normalmente, e a automação pode aparecer apenas quando for necessário gerar a simulação. O resultado volta na conversa com um link para comparar antes e depois."
+          text="O número da sua empresa é conectado à plataforma por leitura de QR code. O atendimento humano pode continuar normalmente, e a automação pode aparecer apenas quando for necessário gerar a simulação. O resultado volta na conversa com um link para comparar antes e depois."
           bullets={[
-            "Não exige que a empresa divulgue outro número",
+            "Não exige que você divulgue outro número",
             "Pode ser usado apenas pela equipe ou também pelo cliente final",
             "Cada vendedor pode ter acesso próprio",
-            "Conversas e imagens podem ser consultadas no histórico da empresa",
-            "A empresa pode acompanhar o volume por usuário interno",
+            "Conversas e imagens podem ser consultadas no histórico da sua empresa",
+            "Você pode acompanhar o volume por usuário interno",
           ]}
         />
 
@@ -103,11 +103,11 @@ export function PlatformPage() {
           id="modos-de-acesso"
           tone="mist"
           eyebrow="Modos de acesso"
-          title="A empresa escolhe quem usa e como usa."
+          title="Você escolhe quem usa e como usa."
           items={[
             { title: "Uso interno", description: "A equipe opera a ferramenta durante o atendimento e revisa a simulação antes de mostrar ao cliente." },
-            { title: "Uso externo", description: "Clientes finais podem gerar ou solicitar simulações pelo site ou WhatsApp, conforme regras definidas pelo parceiro." },
-            { title: "Uso híbrido", description: "Equipe e clientes usam a experiência em momentos diferentes da jornada, com gestão central da empresa." },
+            { title: "Uso externo", description: "Clientes finais podem gerar ou solicitar simulações pelo site ou WhatsApp, conforme as regras que você definir." },
+            { title: "Uso híbrido", description: "Equipe e clientes usam a experiência em momentos diferentes da jornada, com gestão central da sua empresa." },
           ]}
         />
 
@@ -115,11 +115,11 @@ export function PlatformPage() {
           tone="white"
           eyebrow="Catálogo"
           title="Comece com o catálogo ou com uma simples foto de referência."
-          text="A ComoFica não exige que todo o portfólio esteja cadastrado para começar. A empresa pode selecionar produtos estratégicos, mais vendidos ou que geram mais dúvida. Também é possível enviar uma imagem do produto no momento da geração."
+          text="A ComoFica não exige que todo o portfólio esteja cadastrado para começar. Você pode selecionar produtos estratégicos, mais vendidos ou que geram mais dúvida. Também é possível enviar uma imagem do produto no momento da geração."
           bullets={[
             "O usuário seleciona o produto dentro do fluxo",
             "A simulação pode permanecer associada ao SKU e ao preço",
-            "A empresa mantém o catálogo atualizado",
+            "Você mantém o catálogo atualizado",
             "A ComoFica pode realizar a carga inicial e oferecer suporte de manutenção sob acordo comercial",
           ]}
           note="Estoque em tempo real não é uma função padrão confirmada. Caso necessário, depende de integração sob demanda."
@@ -141,7 +141,7 @@ export function PlatformPage() {
         <ContextualCta
           tone="blue"
           title="Veja a plataforma, o site e o WhatsApp funcionando no mesmo fluxo."
-          text="Em uma demonstração, você acompanha uma geração completa, o antes/depois, os modos de acesso e a experiência com a marca do parceiro."
+          text="Em uma demonstração, você acompanha uma geração completa, o antes/depois, os modos de acesso e a experiência com a sua marca."
           ctaLabel={cta.label}
           ctaHref={buildWhatsAppLink(cta.message)}
         />

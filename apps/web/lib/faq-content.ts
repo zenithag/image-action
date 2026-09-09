@@ -13,7 +13,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "O que é a ComoFica.ai?",
         answer:
-          "É uma plataforma de visualização comercial com inteligência artificial que ajuda empresas, equipes e clientes a ver como produtos, acabamentos e ideias podem ficar em ambientes antes da decisão.",
+          "É uma plataforma de visualização comercial com inteligência artificial que ajuda você, sua equipe e seus clientes a ver como produtos, acabamentos e ideias podem ficar em ambientes antes da decisão.",
       },
       {
         question: "Como uma simulação é criada?",
@@ -35,7 +35,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
     items: [
       {
         question: "Onde a ComoFica funciona?",
-        answer: "Na plataforma própria, integrada ao site do parceiro e no WhatsApp da empresa.",
+        answer: "Na plataforma própria, integrada ao seu site e no WhatsApp da sua empresa.",
       },
       {
         question: "Quem pode usar?",
@@ -44,11 +44,11 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "A experiência pode ter a marca da minha empresa?",
         answer:
-          "Sim. A ComoFica pode operar em white label e destacar a identidade do parceiro para usuários internos e externos, conforme o projeto.",
+          "Sim. A ComoFica pode operar em white label e destacar a identidade da sua empresa para usuários internos e externos, conforme o projeto.",
       },
       {
         question: "Cada vendedor pode ter um acesso?",
-        answer: "Sim. A plataforma admite múltiplos usuários dentro de uma empresa. Quantidades e regras exatas dependem do plano vigente.",
+        answer: "Sim. A plataforma admite múltiplos usuários dentro da sua empresa. Quantidades e regras exatas dependem do plano vigente.",
       },
       {
         question: "O histórico fica salvo?",
@@ -99,7 +99,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "Qual a diferença para uma IA genérica?",
         answer:
-          "Uma IA genérica atende diversas tarefas. A ComoFica organiza uma operação de visualização com fluxo intuitivo, marca do parceiro, catálogo, equipe, histórico, analytics, site, WhatsApp e antes/depois.",
+          "Uma IA genérica atende diversas tarefas. A ComoFica organiza uma operação de visualização com fluxo intuitivo, a marca da sua empresa, catálogo, equipe, histórico, analytics, site, WhatsApp e antes/depois.",
       },
       {
         question: "Qual tecnologia de IA é utilizada?",

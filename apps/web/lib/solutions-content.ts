@@ -129,7 +129,7 @@ export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
     id: "diferenciais",
     eyebrow: "A proposta",
     title: "Uma camada rápida de visualização dentro da jornada imobiliária.",
-    text: "A ComoFica transforma imagens aprovadas, fotos e renders de referência em simulações visuais para o atendimento. O corretor pode explorar alternativas com o comprador, o cliente pode interagir pelo site ou pelo WhatsApp e a empresa acompanha a experiência em um painel comum.",
+    text: "A ComoFica transforma imagens aprovadas, fotos e renders de referência em simulações visuais para o atendimento. O corretor pode explorar alternativas com o comprador, o cliente pode interagir pelo site ou pelo WhatsApp e você acompanha a experiência em um painel comum.",
     tags: ["Stand de vendas", "Site do empreendimento", "WhatsApp", "Personalização", "Relacionamento"],
   },
   flow: {
@@ -192,7 +192,7 @@ export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
     items: [
       { question: "A ComoFica substitui os renders do empreendimento?", answer: "Não. Ela complementa renders e imagens aprovadas com variações rápidas para atendimento, site e WhatsApp." },
       { question: "O comprador pode usar sozinho?", answer: "Pode, se a construtora optar pelo acesso externo. Também é possível restringir o uso à equipe ou adotar um modelo híbrido." },
-      { question: "A experiência pode ter a marca da construtora?", answer: "Sim. O white label permite destacar a identidade do parceiro para equipe e compradores, conforme o escopo do projeto." },
+      { question: "A experiência pode ter a marca da construtora?", answer: "Sim. O white label permite destacar a identidade da sua construtora para equipe e compradores, conforme o escopo do projeto." },
       { question: "É possível associar acabamentos e preços?", answer: "Quando o catálogo está configurado, a simulação pode permanecer associada ao produto, SKU e preço. Regras comerciais e disponibilidade devem ser confirmadas nos sistemas oficiais." },
       { question: "A ComoFica serve para personalização de unidades?", answer: "Serve para explorar e comunicar alternativas preliminares. A escolha formal continua sujeita a memorial, compatibilidade, disponibilidade, preço e processo contratual." },
       { question: "Podemos integrar com CRM ou sistemas do empreendimento?", answer: "Integrações podem ser desenvolvidas sob demanda, depois da avaliação de API, dados, segurança, suporte e resultado esperado." },
@@ -233,7 +233,7 @@ export const IMOBILIARIAS_CONTENT: SolutionPageContent = {
     title: "Uma experiência comum para a equipe. Uma marca consistente para o cliente.",
     steps: [
       { number: "01", title: "Acesso próprio", description: "Cada usuário pode ter acesso próprio, enquanto a imobiliária acompanha históricos e analytics no painel." },
-      { number: "02", title: "Marca da imobiliária", description: "A interface pode destacar a marca da empresa em toda a experiência." },
+      { number: "02", title: "Marca da imobiliária", description: "A interface pode destacar a marca da sua imobiliária em toda a experiência." },
       { number: "03", title: "Equipe ou cliente", description: "Pode funcionar apenas para corretores, para clientes finais ou para os dois públicos." },
       { number: "04", title: "Histórico e analytics", description: "Consultas de histórico e analytics ficam centralizadas no painel da imobiliária." },
     ],
@@ -301,7 +301,7 @@ export const ACABAMENTOS_CONTENT: SolutionPageContent = {
     eyebrow: "ComoFica.ai para acabamentos e revestimentos",
     title: "Faça o cliente ver o produto no próprio ambiente antes de decidir.",
     subheadline:
-      "Aplique pisos, porcelanatos, pedras, tintas, revestimentos e outros produtos na foto do ambiente real, usando o catálogo da empresa ou uma simples imagem de referência.",
+      "Aplique pisos, porcelanatos, pedras, tintas, revestimentos e outros produtos na foto do ambiente real, usando o catálogo da sua loja ou uma simples imagem de referência.",
     secondaryCtaLabel: "Ver como funciona",
     secondaryCtaHref: "#fluxo",
     microcopy: "Comece com um produto estratégico. Não é necessário cadastrar todo o catálogo.",
@@ -374,7 +374,7 @@ export const ACABAMENTOS_CONTENT: SolutionPageContent = {
       { question: "A cor e a textura ficam exatamente iguais?", answer: "A plataforma busca manter características visuais da referência e o contexto da cena, mas tela, iluminação, lote e qualidade da foto podem alterar a percepção. A amostra física continua indispensável quando aplicável." },
       { question: "O produto fica associado ao catálogo?", answer: "Sim, quando o catálogo está configurado. A simulação pode permanecer associada a SKU e preço." },
       { question: "A ComoFica consulta estoque?", answer: "Não como função padrão. Uma consulta em tempo real dependeria de integração específica com o sistema do cliente." },
-      { question: "O cliente pode usar sem vendedor?", answer: "Pode, se a empresa ativar o uso externo no site ou WhatsApp. O acesso também pode ficar restrito à equipe." },
+      { question: "O cliente pode usar sem vendedor?", answer: "Pode, se você ativar o uso externo no site ou WhatsApp. O acesso também pode ficar restrito à equipe." },
       { question: "A ferramenta substitui um projeto de paginação?", answer: "Não. Ela ajuda a visualizar uma possibilidade; medição, paginação executiva, cálculo de material e instalação exigem validação profissional." },
     ],
   },
@@ -433,7 +433,7 @@ export const MOVEIS_CONTENT: SolutionPageContent = {
     title: "A visualização acompanha a jornada da loja ao celular do cliente.",
     channels: [
       { title: "Atendimento", description: "O vendedor revisa alternativas no painel." },
-      { title: "Site", description: "O visitante explora produtos em uma experiência com a marca da empresa." },
+      { title: "Site", description: "O visitante explora produtos em uma experiência com a marca da sua loja." },
       { title: "WhatsApp", description: "Cliente e equipe transformam uma dúvida em simulação durante a conversa." },
     ],
   },
