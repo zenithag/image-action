@@ -165,7 +165,7 @@ export function HomePage() {
         />
 
         <ProofStrip
-          label="Uma experiência, três canais"
+          label="Uma experiência, integração em três canais"
           items={["Plataforma própria", "Site da sua empresa", "WhatsApp da sua empresa"]}
         />
 

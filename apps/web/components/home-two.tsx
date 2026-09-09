@@ -97,7 +97,7 @@ export function HomeTwo() {
       </section>
 
       <section className={styles.strap} aria-label="Recursos principais">
-        <p>UMA EXPERIÊNCIA, TRÊS CANAIS</p><span>Plataforma própria</span><span>Site da sua empresa</span><span>WhatsApp da sua empresa</span>
+        <p>UMA EXPERIÊNCIA, INTEGRAÇÃO EM TRÊS CANAIS</p><span>Plataforma própria</span><span>Site da sua empresa</span><span>WhatsApp da sua empresa</span>
       </section>
 
       <section className={styles.statement}>
