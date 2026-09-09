@@ -15,10 +15,16 @@ import { UseCaseGrid } from "@/components/site/use-case-grid"
 import { CTA_MESSAGES, buildWhatsAppLink } from "@/lib/site-config"
 
 const heroDemoItem = {
-  id: "porcelanato-hero",
-  tabLabel: "Acabamento",
-  before: { src: "/images/compare/porcelanato/antes.webp", alt: "Sala de estar com parede lisa e piso simples, antes da simulação" },
-  after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação da mesma sala com parede em ripado de madeira e piso renovado" },
+  id: "construcao-hero",
+  tabLabel: "Construção e Reforma",
+  before: {
+    src: "/images/compare/construcao/antes.webp",
+    alt: "Unidade em fase de acabamento bruto, com contrapiso e paredes sem pintura, antes da simulação",
+  },
+  after: {
+    src: "/images/compare/construcao/depois.webp",
+    alt: "Simulação da mesma unidade pronta e decorada, com piso, pintura e mobiliário",
+  },
 }
 
 const demoItems = [
