@@ -82,11 +82,11 @@ const planejados: BeforeAfterItem = {
   after: { src: "/images/compare/planejados/depois.webp", alt: "Simulação de móveis planejados no ambiente" },
 }
 
-const tinta: BeforeAfterItem = {
-  id: "tinta",
-  tabLabel: "Reforma e pintura",
-  before: { src: "/images/compare/tinta/antes.webp", alt: "Ambiente original, antes da simulação de pintura" },
-  after: { src: "/images/compare/tinta/depois.webp", alt: "Simulação de pintura aplicada ao ambiente" },
+const imobiliarias: BeforeAfterItem = {
+  id: "imobiliarias",
+  tabLabel: "Imóvel decorado",
+  before: { src: "/images/compare/imobiliarias/antes.webp", alt: "Sala, cozinha e área externa vazias, antes da simulação" },
+  after: { src: "/images/compare/imobiliarias/depois.webp", alt: "Simulação do mesmo ambiente decorado e mobiliado" },
 }
 
 export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
@@ -201,7 +201,7 @@ export const IMOBILIARIAS_CONTENT: SolutionPageContent = {
     secondaryCtaLabel: "Ver casos de uso",
     secondaryCtaHref: "#aplicacoes",
     microcopy: "Use uma foto real e autorizada de um imóvel que sua equipe atende.",
-    demoItems: [tinta],
+    demoItems: [imobiliarias],
   },
   problem: {
     eyebrow: "O problema",
