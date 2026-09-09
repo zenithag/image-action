@@ -26,7 +26,7 @@ export function PlatformPage() {
           subheadline="Sua equipe e seus clientes podem transformar ambientes, produtos e possibilidades em simulações visuais pela plataforma da empresa, no site ou no WhatsApp - com uma experiência adaptada à sua marca e ao seu processo."
           primaryCta={{ label: cta.label, href: buildWhatsAppLink(cta.message), external: true }}
           secondaryCta={{ label: "Explorar as formas de usar", href: "#modos-de-acesso" }}
-          proofItems={["Plataforma", "Site", "WhatsApp", "White label", "Multiusuário", "Analytics"]}
+          proofItems={["Plataforma própria", "Site", "WhatsApp", "White label", "Multiusuário", "Analytics"]}
           visual={<ChannelDiagram />}
         />
 

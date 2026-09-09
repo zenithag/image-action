@@ -167,7 +167,7 @@ export function HomePage() {
 
         <ProofStrip
           label="Uma experiência, três canais"
-          items={["Plataforma", "Site", "WhatsApp"]}
+          items={["Plataforma própria", "Site", "WhatsApp"]}
         />
 
         {/* 6.3 Demonstração principal */}

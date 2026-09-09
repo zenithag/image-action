@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { buildWhatsAppLink } from "@/lib/site-config"
 
-const CHANNEL_OPTIONS = ["Plataforma", "Site", "WhatsApp", "Ainda não sei"] as const
+const CHANNEL_OPTIONS = ["Plataforma própria", "Site", "WhatsApp", "Ainda não sei"] as const
 
 /**
  * Formulário de demonstração (Guia, cap. 13.3). O site é frontend-only e não
