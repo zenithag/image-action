@@ -14,20 +14,20 @@ const audiences = [
   {
     name: "Construtoras",
     description: "Ajude compradores a visualizar acabamentos e ambientes antes da entrega.",
-    before: "/images/compare/planejados/antes.jpg",
-    after: "/images/compare/planejados/depois.png",
+    before: "/images/compare/planejados/antes.webp",
+    after: "/images/compare/planejados/depois.webp",
   },
   {
     name: "Imobiliárias",
     description: "Revele o potencial de um imóvel durante a visita, anúncio ou conversa.",
-    before: "/images/compare/tinta/antes.jpg",
-    after: "/images/compare/tinta/depois.png",
+    before: "/images/compare/tinta/antes.webp",
+    after: "/images/compare/tinta/depois.webp",
   },
   {
     name: "Acabamentos",
     description: "Transforme uma referência de produto em uma decisão mais concreta.",
-    before: "/images/compare/porcelanato/antes-hq.png",
-    after: "/images/compare/porcelanato/depois-hq.png",
+    before: "/images/compare/porcelanato/antes.webp",
+    after: "/images/compare/porcelanato/depois.webp",
   },
 ]
 
@@ -84,9 +84,9 @@ export function HomeTwo() {
         <div className={styles.heroVisual} aria-label="Demonstração de comparação antes e depois">
           <div className={styles.signal}>SIMULAÇÃO EM CONTEXTO <b>●</b></div>
           <div className={styles.visualFrame}>
-            <Image src="/images/compare/porcelanato/antes-hq.png" alt="Ambiente antes da simulação" fill priority quality={100} sizes="(max-width: 800px) 92vw, 1216px" />
+            <Image src="/images/compare/porcelanato/antes.webp" alt="Ambiente antes da simulação" fill priority quality={100} sizes="(max-width: 800px) 92vw, 1216px" />
             <div className={styles.afterLayer} style={{ clipPath: `inset(0 0 0 ${comparison}%)` }}>
-              <Image src="/images/compare/porcelanato/depois-hq.png" alt="Simulação de porcelanato aplicada ao ambiente" fill priority quality={100} sizes="(max-width: 800px) 92vw, 1216px" />
+              <Image src="/images/compare/porcelanato/depois.webp" alt="Simulação de porcelanato aplicada ao ambiente" fill priority quality={100} sizes="(max-width: 800px) 92vw, 1216px" />
             </div>
             <div className={styles.compareLine} style={{ left: `${comparison}%` }}><span>↔</span></div>
             <span className={styles.beforeLabel}>ORIGINAL</span><span className={styles.afterLabel}>SIMULAÇÃO</span>
