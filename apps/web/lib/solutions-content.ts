@@ -71,22 +71,22 @@ export interface SolutionPageContent {
 const porcelanato: BeforeAfterItem = {
   id: "porcelanato",
   tabLabel: "Acabamento",
-  before: { src: "/images/compare/porcelanato/antes-hq.png", alt: "Ambiente original, antes da simulação" },
-  after: { src: "/images/compare/porcelanato/depois-hq.png", alt: "Simulação de porcelanato aplicada ao ambiente" },
+  before: { src: "/images/compare/porcelanato/antes.webp", alt: "Ambiente original, antes da simulação" },
+  after: { src: "/images/compare/porcelanato/depois.webp", alt: "Simulação de porcelanato aplicada ao ambiente" },
 }
 
 const planejados: BeforeAfterItem = {
   id: "planejados",
   tabLabel: "Móveis planejados",
-  before: { src: "/images/compare/planejados/antes.jpg", alt: "Ambiente original, antes da simulação de móveis planejados" },
-  after: { src: "/images/compare/planejados/depois.png", alt: "Simulação de móveis planejados no ambiente" },
+  before: { src: "/images/compare/planejados/antes.webp", alt: "Ambiente original, antes da simulação de móveis planejados" },
+  after: { src: "/images/compare/planejados/depois.webp", alt: "Simulação de móveis planejados no ambiente" },
 }
 
 const tinta: BeforeAfterItem = {
   id: "tinta",
   tabLabel: "Reforma e pintura",
-  before: { src: "/images/compare/tinta/antes.jpg", alt: "Ambiente original, antes da simulação de pintura" },
-  after: { src: "/images/compare/tinta/depois.png", alt: "Simulação de pintura aplicada ao ambiente" },
+  before: { src: "/images/compare/tinta/antes.webp", alt: "Ambiente original, antes da simulação de pintura" },
+  after: { src: "/images/compare/tinta/depois.webp", alt: "Simulação de pintura aplicada ao ambiente" },
 }
 
 export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
