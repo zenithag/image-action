@@ -84,7 +84,6 @@ export interface NavLink {
 export const PRIMARY_NAV: NavLink[] = [
   { label: "Plataforma", href: "/plataforma" },
   { label: "Como funciona", href: "/plataforma#como-funciona" },
-  { label: "Conteúdos", href: "/conteudos" },
   { label: "Perguntas frequentes", href: "/perguntas-frequentes" },
 ]
 
@@ -108,7 +107,6 @@ export const FOOTER_COLUMNS: { title: string; links: NavLink[] }[] = [
     title: "Empresa e legal",
     links: [
       { label: "Contato", href: "/contato" },
-      { label: "Conteúdos", href: "/conteudos" },
       { label: "Política de privacidade", href: "/privacidade" },
       { label: "Termos de uso", href: "/termos" },
     ],
