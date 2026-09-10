@@ -131,7 +131,7 @@ const homeFaq = [
   {
     question: "Por que usar a ComoFica em vez de apenas uma IA genérica?",
     answer:
-      "Uma IA genérica atende muitas tarefas. A ComoFica organiza um trabalho específico com fluxo intuitivo, a marca da sua empresa, catálogo, equipe, histórico, analytics, site, WhatsApp e antes/depois.",
+      "Uma IA genérica resolve bem uma necessidade pontual, mas cada geração depende de quem está no comando: é preciso montar o pedido, testar e ajustar manualmente, e o resultado varia conforme essa habilidade. A ComoFica foi parametrizada especificamente para visualização comercial - o fluxo já sabe o que perguntar, então sua equipe e seus clientes não precisam de conhecimento técnico pra obter um resultado consistente. Isso sustenta um uso contínuo e em volume, não um teste isolado: a marca da sua empresa, o catálogo, a equipe, o histórico, o analytics e a integração ao site e ao WhatsApp continuam presentes em cada geração, elevando o padrão de atendimento em vez de depender de um recurso avulso.",
   },
   {
     question: "A plataforma pode integrar com outros sistemas?",

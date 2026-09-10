@@ -99,7 +99,17 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "Qual a diferença para uma IA genérica?",
         answer:
-          "Uma IA genérica atende diversas tarefas. A ComoFica organiza uma operação de visualização com fluxo intuitivo, a marca da sua empresa, catálogo, equipe, histórico, analytics, site, WhatsApp e antes/depois.",
+          "Uma IA genérica resolve bem uma necessidade pontual, mas cada geração depende de quem está no comando: é preciso montar o pedido, testar e ajustar manualmente, e o resultado varia conforme essa habilidade. A ComoFica foi parametrizada especificamente para visualização comercial - o fluxo já sabe o que perguntar, então sua equipe e seus clientes não precisam de conhecimento técnico pra obter um resultado consistente. Isso sustenta um uso contínuo e em volume, não um teste isolado: a marca da sua empresa, o catálogo, a equipe, o histórico, o analytics e a integração ao site e ao WhatsApp continuam presentes em cada geração, elevando o padrão de atendimento em vez de depender de um recurso avulso.",
+      },
+      {
+        question: "A qualidade se mantém estável quando o uso aumenta?",
+        answer:
+          "Numa ferramenta de IA genérica, a qualidade tende a variar conforme o uso cresce, porque cada pedido depende de quem escreve o comando naquele momento, sem memória do catálogo, da marca ou dos atendimentos anteriores. A ComoFica foi desenhada para o caminho contrário: o fluxo é configurado uma única vez e se mantém estável mesmo com muitos atendimentos simultâneos, vários usuários e uso recorrente ao longo do tempo - o que permite tratar a visualização como parte estrutural do atendimento, não como um recurso ocasional.",
+      },
+      {
+        question: "Uma IA genérica não resolveria a mesma necessidade?",
+        answer:
+          "Pode resolver uma necessidade pontual - uma imagem isolada, um teste único. A diferença aparece quando a visualização precisa acontecer todos os dias, em volume, com vários vendedores ou canais ao mesmo tempo: aí entram catálogo, marca, histórico, múltiplos usuários, analytics e a integração ao site e ao WhatsApp, que uma ferramenta genérica não organiza. A ComoFica foi construída pra sustentar esse uso contínuo como parte da operação comercial, ajudando a elevar o padrão de atendimento em vez de depender de um recurso avulso a cada nova necessidade.",
       },
       {
         question: "Qual tecnologia de IA é utilizada?",
