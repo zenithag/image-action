@@ -257,14 +257,14 @@ export function SuperadminTenants() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-8">
         <div className="flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Plataforma</p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Tenants</h1>
+          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">tenants</h1>
+          <p className="text-[10px] leading-none text-muted-foreground">plataforma · {stats.total} tenants</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">Filtros</Button>
-          <Button size="sm" onClick={openNewTenantModal}>
+          <Button variant="outline" size="sm" className="h-8 text-[11px]">filters</Button>
+          <Button size="sm" className="h-8 text-[11px]" onClick={openNewTenantModal}>
             <Plus className="mr-2 h-4 w-4" /> Novo tenant
           </Button>
         </div>
@@ -277,8 +277,8 @@ export function SuperadminTenants() {
       ) : null}
 
       {isNewModalOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={closeNewTenantModal}>
-          <div className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[10px] bg-card p-8 shadow-2xl animate-in fade-in zoom-in duration-200" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" onClick={closeNewTenantModal}>
+          <div className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded bg-card p-6 animate-in fade-in zoom-in duration-200" onClick={(event) => event.stopPropagation()}>
             <div className="mb-6">
               <h2 className="font-display text-xl font-bold">Novo Tenant</h2>
               <p className="text-sm text-muted-foreground">Cadastre uma empresa real. Nenhum dado mockado sera criado.</p>
@@ -292,7 +292,7 @@ export function SuperadminTenants() {
                   value={form.name}
                   onChange={(event) => updateField("name", event.target.value)}
                   placeholder="Ex: Decor Labs"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
@@ -303,7 +303,7 @@ export function SuperadminTenants() {
                   value={form.slug}
                   onChange={(event) => updateField("slug", slugify(event.target.value))}
                   placeholder="decor-labs"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
@@ -312,7 +312,7 @@ export function SuperadminTenants() {
                 <select
                   value={form.planCode}
                   onChange={(event) => updateField("planCode", event.target.value as TenantPlanCode)}
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="starter">Starter</option>
                   <option value="pro">Pro</option>
@@ -325,7 +325,7 @@ export function SuperadminTenants() {
                 <select
                   value={form.businessVertical}
                   onChange={(event) => updateField("businessVertical", event.target.value as TenantCreateForm["businessVertical"])}
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="generic">Generico</option>
                   <option value="decor">Decoracao</option>
@@ -340,7 +340,7 @@ export function SuperadminTenants() {
                 <select
                   value={form.status}
                   onChange={(event) => updateField("status", event.target.value as TenantStatus)}
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="active">Ativo</option>
                   <option value="draft">Rascunho</option>
@@ -356,7 +356,7 @@ export function SuperadminTenants() {
                   onChange={(event) => updateField("contactEmail", event.target.value)}
                   placeholder="responsavel@empresa.com"
                   autoComplete="email"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <p className="text-[11px] text-muted-foreground">Esse email sera o login inicial do tenant.</p>
               </div>
@@ -368,7 +368,7 @@ export function SuperadminTenants() {
                   value={form.contactName}
                   onChange={(event) => updateField("contactName", event.target.value)}
                   placeholder="Nome do responsavel"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
@@ -379,7 +379,7 @@ export function SuperadminTenants() {
                   value={form.phone}
                   onChange={(event) => updateField("phone", event.target.value)}
                   placeholder="+55 11 99999-9999"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
@@ -391,7 +391,7 @@ export function SuperadminTenants() {
                   onChange={(event) => updateField("initialUserPassword", event.target.value)}
                   placeholder="Minimo 12 caracteres"
                   autoComplete="new-password"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <div className="flex flex-wrap gap-1.5">
                   {passwordChecks.map((check) => (
@@ -416,7 +416,7 @@ export function SuperadminTenants() {
                   onChange={(event) => updateField("initialUserPasswordConfirmation", event.target.value)}
                   placeholder="Repita a senha"
                   autoComplete="new-password"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 {form.initialUserPasswordConfirmation && form.initialUserPassword !== form.initialUserPasswordConfirmation ? (
                   <p className="text-[11px] font-medium text-destructive">A confirmacao ainda nao confere.</p>
@@ -425,11 +425,11 @@ export function SuperadminTenants() {
             </div>
 
             <div className="mt-6 flex gap-3">
-              <Button className="flex-1 rounded-[10px] py-6 font-sans" disabled={isSaving || !canCreateTenant} onClick={() => void createTenant()}>
+              <Button className="flex-1 rounded py-6 font-sans" disabled={isSaving || !canCreateTenant} onClick={() => void createTenant()}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Criar tenant
               </Button>
-              <Button variant="outline" className="flex-1 rounded-[10px] py-6 font-sans" disabled={isSaving} onClick={closeNewTenantModal}>
+              <Button variant="outline" className="flex-1 rounded py-6 font-sans" disabled={isSaving} onClick={closeNewTenantModal}>
                 Cancelar
               </Button>
             </div>
@@ -444,7 +444,7 @@ export function SuperadminTenants() {
           { label: "Jobs/dia", value: stats.compositions, note: "estável" },
           { label: "MRR", value: "—", note: "—" },
         ].map((stat) => (
-          <div key={stat.label} className="flex-1 rounded-[10px] border border-border bg-card p-4">
+          <div key={stat.label} className="flex-1 rounded border border-border bg-card p-4">
             <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{stat.label}</p>
             <p className="mt-1 font-mono text-[28px] font-semibold leading-none text-foreground">{stat.value}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{stat.note}</p>
@@ -460,13 +460,13 @@ export function SuperadminTenants() {
             placeholder="Buscar tenants..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded-[10px] border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="w-full rounded border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-7 py-6 scrollbar-hide">
-        <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+        <div className="overflow-hidden rounded border border-border bg-card">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-border bg-secondary">
@@ -549,12 +549,12 @@ export function SuperadminTenants() {
                     </td>
                     <td className="px-5 py-4 text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[10px] hover:bg-primary/10 hover:text-primary" asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded hover:bg-primary/10 hover:text-primary" asChild>
                           <Link href={`/superadmin/tenants/${tenant.id}`}>
                             <MoreVertical className="h-4 w-4" />
                           </Link>
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => void removeTenant(tenant)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => void removeTenant(tenant)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

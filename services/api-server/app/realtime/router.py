@@ -1,8 +1,11 @@
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth.middleware import require_tenant_id
+from app.auth.schemas import AuthUser
 from app.core import repository as repo
 from app.channel import sender
 from app.billing import tracker
@@ -12,15 +15,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["realtime"])
 
 
-class OperatorMessageCreate(BaseModel):
-    text: str
-
-
 @router.post("/conversations/{conversation_id}/takeover")
-async def takeover_conversation(conversation_id: str):
+async def takeover_conversation(
+    conversation_id: str,
+    user: Annotated[AuthUser, Depends(require_tenant_id)],
+):
     conversation = await repo.get_conversation(conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if str(conversation.get("tenant_id")) != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     await repo.update_conversation_handled_by(conversation_id, "operator")
 
@@ -41,10 +45,15 @@ async def takeover_conversation(conversation_id: str):
 
 
 @router.post("/conversations/{conversation_id}/release")
-async def release_conversation(conversation_id: str):
+async def release_conversation(
+    conversation_id: str,
+    user: Annotated[AuthUser, Depends(require_tenant_id)],
+):
     conversation = await repo.get_conversation(conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if str(conversation.get("tenant_id")) != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     await repo.update_conversation_handled_by(conversation_id, "ai")
 
@@ -64,11 +73,21 @@ async def release_conversation(conversation_id: str):
     return {"status": "released", "conversation_id": conversation_id, "handled_by": "ai"}
 
 
+class OperatorMessageCreate(BaseModel):
+    text: str
+
+
 @router.post("/conversations/{conversation_id}/messages")
-async def operator_send_message(conversation_id: str, body: OperatorMessageCreate):
+async def operator_send_message(
+    conversation_id: str,
+    body: OperatorMessageCreate,
+    user: Annotated[AuthUser, Depends(require_tenant_id)],
+):
     conversation = await repo.get_conversation(conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if str(conversation.get("tenant_id")) != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     tenant_id = str(conversation["tenant_id"])
     channel = await repo.get_channel_by_id(str(conversation["channel_id"]))
@@ -80,18 +99,14 @@ async def operator_send_message(conversation_id: str, body: OperatorMessageCreat
     session_id = channel["external_session_id"]
     remote_jid = contact["external_contact_id"]
 
-    # Send via WhatsApp
     await sender.send_text(provider, session_id, remote_jid, body.text)
 
-    # Persist message
     await repo.create_message(
         tenant_id, conversation_id, "outbound", "operator", body.text, "text", None,
     )
 
-    # Track billing
     await tracker.track_message_sent(tenant_id, conversation_id, provider)
 
-    # Emit realtime event
     try:
         from app.realtime.manager import emit_to_tenant
         from app.realtime.events import NewMessageEvent

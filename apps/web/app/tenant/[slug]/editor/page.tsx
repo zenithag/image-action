@@ -158,7 +158,7 @@ function ImageSlotCard({
   onUpload?: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
-    <div className="rounded-[12px] border border-border bg-card p-2.5">
+    <div className="rounded border border-border bg-card p-2.5">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-foreground">{title}</div>
@@ -177,7 +177,7 @@ function ImageSlotCard({
       </div>
 
       {image ? (
-        <div className="overflow-hidden rounded-[10px] border border-border bg-muted">
+        <div className="overflow-hidden rounded border border-border bg-muted">
           <SafeImage
             src={image.mediaUrl}
             alt={image.caption || title}
@@ -198,7 +198,7 @@ function ImageSlotCard({
           </div>
         </div>
       ) : (
-        <div className="grid min-h-36 place-items-center rounded-[10px] border-[1.5px] border-dashed border-border bg-muted/40 p-5 text-center">
+        <div className="grid min-h-36 place-items-center rounded border-[1.5px] border-dashed border-border bg-muted/40 p-5 text-center">
           <div>
             <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground" />
             <p className="mt-2 text-[12px] font-medium text-foreground">
@@ -231,7 +231,7 @@ function ReferenceCollectionCard({
   onUpload?: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
-    <div className="rounded-[12px] border border-border bg-card p-2.5">
+    <div className="rounded border border-border bg-card p-2.5">
       <div className="mb-2">
         <div className="text-[12px] font-semibold text-foreground">
           2. Referencias
@@ -244,7 +244,7 @@ function ReferenceCollectionCard({
       {references.length > 0 ? (
         <div className="grid grid-cols-2 gap-2">
           {references.map((reference, index) => (
-            <div key={`${getReferenceKey(reference)}:${index}`} className="overflow-hidden rounded-[10px] border border-border bg-muted">
+            <div key={`${getReferenceKey(reference)}:${index}`} className="overflow-hidden rounded border border-border bg-muted">
               <div className="relative">
                 <SafeImage
                   src={reference.mediaUrl}
@@ -257,7 +257,7 @@ function ReferenceCollectionCard({
                 <button
                   type="button"
                   onClick={() => onRemove(index)}
-                  className="absolute right-1.5 top-1.5 rounded-full bg-background/90 p-1.5 text-muted-foreground shadow-sm backdrop-blur hover:text-foreground"
+                  className="absolute right-1.5 top-1.5 rounded bg-accent p-1.5 text-muted-foreground hover:text-foreground"
                   title="Remover referencia"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -277,7 +277,7 @@ function ReferenceCollectionCard({
           ))}
         </div>
       ) : (
-        <div className="grid min-h-36 place-items-center rounded-[10px] border-[1.5px] border-dashed border-border bg-muted/40 p-5 text-center">
+        <div className="grid min-h-36 place-items-center rounded border-[1.5px] border-dashed border-border bg-muted/40 p-5 text-center">
           <div>
             <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground" />
             <p className="mt-2 text-[12px] font-medium text-foreground">
@@ -299,6 +299,21 @@ function ReferenceCollectionCard({
     </div>
   )
 }
+
+const CANVAS_TOOLS = [
+  { id: "cursor", icon: MousePointer2, label: "Selecionar" },
+  { id: "brush", icon: Paintbrush, label: "Pincel" },
+  { id: "erase", icon: Eraser, label: "Apagar" },
+  { id: "layer", icon: Layers, label: "Camadas" },
+  { id: "magic", icon: Sparkles, label: "Selecao IA" },
+] as const
+
+const QUICK_TAGS = [
+  "manter moveis",
+  "preservar arquitetura",
+  "iluminacao natural",
+  "acabamento realista",
+] as const
 
 export default function EditorPage({
   params,
@@ -389,21 +404,6 @@ export default function EditorPage({
     }
     window.localStorage.setItem(storageKey, JSON.stringify(nextDraft))
   }, [baseImage, draftLoaded, prompt, references, storageKey, strength])
-
-  const canvasTools = [
-    { id: "cursor", icon: MousePointer2, label: "Selecionar" },
-    { id: "brush", icon: Paintbrush, label: "Pincel" },
-    { id: "erase", icon: Eraser, label: "Apagar" },
-    { id: "layer", icon: Layers, label: "Camadas" },
-    { id: "magic", icon: Sparkles, label: "Selecao IA" },
-  ]
-
-  const quickTags = [
-    "manter moveis",
-    "preservar arquitetura",
-    "iluminacao natural",
-    "acabamento realista",
-  ]
 
   const canGenerate = Boolean(baseImage && prompt.trim())
 
@@ -531,7 +531,7 @@ export default function EditorPage({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-7">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             NOVO
@@ -638,7 +638,7 @@ export default function EditorPage({
                 onUpload={(event) => void handleUpload(event, "reference")}
               />
 
-              <div className="rounded-[12px] border border-border bg-card p-3">
+              <div className="rounded border border-border bg-card p-3">
                 <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                   Buscar referencia por SKU
                 </div>
@@ -676,14 +676,14 @@ export default function EditorPage({
                   3. Instrucao
                 </div>
                 <textarea
-                  className="w-full resize-y rounded-[10px] border border-border bg-card p-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                  className="w-full resize-y rounded border border-border bg-card p-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                   style={{ minHeight: 110 }}
                   placeholder="Ex: aplique o revestimento da referencia na parede do fundo, mantendo moveis, portas, janelas e iluminacao natural."
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                 />
                 <div className="mt-2 flex flex-wrap gap-1">
-                  {quickTags.map((tag) => (
+                  {QUICK_TAGS.map((tag) => (
                     <button
                       key={tag}
                       type="button"
@@ -728,8 +728,8 @@ export default function EditorPage({
 
         <div className="flex flex-col overflow-hidden bg-muted/30 p-5">
           {showCanvasTools && (
-            <div className="mb-3.5 flex items-center gap-0.5 self-center rounded-xl border border-border bg-card p-1 shadow-sm">
-              {canvasTools.map((item) => (
+            <div className="mb-3.5 flex items-center gap-0.5 self-center rounded border border-border bg-card p-1">
+              {CANVAS_TOOLS.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -753,7 +753,7 @@ export default function EditorPage({
               <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Ambiente base
               </span>
-              <div className="relative flex-1 overflow-hidden rounded-[14px] border border-border bg-card shadow-md">
+              <div className="relative flex-1 overflow-hidden rounded border border-border bg-card">
                 {baseImage ? (
                   <SafeImage
                     src={baseImage.mediaUrl}
@@ -775,7 +775,7 @@ export default function EditorPage({
                   </div>
                 )}
                 {baseImage && (
-                  <div className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-1 text-[10.5px] font-semibold shadow-sm backdrop-blur">
+                  <div className="absolute left-3 top-3 rounded bg-accent px-2.5 py-1 text-[10.5px] font-semibold">
                     Ambiente do Inbox
                   </div>
                 )}
@@ -796,7 +796,7 @@ export default function EditorPage({
                   </button>
                 </div>
               </div>
-              <div className="relative flex-1 overflow-hidden rounded-[14px] border border-primary/20 bg-card shadow-md">
+              <div className="relative flex-1 overflow-hidden rounded border border-primary/20 bg-card">
                 {baseImage ? (
                   <>
                     <SafeImage
@@ -808,7 +808,7 @@ export default function EditorPage({
                     />
                     <div className="absolute inset-0 bg-primary/5" />
                     {references.length > 0 && (
-                      <div className="absolute right-3 top-3 flex max-w-[55%] gap-1.5 overflow-hidden rounded-lg border border-border bg-background/90 p-1.5 shadow-md backdrop-blur">
+                      <div className="absolute right-3 top-3 flex max-w-[55%] gap-1.5 overflow-hidden rounded border border-border bg-background/90 p-1.5">
                         {references.slice(0, 3).map((reference, index) => (
                           <div key={`${getReferenceKey(reference)}:preview:${index}`} className="relative h-14 w-14 overflow-hidden rounded-md bg-muted">
                             <SafeImage
@@ -828,7 +828,7 @@ export default function EditorPage({
                       </div>
                     )}
                     <div className="absolute inset-x-3 bottom-3 flex items-center">
-                      <span className="flex items-center gap-1.5 rounded-full bg-card/85 px-2.5 py-1 text-[10.5px] font-semibold shadow-sm backdrop-blur-sm">
+                      <span className="flex items-center gap-1.5 rounded bg-accent px-2.5 py-1 text-[10.5px] font-semibold">
                         <Sparkles className="h-3 w-3" /> pronto para gerar
                       </span>
                       <span className="flex-1" />
@@ -861,7 +861,7 @@ export default function EditorPage({
               {[baseImage, ...references].map((image, index) => (
                 <div
                   key={index}
-                  className="aspect-[4/3] w-20 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
+                  className="aspect-[4/3] w-20 shrink-0 overflow-hidden rounded border border-border bg-muted"
                 >
                   {image ? (
                     <SafeImage src={image.mediaUrl} alt="Historico" className="h-full w-full object-cover" />

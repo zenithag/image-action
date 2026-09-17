@@ -262,33 +262,33 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-8">
         <div className="flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">CRM leve</p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Contatos</h1>
+          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">contatos</h1>
+          <p className="text-[10px] leading-none text-muted-foreground">CRM · {filteredContacts.length} registros</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo contato
+        <Button size="sm" className="h-8 text-[11px]" onClick={openCreate}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          novo
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden px-7 py-6">
-        <section className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-          <div className="flex items-center gap-3 border-b border-border p-4">
+      <div className="min-h-0 flex-1 overflow-hidden px-8 py-4">
+        <section className="min-w-0 flex-1 overflow-hidden rounded border border-border bg-card">
+          <div className="flex items-center gap-3 border-b border-border p-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar nome, telefone, cidade..."
-                className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm outline-none transition-colors focus:border-primary"
+                placeholder="buscar nome, telefone, cidade..."
+                className="h-8 w-full rounded border border-border bg-background pl-9 pr-3 text-[12px] outline-none transition-colors focus:border-primary"
               />
             </div>
-            <Button variant="outline" size="sm">
-              <Filter className="mr-2 h-4 w-4" /> Filtros
+            <Button variant="outline" size="sm" className="h-8 text-[11px]">
+              <Filter className="mr-1.5 h-3.5 w-3.5" /> filters
             </Button>
-            <span className="text-xs text-muted-foreground">{filteredContacts.length} contatos</span>
+            <span className="font-mono text-[10px] text-muted-foreground">{filteredContacts.length}</span>
           </div>
 
           {error && (
@@ -378,7 +378,7 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
       </div>
 
       {selectedContact && (
-        <div className="fixed inset-y-0 right-0 z-40 flex w-[420px] flex-col border-l border-border bg-card shadow-xl animate-in slide-in-from-right duration-200">
+        <div className="fixed inset-y-0 right-0 z-40 flex w-[420px] flex-col border-l border-border bg-card animate-in slide-in-from-right duration-200">
           <div className="flex items-center justify-between border-b border-border p-5">
             <h2 className="font-display text-lg font-bold text-foreground">{selectedContact.name}</h2>
             <button type="button" onClick={() => setSelectedContact(null)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -396,7 +396,7 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
               </div>
             </div>
             <div className="space-y-4">
-              <div className="rounded-xl border border-border bg-background p-4">
+              <div className="rounded border border-border bg-background p-4">
                 <h4 className="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Informações</h4>
                 <div className="space-y-2.5 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span className="text-foreground">{selectedContact.email || "—"}</span></div>
@@ -407,7 +407,7 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
                 </div>
               </div>
               {selectedContact.tags.length > 0 && (
-                <div className="rounded-xl border border-border bg-background p-4">
+                <div className="rounded border border-border bg-background p-4">
                   <h4 className="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Tags</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedContact.tags.map((tag) => (
@@ -417,12 +417,12 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
                 </div>
               )}
               {selectedContact.notes && (
-                <div className="rounded-xl border border-border bg-background p-4">
+                <div className="rounded border border-border bg-background p-4">
                   <h4 className="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Notas</h4>
                   <p className="text-sm leading-relaxed text-muted-foreground">{selectedContact.notes}</p>
                 </div>
               )}
-              <div className="rounded-xl border border-border bg-background p-4">
+              <div className="rounded border border-border bg-background p-4">
                 <h4 className="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Composições</h4>
                 {selectedContactJobs.length > 0 ? (
                   <div className="space-y-2">
@@ -451,7 +451,7 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
 
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-border bg-card shadow-xl">
+          <div className="w-full max-w-2xl rounded border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border p-5">
               <div>
                 <h2 className="font-display text-xl font-bold text-foreground">

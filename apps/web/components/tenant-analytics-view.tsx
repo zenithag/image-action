@@ -1,10 +1,58 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import dynamic from "next/dynamic"
 import { ArrowDown, ArrowUp, BarChart3, Bot, Loader2, MessageSquare, RefreshCw, Users, Zap } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Cell } from "recharts"
 
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Input } from "@/components/ui/input"
+
+const LineChart = dynamic(
+  () => import("recharts").then((m) => m.LineChart),
+  { ssr: false, loading: () => <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> }
+)
+const PieChart = dynamic(
+  () => import("recharts").then((m) => m.PieChart),
+  { ssr: false, loading: () => <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> }
+)
+const BarChart = dynamic(
+  () => import("recharts").then((m) => m.BarChart),
+  { ssr: false, loading: () => <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> }
+)
+const ResponsiveContainer = dynamic(
+  () => import("recharts").then((m) => m.ResponsiveContainer),
+  { ssr: false, loading: () => <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> }
+)
+const CartesianGrid = dynamic(
+  () => import("recharts").then((m) => m.CartesianGrid),
+  { ssr: false }
+)
+const XAxis = dynamic(
+  () => import("recharts").then((m) => m.XAxis),
+  { ssr: false }
+)
+const YAxis = dynamic(
+  () => import("recharts").then((m) => m.YAxis),
+  { ssr: false }
+)
+const Tooltip = dynamic(
+  () => import("recharts").then((m) => m.Tooltip),
+  { ssr: false }
+)
+const Line = dynamic(
+  () => import("recharts").then((m) => m.Line),
+  { ssr: false }
+)
+const Pie = dynamic(
+  () => import("recharts").then((m) => m.Pie),
+  { ssr: false }
+)
+const Bar = dynamic(
+  () => import("recharts").then((m) => m.Bar),
+  { ssr: false }
+)
 
 type AnalyticsPayload = {
   meta: {
@@ -131,27 +179,24 @@ function StatCard({
   const formattedDelta = formatDelta(delta)
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="mb-[18px] flex items-center justify-between">
-        <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
-        </div>
+    <div className="border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         {formattedDelta && (
-          <span className={`flex items-center gap-1 text-xs ${formattedDelta.up ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-            {formattedDelta.up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-            {formattedDelta.value}%
+          <span className={`font-mono text-[10px] ${formattedDelta.up ? "text-emerald-500" : "text-red-500"}`}>
+            {formattedDelta.up ? "+" : "-"}{formattedDelta.value}%
           </span>
         )}
       </div>
-      <p className="font-mono text-[36px] font-medium leading-none tracking-[-0.03em] text-foreground">{value}</p>
-      <p className="mt-1 text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      <p className="font-mono text-2xl font-semibold leading-none text-foreground">{value}</p>
+      <p className="mt-2 text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
     </div>
   )
 }
 
 function EmptyChart({ label }: { label: string }) {
   return (
-    <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-muted-foreground">
+    <div className="flex h-full min-h-[200px] items-center justify-center border border-dashed border-border bg-muted/30 px-6 text-center text-xs text-muted-foreground">
       {label}
     </div>
   )
@@ -162,96 +207,113 @@ function DashboardEditorial({ data }: { data: AnalyticsPayload }) {
   const conversationDelta = formatDelta(data.deltas.conversations)
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="grid grid-cols-[1.4fr_1fr_1fr] items-start gap-10 border-b border-border pb-6 pt-3">
-        <div>
-          <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{data.meta.label}</p>
-          <p className="mt-2.5 font-display text-[96px] font-medium leading-[0.95] tracking-[-0.04em] text-foreground">
-            {data.stats.conversations}
-            <span className="text-muted-foreground/40">/</span>
-            <span className="text-[48px] text-muted-foreground">{data.stats.messages}</span>
-          </p>
-          <p className="mt-3 max-w-[420px] text-[14px] leading-relaxed text-muted-foreground">
-            Conversas no período{" "}
-            {conversationDelta ? (
-              <span className={conversationDelta.up ? "text-primary" : "text-red-600 dark:text-red-400"}>
-                {conversationDelta.up ? "↑" : "↓"}
-                {conversationDelta.value}%
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-3 xl:grid-cols-[1.4fr_1fr_1fr]">
+        <section className="border border-border bg-card p-4">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+            <span>fluxo principal</span>
+            <span>{data.meta.label}</span>
+          </div>
+          <div className="mt-3 flex items-end justify-between">
+            <p className="font-mono text-5xl font-semibold leading-none text-foreground">
+              {data.stats.conversations}
+            </p>
+            <div className="flex flex-col items-end gap-1">
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {data.stats.messages} msg · {data.stats.compositions} comp
               </span>
-            ) : (
-              <span className="text-muted-foreground">sem comparação</span>
-            )}{" "}
-            em relação ao período anterior. {data.stats.compositions} composições geradas, com {data.stats.completionRate}% concluídas.
-          </p>
-        </div>
-        <div>
-          <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Composições</p>
-          <p className="mt-2.5 font-display text-[56px] font-medium leading-none text-foreground">
+              {conversationDelta && (
+                <span className={`font-mono text-[10px] ${conversationDelta.up ? "text-emerald-500" : "text-red-500"}`}>
+                  {conversationDelta.up ? "+" : "-"}{conversationDelta.value}%
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="border border-border bg-card p-4">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">pipeline</p>
+          <p className="mt-2 font-mono text-4xl font-semibold leading-none text-foreground">
             {data.stats.compositions}
-            <span className="text-[24px] text-muted-foreground"> jobs</span>
           </p>
-          <p className="mt-2.5 text-[12px] text-muted-foreground">
-            → {data.stats.completedCompositions} concluídas · {data.stats.failedCompositions} falharam
+          <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">done</span>
+              <span className="font-mono text-foreground">{data.stats.completedCompositions}</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">failed</span>
+              <span className="font-mono text-foreground">{data.stats.failedCompositions}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="border border-border bg-card p-4">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">latência IA</p>
+          <p className="mt-2 font-mono text-4xl font-semibold leading-none text-foreground">
+            {data.responseTimes.aiLabel ?? "n/d"}
           </p>
-        </div>
-        <div>
-          <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Custo do mês</p>
-          <p className="mt-2.5 font-mono text-[40px] font-semibold leading-none text-foreground">n/d</p>
-          <p className="mt-2.5 text-[12px] text-muted-foreground">
-            → Custos ainda não estão conectados a um provider financeiro real
-          </p>
-        </div>
+          <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">operador</span>
+              <span className="font-mono text-foreground">{data.responseTimes.operatorLabel ?? "n/d"}</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">5s rate</span>
+              <span className="font-mono text-foreground">{data.responseTimes.aiFastRate ?? 0}%</span>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <div className="grid grid-cols-2 items-start gap-6">
+      <div className="grid gap-3 xl:grid-cols-[1.4fr_1fr]">
         <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-display text-[15px] font-semibold text-foreground">Volume por dia</h3>
-            <span className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground">{data.meta.label}</span>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">volume por dia</h3>
+            <span className="border border-border bg-card px-2 py-0.5 font-mono text-[10px] text-muted-foreground">{data.meta.label}</span>
           </div>
-          <div className="rounded-xl border border-border bg-secondary/50 p-5">
-            <div className="h-[260px] min-w-0">
+          <div className="border border-border bg-card p-4">
+            <div className="h-[200px] min-w-0">
               {hasTimelineData ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <LineChart data={data.conversationData}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
-                    <XAxis dataKey="name" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
-                    <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
+                    <XAxis dataKey="name" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={11} />
+                    <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={11} />
                     <Tooltip />
-                    <Line type="monotone" dataKey="conversas" stroke="#31c48d" strokeWidth={3} dot={false} />
-                    <Line type="monotone" dataKey="composicoes" stroke="#60a5fa" strokeWidth={3} dot={false} />
+                    <Line type="monotone" dataKey="conversas" stroke="#31c48d" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="composicoes" stroke="#60a5fa" strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <EmptyChart label={`Ainda não há movimento real em ${data.meta.label.toLowerCase()}.`} />
+                <EmptyChart label={`sem dados em ${data.meta.label}`} />
               )}
             </div>
           </div>
         </div>
         <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-display text-[15px] font-semibold text-foreground">Fila de revisão</h3>
-            <span className="text-[13px] font-medium text-muted-foreground">{data.reviewQueue.length} itens</span>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">fila de revisão</h3>
+            <span className="font-mono text-[10px] text-muted-foreground">{data.reviewQueue.length} itens</span>
           </div>
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-1.5">
             {data.reviewQueue.length > 0 ? (
               data.reviewQueue.map((job) => (
-                <div key={job.id} className="rounded-xl border border-border bg-card p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-foreground">{job.contactName}</p>
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{job.catalogItemName || job.prompt}</p>
+                <div key={job.id} className="border border-border bg-card p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-[11px] text-foreground">{job.contactName}</p>
+                      <p className="mt-0.5 line-clamp-1 font-mono text-[10px] text-muted-foreground">{job.catalogItemName || job.prompt}</p>
                     </div>
-                    <span className="rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                    <span className="shrink-0 border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                       {formatStatusLabel(job.status)}
                     </span>
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">Atualizado em {formatDateTime(job.updatedAt)}</p>
                 </div>
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-                Nenhuma composição pendente de revisão agora.
+              <div className="border border-dashed border-border bg-muted/30 p-6 text-center font-mono text-[11px] text-muted-foreground">
+                nenhuma pendente
               </div>
             )}
           </div>
@@ -259,35 +321,37 @@ function DashboardEditorial({ data }: { data: AnalyticsPayload }) {
       </div>
 
       <div>
-        <h3 className="mb-3.5 font-display text-[15px] font-semibold text-foreground">Últimas conversas</h3>
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">últimas conversas</h3>
+        <div className="border border-border bg-card">
           {data.recentConversations.length > 0 ? (
             <div className="divide-y divide-border">
               {data.recentConversations.map((conversation) => (
-                <div key={conversation.id} className="flex items-start justify-between gap-4 px-5 py-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">{conversation.contactName}</p>
-                    <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{conversation.lastMessage}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {conversation.channelInstanceName} · {formatDateTime(conversation.lastMessageAt)}
-                    </p>
+                <div key={conversation.id} className="flex items-start justify-between gap-4 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-mono text-[11px] text-foreground">{conversation.contactName}</p>
+                      <span className="border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        {conversation.handledBy === "ai" ? "ia" : "op"}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-1 font-mono text-[10px] text-muted-foreground">{conversation.lastMessage}</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     {conversation.unreadCount > 0 && (
-                      <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
-                        {conversation.unreadCount} nova{conversation.unreadCount === 1 ? "" : "s"}
+                      <span className="border border-primary bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary">
+                        {conversation.unreadCount}
                       </span>
                     )}
-                    <span className="rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-muted-foreground">
-                      {conversation.handledBy === "ai" ? "IA" : "Operador"}
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {formatDateTime(conversation.lastMessageAt)}
                     </span>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              Nenhuma conversa registrada ainda.
+            <div className="p-6 text-center font-mono text-[11px] text-muted-foreground">
+              nenhuma conversa registrada
             </div>
           )}
         </div>
@@ -300,7 +364,7 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
   const [data, setData] = useState<AnalyticsPayload | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [variant, setVariant] = useState<"classic" | "editorial">("classic")
+  const [variant, setVariant] = useState<"classic" | "editorial">("editorial")
   const [dateRange, setDateRange] = useState<DateRange>("7d")
   const [customStart, setCustomStart] = useState(() => new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
   const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().slice(0, 10))
@@ -340,53 +404,51 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-11 shrink-0 items-center justify-between gap-4 px-8 border-b border-border">
         <div className="flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            {compact ? tenantSlug : "Tenant"}
-          </p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
-            {compact ? "Visão geral" : "Analytics"}
+          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">
+            {tenantSlug}
           </h1>
+          <p className="text-[10px] leading-none text-muted-foreground">overview · {data?.meta.label}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
           <select
             value={dateRange}
             onChange={(event) => setDateRange(event.target.value as DateRange)}
-            className="h-9 rounded-[10px] border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+            className="h-8 rounded border border-border bg-background px-2 text-[11px] outline-none focus:border-primary"
           >
-            <option value="7d">Últimos 7 dias</option>
-            <option value="30d">Últimos 30 dias</option>
-            <option value="month">Este mês</option>
-            <option value="custom">Personalizado</option>
+            <option value="7d">7d</option>
+            <option value="30d">30d</option>
+            <option value="month">month</option>
+            <option value="custom">custom</option>
           </select>
           {dateRange === "custom" && (
             <div className="flex items-center gap-2">
-              <input
+              <Input
                 type="date"
                 value={customStart}
                 onChange={(event) => setCustomStart(event.target.value)}
-                className="h-9 rounded-[10px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                className="w-[148px]"
                 aria-label="Data inicial"
               />
-              <input
+              <Input
                 type="date"
                 value={customEnd}
                 onChange={(event) => setCustomEnd(event.target.value)}
-                className="h-9 rounded-[10px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                className="w-[148px]"
                 aria-label="Data final"
               />
             </div>
           )}
-          <div className="flex items-center gap-0.5 rounded-[10px] bg-muted p-[3px]">
-            {([["classic", "Clássica"], ["editorial", "Editorial"]] as const).map(([key, label]) => (
+          <div className="flex items-center gap-0.5 rounded border border-border bg-background p-[2px]">
+            {([["classic", "classic"], ["editorial", "workspace"]] as const).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setVariant(key)}
-                className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+                className={`rounded px-2.5 py-1 text-[11px] font-medium transition-all ${
                   variant === key
-                    ? "bg-card text-foreground shadow-sm"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -395,19 +457,22 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
             ))}
           </div>
           <Button variant="outline" size="sm" onClick={() => loadAnalytics(dateRange)} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Atualizar
+            {isLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+            refresh
           </Button>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 px-6 py-3 text-sm font-medium text-red-700 dark:bg-red-950/30 dark:text-red-300">
-          {error}
+        <div className="px-6 pt-4">
+          <Alert variant="destructive">
+            <AlertTitle>Erro ao carregar analytics</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto px-10 py-8">
+      <div className="min-h-0 flex-1 overflow-auto px-6 py-6 md:px-8">
         {isLoading || !data ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -416,55 +481,49 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
         ) : variant === "editorial" ? (
           <DashboardEditorial data={data} />
         ) : (
-          <div className="flex flex-col gap-5">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <StatCard label={`Conversas ${data.meta.label.toLowerCase()}`} value={data.stats.conversations} delta={data.deltas.conversations} icon={MessageSquare} />
-              <StatCard label="Composições" value={data.stats.compositions} delta={data.deltas.compositions} icon={Zap} />
-              <StatCard label="Novos contatos" value={data.stats.contacts} delta={data.deltas.contacts} icon={Users} />
-              <StatCard label="Conclusão" value={data.stats.compositions > 0 ? `${data.stats.completionRate}%` : "—"} delta={data.deltas.completionRate} icon={BarChart3} />
+          <div className="flex flex-col gap-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <StatCard label="conversas" value={data.stats.conversations} delta={data.deltas.conversations} icon={MessageSquare} />
+              <StatCard label="composições" value={data.stats.compositions} delta={data.deltas.compositions} icon={Zap} />
+              <StatCard label="contatos" value={data.stats.contacts} delta={data.deltas.contacts} icon={Users} />
+              <StatCard label="conclusão" value={data.stats.compositions > 0 ? `${data.stats.completionRate}%` : "—"} delta={data.deltas.completionRate} icon={BarChart3} />
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-              <section className="rounded-xl border border-border bg-card p-5">
+            <div className="grid gap-3 xl:grid-cols-[2fr_1fr]">
+              <section className="border border-border bg-card p-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-display text-[15px] font-semibold text-foreground">Atividade do período</h4>
-                    <p className="text-xs text-muted-foreground">{data.meta.label}</p>
-                  </div>
-                  <div className="flex items-center gap-3.5">
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="inline-block h-2 w-2 rounded-full bg-primary" />Conversas</span>
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="inline-block h-2 w-2 rounded-full bg-muted-foreground" />Composições</span>
+                  <h4 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">atividade</h4>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground"><span className="inline-block h-1.5 w-1.5 rounded-full bg-[#31c48d]" />conversas</span>
+                    <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground"><span className="inline-block h-1.5 w-1.5 rounded-full bg-[#60a5fa]" />composições</span>
                   </div>
                 </div>
-                <div className="h-[320px] min-w-0">
+                <div className="h-[240px] min-w-0">
                   {hasTimelineData ? (
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={data.conversationData}>
                         <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
-                        <XAxis dataKey="name" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
-                        <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
+                        <XAxis dataKey="name" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={11} />
+                        <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={11} />
                         <Tooltip />
-                        <Line type="monotone" dataKey="conversas" stroke="#31c48d" strokeWidth={3} dot={false} />
-                        <Line type="monotone" dataKey="composicoes" stroke="#60a5fa" strokeWidth={3} dot={false} />
-                        <Line type="monotone" dataKey="contatos" stroke="#f59e0b" strokeWidth={3} dot={false} />
+                        <Line type="monotone" dataKey="conversas" stroke="#31c48d" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="composicoes" stroke="#60a5fa" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="contatos" stroke="#f59e0b" strokeWidth={2} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <EmptyChart label={`Ainda não há movimento real em ${data.meta.label.toLowerCase()}.`} />
+                    <EmptyChart label={`sem dados em ${data.meta.label}`} />
                   )}
                 </div>
               </section>
 
-              <section className="rounded-xl border border-border bg-card p-5">
-                <div className="mb-4">
-                  <h4 className="font-display text-[15px] font-semibold text-foreground">Composições por modo</h4>
-                  <p className="text-xs text-muted-foreground">Distribuição do período</p>
-                </div>
-                <div className="h-[320px] min-w-0">
+              <section className="border border-border bg-card p-4">
+                <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">por modo</h4>
+                <div className="h-[240px] min-w-0">
                   {hasCompositionModes ? (
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <PieChart>
-                        <Pie data={data.compositionModeData} dataKey="value" nameKey="name" innerRadius={72} outerRadius={110} paddingAngle={4}>
+                        <Pie data={data.compositionModeData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={4}>
                           {data.compositionModeData.map((entry) => (
                             <Cell key={entry.name} fill={entry.color} />
                           ))}
@@ -473,79 +532,66 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <EmptyChart label="Ainda não há composições reais para distribuir." />
+                    <EmptyChart label="sem dados de composição" />
                   )}
                 </div>
               </section>
             </div>
 
             {!compact && (
-              <div className="grid gap-6 xl:grid-cols-2">
-                <section className="rounded-xl border border-border bg-card p-5">
-                  <div className="mb-3">
-                    <h4 className="font-display text-[15px] font-semibold text-foreground">Atendimentos por hora</h4>
-                    <p className="text-xs text-muted-foreground">IA vs operador humano</p>
-                  </div>
-                  <div className="h-[320px] min-w-0">
+              <div className="grid gap-3 xl:grid-cols-2">
+                <section className="border border-border bg-card p-4">
+                  <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">atendimento por hora</h4>
+                  <div className="h-[220px] min-w-0">
                     {hasHourlyData ? (
                       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <BarChart data={data.hourlyData}>
                           <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
-                          <XAxis dataKey="hour" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} interval={2} />
-                          <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={12} />
+                          <XAxis dataKey="hour" stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={11} interval={2} />
+                          <YAxis stroke={chartAxisColor} tick={{ fill: chartAxisColor }} fontSize={11} />
                           <Tooltip />
-                          <Bar dataKey="ia" stackId="a" fill="#31c48d" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="operador" stackId="a" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="ia" stackId="a" fill="#31c48d" />
+                          <Bar dataKey="operador" stackId="a" fill="#60a5fa" />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <EmptyChart label="Ainda não há mensagens reais para este gráfico." />
+                      <EmptyChart label="sem dados de mensagens" />
                     )}
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-border bg-card p-5">
-                  <div className="mb-4">
-                    <h4 className="font-display text-[15px] font-semibold text-foreground">Tempos de resposta</h4>
-                    <p className="text-xs text-muted-foreground">Média até a primeira resposta registrada</p>
-                  </div>
-                  <div className="flex flex-col gap-3">
+                <section className="border border-border bg-card p-4">
+                  <h4 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">tempos de resposta</h4>
+                  <div className="flex flex-col gap-2">
                     {[
                       {
                         icon: Bot,
-                        label: "Assistente IA",
+                        label: "ia",
                         value: data.responseTimes.aiLabel ?? "n/d",
                         pct: data.responseTimes.aiFastRate ?? 0,
-                        note: data.responseTimes.aiFastRate != null
-                          ? `${data.responseTimes.aiFastRate}% em até 5s`
-                          : "Ainda sem respostas da IA para calcular média",
                       },
                       {
                         icon: Users,
-                        label: "Operador",
+                        label: "operador",
                         value: data.responseTimes.operatorLabel ?? "n/d",
                         pct: data.responseTimes.operatorFastRate ?? 0,
-                        note: data.responseTimes.operatorFastRate != null
-                          ? `${data.responseTimes.operatorFastRate}% em até 10min`
-                          : "Ainda sem respostas de operador para calcular média",
                       },
                     ].map((response) => {
                       const ResponseIcon = response.icon
                       return (
-                        <div key={response.label} className="rounded-xl border border-border bg-secondary p-4">
+                        <div key={response.label} className="border border-border bg-muted/40 p-3">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                              <ResponseIcon className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{response.label}</p>
-                              <p className="font-display text-[28px] font-semibold leading-none text-foreground">{response.value}</p>
+                            <ResponseIcon className="h-3.5 w-3.5 text-primary" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{response.label}</span>
+                                <span className="font-mono text-base font-semibold text-foreground">{response.value}</span>
+                              </div>
+                              <div className="mt-2 h-[3px] overflow-hidden bg-border">
+                                <div className="h-full bg-primary" style={{ width: `${response.pct}%` }} />
+                              </div>
                             </div>
                           </div>
-                          <div className="mt-3 h-[5px] overflow-hidden rounded-full bg-border">
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${response.pct}%` }} />
-                          </div>
-                          <p className="mt-1.5 text-xs text-muted-foreground">{response.note}</p>
                         </div>
                       )
                     })}

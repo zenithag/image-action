@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { z } from "zod"
 
 import type { CompositionJobInput } from "@/lib/composition-types"
 import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
@@ -13,7 +14,38 @@ type RouteContext = {
   params: Promise<{ slug: string }>
 }
 
-async function normalizeCompositionJobInputImages(input: CompositionJobInput): Promise<CompositionJobInput> {
+const CompositionJobInputSchema = z.object({
+  conversationId: z.string().uuid(),
+  channelInstanceId: z.string().uuid(),
+  contactName: z.string().min(1).max(255),
+  contactPhone: z.string().max(50).optional(),
+  mode: z.enum(["interior", "product", "print", "fashion"]).optional(),
+  source: z.enum(["ai", "operator"]).optional(),
+  sourceMessageId: z.string().optional(),
+  baseMessageId: z.string().optional(),
+  baseImageUrl: z.string().url().optional(),
+  referenceMessageId: z.string().optional(),
+  referenceImageUrl: z.string().url().optional(),
+  catalogItemId: z.string().optional(),
+  catalogItemName: z.string().optional(),
+  catalogColorReference: z.string().optional(),
+  references: z.array(z.object({
+    source: z.enum(["inbox", "catalog", "url"]),
+    messageId: z.string().optional(),
+    imageUrl: z.string().url().optional(),
+    catalogItemId: z.string().optional(),
+    catalogItemName: z.string().optional(),
+    catalogSku: z.string().optional(),
+    catalogCategory: z.string().optional(),
+    catalogDescription: z.string().optional(),
+  })).optional(),
+  changeStrength: z.number().min(0).max(1).optional(),
+  prompt: z.string().max(5000).optional(),
+})
+
+const MAX_BODY_SIZE = 10_000_000
+
+async function normalizeCompositionJobInputImages(input: z.infer<typeof CompositionJobInputSchema>): Promise<CompositionJobInput> {
   const references = input.references
     ? await Promise.all(input.references.map(async (reference) => ({
       ...reference,
@@ -31,6 +63,9 @@ async function normalizeCompositionJobInputImages(input: CompositionJobInput): P
 
 export async function GET(_request: Request, context: RouteContext) {
   const { slug } = await context.params
+  if (!slug || typeof slug !== "string" || slug.length > 100) {
+    return NextResponse.json({ error: "Invalid slug" }, { status: 400 })
+  }
   const jobs = await listCompositionJobs(slug)
 
   return NextResponse.json({
@@ -41,14 +76,38 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function POST(request: Request, context: RouteContext) {
   const { slug } = await context.params
-  const payload = await normalizeCompositionJobInputImages(await request.json() as CompositionJobInput)
+  if (!slug || typeof slug !== "string" || slug.length > 100) {
+    return NextResponse.json({ error: "Invalid slug" }, { status: 400 })
+  }
+
+  const contentLength = request.headers.get("content-length")
+  if (contentLength && parseInt(contentLength) > MAX_BODY_SIZE) {
+    return NextResponse.json({ error: "Payload too large" }, { status: 413 })
+  }
+
+  let rawPayload: unknown
+  try {
+    rawPayload = await request.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
+  }
+
+  const parsed = CompositionJobInputSchema.safeParse(rawPayload)
+  if (!parsed.success) {
+    return NextResponse.json({
+      error: "Payload invalido.",
+      details: parsed.error.flatten().fieldErrors,
+    }, { status: 400 })
+  }
+
+  const payload = await normalizeCompositionJobInputImages(parsed.data)
 
   try {
     const tokenCheck = await canTenantCreateComposition(slug)
 
     if (!tokenCheck.allowed) {
       return NextResponse.json({
-        error: "Este tenant ficou sem tokens para novas composições.",
+        error: "Este tenant ficou sem tokens para novas composicoes.",
         code: "TOKEN_BALANCE_EXHAUSTED",
         tokenSnapshot: tokenCheck.snapshot,
       }, { status: 402 })

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxHandledBy } from "@/lib/inbox-types"
 import { useInboxRealtime } from "@/lib/inbox-realtime-client"
@@ -56,6 +56,119 @@ function sortConversationSummaries(conversations: InboxConversationSummary[]) {
     (left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
   )
 }
+
+interface ConversationItemProps {
+  conversation: InboxConversationSummary
+  selectedId: string | null | undefined
+  deletingConversationId: string | null
+  onSelect: (id: string) => void
+  onDelete: (conversation: InboxConversationSummary) => void
+  onMarkAsRead: (conversationId: string) => void
+}
+
+const ConversationItem = memo(function ConversationItem({
+  conversation,
+  selectedId,
+  deletingConversationId,
+  onSelect,
+  onDelete,
+  onMarkAsRead,
+}: ConversationItemProps) {
+  const handleSelect = () => {
+    onSelect(conversation.id)
+    onMarkAsRead(conversation.id)
+  }
+
+  const handleDelete = (event: React.MouseEvent) => {
+    event.stopPropagation()
+    onDelete(conversation)
+  }
+
+  return (
+    <div
+      className={cn(
+        "relative border-b border-border transition-all duration-200",
+        selectedId === conversation.id
+          ? "bg-accent"
+          : "bg-transparent hover:bg-accent/50"
+      )}
+    >
+      {selectedId === conversation.id && (
+        <span className="absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r bg-primary" />
+      )}
+      <button
+        type="button"
+        onClick={handleSelect}
+        className="flex w-full items-start gap-2.5 border-b border-border/50 p-3 text-left transition-colors hover:bg-accent/50"
+      >
+        <div className="relative shrink-0">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted text-[11px] font-bold text-muted-foreground">
+            {getInitials(conversation.contact.name)}
+          </div>
+          <div
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card",
+              statusColors[conversation.status]
+            )}
+          />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-1.5">
+            <span className={cn(
+              "truncate text-[12px] font-medium",
+              selectedId === conversation.id ? "text-primary" : "text-foreground"
+            )}>
+              {conversation.contact.name}
+            </span>
+            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+              {formatRelativeTime(conversation.lastMessageAt)}
+            </span>
+          </div>
+
+          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+            {conversation.lastMessage}
+          </p>
+
+          <div className="mt-1.5 flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1">
+              {conversation.handledBy === "ai" ? (
+                <Bot className="h-2.5 w-2.5 text-primary" />
+              ) : (
+                <User className="h-2.5 w-2.5 text-blue-500" />
+              )}
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {stateLabels[conversation.state] || conversation.state}
+              </span>
+            </div>
+
+            {conversation.unreadCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                {conversation.unreadCount}
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={deletingConversationId === conversation.id}
+        className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+        title="Excluir conversa"
+        aria-label={`Excluir conversa com ${conversation.contact.name}`}
+      >
+        <Trash2
+          className={cn(
+            "h-4 w-4",
+            deletingConversationId === conversation.id && "animate-pulse"
+          )}
+        />
+      </button>
+    </div>
+  )
+})
 
 export function ConversationList({ tenantSlug, selectedId, onSelect }: ConversationListProps) {
   const [conversations, setConversations] = useState<InboxConversationSummary[]>([])
@@ -232,42 +345,42 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
   }, [conversations, filter])
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-card">
-      <div className="shrink-0 border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-card-foreground font-display">Conversas</h2>
-            <button
-              type="button"
-              onClick={() => loadConversations({ sync: true, waitForSync: true })}
-              className="rounded-[10px] p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Atualizar conversas"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
-            </button>
-          </div>
-          <span className="flex h-5 items-center rounded-full bg-secondary px-2 text-xs font-medium text-secondary-foreground">
-            {conversations.length}
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          conversas
+        </h2>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {conversations.length} total
           </span>
+          <button
+            type="button"
+            onClick={() => loadConversations({ sync: true, waitForSync: true })}
+            className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label="Atualizar conversas"
+          >
+            <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+          </button>
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2">
+      <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-2 py-1.5">
         {[
-          { id: "all", label: "Todas" },
-          { id: "ai", label: "IA" },
-          { id: "operator", label: "Operador" },
-          { id: "unread", label: "Não lidas" },
+          { id: "all", label: "all" },
+          { id: "ai", label: "ai" },
+          { id: "operator", label: "op" },
+          { id: "unread", label: "unread" },
         ].map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setFilter(item.id as "all" | InboxHandledBy | "unread")}
             className={cn(
-              "min-w-fit flex-1 rounded-md px-3 py-1.5 text-xs transition-colors",
+              "min-w-fit rounded px-2 py-1 text-[10px] font-medium transition-colors",
               filter === item.id
-                ? "bg-primary/20 font-bold text-primary"
-                : "font-medium text-muted-foreground hover:bg-primary/5 hover:text-primary"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
             )}
           >
             {item.label}
@@ -289,101 +402,22 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
           </div>
         ) : filteredConversations.length > 0 ? (
           filteredConversations.map((conversation) => (
-            <div
+            <ConversationItem
               key={conversation.id}
-              className={cn(
-                "relative border-b border-border transition-all duration-200",
-                selectedId === conversation.id
-                  ? "bg-primary/10"
-                  : "bg-transparent hover:bg-primary/5"
-              )}
-            >
-              {selectedId === conversation.id && (
-                <span className="absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r bg-primary" />
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  selectedIdRef.current = conversation.id
-                  onSelect?.(conversation.id)
-                  void markConversationAsRead(conversation.id)
-                }}
-                className="flex w-full items-start gap-3 p-4 pr-12 text-left"
-              >
-                <div className="relative">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border/50 bg-secondary text-sm font-bold text-secondary-foreground">
-                    {getInitials(conversation.contact.name)}
-                  </div>
-                  <div
-                    className={cn(
-                      "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card",
-                      statusColors[conversation.status]
-                    )}
-                  />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={cn(
-                      "truncate text-sm font-medium",
-                      selectedId === conversation.id ? "text-primary" : "text-card-foreground"
-                    )}>
-                      {conversation.contact.name}
-                    </span>
-                    <span className="flex max-w-[92px] shrink-0 items-center gap-1 truncate text-xs text-muted-foreground font-sans">
-                      <Clock className="h-3 w-3" />
-                      {formatRelativeTime(conversation.lastMessageAt)}
-                    </span>
-                  </div>
-
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground font-sans">
-                    {conversation.lastMessage}
-                  </p>
-
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex items-center gap-1.5">
-                      {conversation.handledBy === "ai" ? (
-                        <Bot className="h-3 w-3 text-primary" />
-                      ) : (
-                        <User className="h-3 w-3 text-blue-500" />
-                      )}
-                      <span className="truncate text-xs text-muted-foreground font-sans">
-                        {stateLabels[conversation.state] || conversation.state}
-                      </span>
-                    </div>
-
-                    {conversation.unreadCount > 0 && (
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                        {conversation.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void deleteConversation(conversation)
-                }}
-                disabled={deletingConversationId === conversation.id}
-                className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
-                title="Excluir conversa"
-                aria-label={`Excluir conversa com ${conversation.contact.name}`}
-              >
-                <Trash2
-                  className={cn(
-                    "h-4 w-4",
-                    deletingConversationId === conversation.id && "animate-pulse"
-                  )}
-                />
-              </button>
-            </div>
+              conversation={conversation}
+              selectedId={selectedId}
+              deletingConversationId={deletingConversationId}
+              onSelect={(id) => {
+                selectedIdRef.current = id
+                onSelect?.(id)
+              }}
+              onDelete={deleteConversation}
+              onMarkAsRead={markConversationAsRead}
+            />
           ))
         ) : (
           <div className="flex min-h-full flex-col items-center justify-center p-6 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <div className="flex h-12 w-12 items-center justify-center rounded border border-border bg-muted">
               <MessageSquare className="h-6 w-6 text-muted-foreground" />
             </div>
             <h3 className="mt-4 text-sm font-bold text-foreground font-display">Nenhuma conversa real ainda</h3>

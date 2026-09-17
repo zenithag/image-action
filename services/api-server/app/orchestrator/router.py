@@ -1,7 +1,10 @@
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth.middleware import get_current_user, require_tenant_id
+from app.auth.schemas import AuthUser
 from app.core import repository as repo
 from app.channel import sender
 from app.billing import tracker
@@ -11,10 +14,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["internal"])
 
+_worker_token: str | None = None
+
+
+def _get_worker_token() -> str:
+    global _worker_token
+    if _worker_token is None:
+        from app.config import settings
+        _worker_token = settings.openrouter_api_key
+    return _worker_token
+
+
+def _verify_worker_token(token: str | None) -> bool:
+    if not token:
+        return False
+    expected = _get_worker_token()
+    if not expected:
+        return False
+    import secrets
+    return secrets.compare_digest(token, expected)
+
 
 @router.post("/internal/job-completed/{job_id}")
-async def job_completed(job_id: str):
-    # 1. Get job
+async def job_completed(job_id: str, x_worker_token: str | None = None):
+    if not _verify_worker_token(x_worker_token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     job = await repo.get_composition_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -23,7 +48,6 @@ async def job_completed(job_id: str):
     conversation_id = str(job["conversation_id"])
     job_status = job["status"]
 
-    # 2. Get conversation to find channel and contact
     conversation = await repo.get_conversation(conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -38,7 +62,6 @@ async def job_completed(job_id: str):
     remote_jid = contact["external_contact_id"]
 
     if job_status == "done":
-        # 3. Get render and generate presigned URL
         render = await repo.get_render_by_job(job_id)
         if not render:
             raise HTTPException(status_code=404, detail="Render not found")
@@ -49,26 +72,20 @@ async def job_completed(job_id: str):
 
         image_url = presigned_url(asset["storage_key"], expires_seconds=7200)
 
-        # 4. Send image on WhatsApp
         await sender.send_image(
             provider, session_id, remote_jid, image_url,
             caption="Aqui esta o resultado da composicao!",
         )
 
-        # 5. Persist outbound message
         await repo.create_message(
             tenant_id, conversation_id, "outbound", "assistant",
             f"[Composicao enviada: {asset['storage_key']}]",
             "composition_result", None,
         )
 
-        # 6. Update conversation state
         await repo.update_conversation_state(conversation_id, "completed")
-
-        # 7. Track billing
         await tracker.track_message_sent(tenant_id, conversation_id, provider)
 
-        # 8. Emit realtime events
         try:
             from app.realtime.manager import emit_to_tenant
             from app.realtime.events import JobUpdatedEvent, ConversationUpdatedEvent
@@ -87,7 +104,6 @@ async def job_completed(job_id: str):
     elif job_status == "failed":
         error_msg = job.get("error_message", "Erro desconhecido")
 
-        # Send apology message
         await sender.send_text(
             provider, session_id, remote_jid,
             "Desculpe, houve um problema ao gerar a composicao. Pode tentar novamente?",

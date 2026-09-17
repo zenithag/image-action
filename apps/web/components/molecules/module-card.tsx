@@ -12,10 +12,10 @@ type ModuleCardProps = {
 
 export function ModuleCard({ icon: Icon, title, summary, tag }: ModuleCardProps) {
   return (
-    <Card className="group h-full border-border/70 transition-transform duration-300 hover:-translate-y-1">
+    <Card className="group h-full border-border transition-colors duration-200">
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="rounded-2xl border border-border bg-background/70 p-3 text-primary">
+          <div className="rounded border border-border bg-muted p-3 text-primary">
             <Icon className="size-5" />
           </div>
           <Badge variant="secondary">{tag}</Badge>
@@ -26,7 +26,7 @@ export function ModuleCard({ icon: Icon, title, summary, tag }: ModuleCardProps)
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-px w-full bg-gradient-to-r from-primary/30 via-border to-transparent" />
+        <div className="h-px w-full border-t border-border" />
       </CardContent>
     </Card>
   )

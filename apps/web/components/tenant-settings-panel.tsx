@@ -187,7 +187,7 @@ function Toggle({
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between rounded-xl border border-border bg-background p-4 text-left transition-colors hover:border-primary/50"
+      className="flex items-center justify-between rounded border border-border bg-background p-4 text-left transition-colors hover:border-primary/50"
     >
       <span className="text-sm font-medium text-foreground">{label}</span>
       <span className={cn("relative h-6 w-11 rounded-full transition-colors", checked ? "bg-primary" : "bg-muted")}>
@@ -412,23 +412,20 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
-      <div className="border-b border-border bg-card px-4 py-5 sm:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Tenant</p>
-            <h1 className="mt-1 font-display text-2xl font-bold text-foreground">Configurações</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Configurações persistidas do tenant {tenantSlug}.</p>
-          </div>
-          <Button className="w-full sm:w-fit" onClick={saveSettings} disabled={!settings || isSaving}>
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Salvar alterações
-          </Button>
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-8">
+        <div className="flex flex-col">
+          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">configurações</h1>
+          <p className="text-[10px] leading-none text-muted-foreground">tenant · {tenantSlug}</p>
         </div>
+        <Button size="sm" className="h-8 text-[11px]" onClick={saveSettings} disabled={!settings || isSaving}>
+          {isSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+          save
+        </Button>
       </div>
 
       {(error || notice) && (
         <div className={cn(
-          "px-4 py-3 text-sm font-medium sm:px-6",
+          "px-8 py-2 text-[11px] font-medium",
           error
             ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300"
             : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
@@ -437,19 +434,18 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[220px_minmax(0,1fr)] lg:grid-rows-1">
-          {/* Sidebar nav — matches prototype settings-grid */}
-          <nav className="flex min-w-0 gap-2 overflow-x-auto border-b border-border bg-card p-3 scrollbar-hide lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r lg:p-4">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[180px_minmax(0,1fr)] lg:grid-rows-1">
+          <nav className="flex min-w-0 gap-1 overflow-x-auto border-b border-border bg-card p-2 scrollbar-hide lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
             {sections.map((section) => (
               <button
                 key={section.id}
                 type="button"
                 onClick={() => setActiveSection(section.id)}
                 className={cn(
-                  "shrink-0 rounded-full px-4 py-2 text-left text-sm font-medium transition-colors lg:rounded-[10px] lg:px-3",
+                  "shrink-0 rounded border px-3 py-1.5 text-left text-[11px] font-medium transition-colors",
                   activeSection === section.id
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
+                    ? "border-transparent bg-primary text-primary-foreground"
+                    : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 {section.title}
@@ -457,7 +453,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
             ))}
           </nav>
 
-          <div className="min-h-0 overflow-auto p-4 sm:p-6">
+          <div className="min-h-0 overflow-auto p-5">
             {isLoading || !settings ? (
               <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -467,7 +463,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
             <div className="mx-auto w-full max-w-4xl space-y-6">
               {activeSection === "branding" && (
                 <div className="space-y-6">
-                  <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                  <div className="rounded border border-border bg-card p-4 sm:p-5">
                     <h3 className="font-display text-lg font-bold">Identidade da marca</h3>
                     <p className="mt-1 text-sm text-muted-foreground">Logo, cores e dados que aparecem no portal do tenant.</p>
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -505,7 +501,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Logo</span>
                         <div className="grid gap-4 md:grid-cols-[1fr_200px]">
                           <div
-                            className="flex min-h-[140px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-background p-6 text-center transition-colors hover:border-primary/50"
+                            className="flex min-h-[140px] cursor-pointer flex-col items-center justify-center gap-3 rounded border-2 border-dashed border-border bg-background p-6 text-center transition-colors hover:border-primary/50"
                             onClick={() => document.getElementById("logo-upload")?.click()}
                             onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
                             onDrop={(e) => {
@@ -544,7 +540,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                           </div>
                           <div className="space-y-2">
                             <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Persistência</span>
-                            <div className="rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">
+                            <div className="rounded border border-border bg-background p-3 text-sm text-muted-foreground">
                               O logo enviado fica salvo nas configurações do tenant e reaparece após recarregar a página.
                             </div>
                             {settings.branding.logoUrl && (
@@ -591,12 +587,12 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       </Field>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                  <div className="rounded border border-border bg-card p-4 sm:p-5">
                     <h3 className="font-display text-lg font-bold">Pré-visualização</h3>
                     <p className="mt-1 text-sm text-muted-foreground">Como a marca aparece para os clientes.</p>
                     <div className="mt-5 grid gap-4 md:grid-cols-2">
                       {/* Sidebar preview */}
-                      <div className="overflow-hidden rounded-xl border border-border">
+                      <div className="overflow-hidden rounded border border-border">
                         <div className="flex items-center gap-3 p-4" style={{ backgroundColor: settings.branding.primaryColor + "15" }}>
                           {settings.branding.logoUrl ? (
                             <SafeImage
@@ -621,18 +617,18 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         </div>
                       </div>
                       {/* WhatsApp message preview */}
-                      <div className="overflow-hidden rounded-xl border border-border bg-[#e5ddd5] dark:bg-[#0b141a] p-4">
+                      <div className="overflow-hidden rounded border border-border bg-[#e5ddd5] dark:bg-[#0b141a] p-4">
                         <div className="mb-2 text-center text-[10px] text-muted-foreground">WhatsApp</div>
                         <div className="flex flex-col gap-2">
-                          <div className="self-start rounded-lg rounded-tl-none bg-white dark:bg-[#202c33] px-3 py-1.5 text-xs text-foreground shadow-sm">
+                          <div className="self-start rounded rounded-tl-none bg-white dark:bg-[#202c33] px-3 py-1.5 text-xs text-foreground">
                             Olá! Gostaria de ver opções de decoração.
                           </div>
-                          <div className="self-end rounded-lg rounded-tr-none px-3 py-1.5 text-xs text-white shadow-sm" style={{ backgroundColor: settings.branding.primaryColor }}>
+                          <div className="self-end rounded rounded-tr-none px-3 py-1.5 text-xs text-white" style={{ backgroundColor: settings.branding.primaryColor }}>
                             Claro! Vou mostrar algumas opções. 😊
                           </div>
                         </div>
                       </div>
-                      <div className="relative overflow-hidden rounded-xl border border-border bg-black">
+                      <div className="relative overflow-hidden rounded border border-border bg-black">
                         <SafeImage
                           src={settings.branding.logoUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'%3E%3Crect width='800' height='520' fill='%23e5e7eb'/%3E%3Crect x='110' y='80' width='580' height='280' rx='18' fill='%23f8fafc'/%3E%3Crect x='160' y='120' width='260' height='180' rx='16' fill='%23d1fae5'/%3E%3Crect x='450' y='120' width='180' height='20' rx='10' fill='%239ca3af'/%3E%3Crect x='450' y='160' width='140' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='194' width='120' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='228' width='150' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='274' width='120' height='34' rx='17' fill='%2331c48d'/%3E%3C/svg%3E"}
                           alt="Prévia de composição"
@@ -666,7 +662,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               )}
 
               {activeSection === "domain" && (
-                <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                <div className="rounded border border-border bg-card p-4 sm:p-5">
                   <h3 className="font-display text-lg font-bold">Domínio</h3>
                   <p className="mt-1 text-sm text-muted-foreground">Configurações de domínio e canais do tenant.</p>
                   <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -692,7 +688,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               )}
 
               {activeSection === "assistant" && (
-                <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                <div className="rounded border border-border bg-card p-4 sm:p-5">
                   <h3 className="font-display text-lg font-bold">IA & prompts</h3>
                   <p className="mt-1 text-sm text-muted-foreground">Configurações do assistente de IA e prompts do sistema.</p>
                   <div className="mt-6 grid gap-4">
@@ -750,7 +746,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                           Nenhuma categoria encontrada no catálogo. Cadastre produtos primeiro para liberar a seleção.
                         </div>
                       ) : (
-                        <div className="space-y-3 rounded-xl border border-border bg-background p-4">
+                        <div className="space-y-3 rounded border border-border bg-background p-4">
                           <button
                             type="button"
                             onClick={() => updateSection("assistant", { catalogCategories: [] })}
@@ -800,7 +796,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               )}
 
               {activeSection === "limits" && (
-                <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                <div className="rounded border border-border bg-card p-4 sm:p-5">
                   <h3 className="font-display text-lg font-bold">Limites</h3>
                   <p className="mt-1 text-sm text-muted-foreground">Limites de uso e cotas do tenant.</p>
                   <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -813,7 +809,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               )}
 
               {activeSection === "team" && (
-                <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                <div className="rounded border border-border bg-card p-4 sm:p-5">
                   <h3 className="font-display text-lg font-bold">Time</h3>
                   <p className="mt-1 text-sm text-muted-foreground">Membros e papeis do tenant.</p>
                   <div className="mt-6 space-y-4">
@@ -821,11 +817,11 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       <Button variant="outline" className="w-full sm:w-auto" onClick={addTeamMember}>Adicionar membro</Button>
                     </div>
                     {settings.team.members.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                      <div className="rounded border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                         Nenhum membro cadastrado neste tenant.
                       </div>
                     ) : settings.team.members.map((member) => (
-                      <div key={member.id} className="space-y-3 rounded-xl border border-border bg-background p-4">
+                      <div key={member.id} className="space-y-3 rounded border border-border bg-background p-4">
                         <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_120px_auto]">
                         <TextInput placeholder="Nome" value={member.name} onChange={(event) => updateTeamMember(member.id, { name: event.target.value })} />
                         <TextInput placeholder="Email" value={member.email} onChange={(event) => updateTeamMember(member.id, { email: event.target.value })} />
@@ -864,7 +860,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               )}
 
               {activeSection === "billing" && (
-                <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                <div className="rounded border border-border bg-card p-4 sm:p-5">
                   <h3 className="font-display text-lg font-bold">Faturamento</h3>
                   <p className="mt-1 text-sm text-muted-foreground">Configuracoes de faturamento e notificacoes do tenant.</p>
                   <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -878,7 +874,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                   {tokenSnapshot && (
                     <div className="mt-6 space-y-4">
                       <div className="grid gap-4 lg:grid-cols-2">
-                        <div className="rounded-xl border border-border bg-background p-4">
+                        <div className="rounded border border-border bg-background p-4">
                           <div className="flex items-center gap-2">
                             <Gift className="h-4 w-4 text-primary" />
                             <h4 className="font-display text-base font-bold">Aplicar cupom</h4>
@@ -898,7 +894,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-border bg-background p-4">
+                        <div className="rounded border border-border bg-background p-4">
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <h4 className="font-display text-base font-bold">Indicações</h4>
@@ -910,7 +906,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                               {referralProgram?.settings.enabled ? "ativo" : "pausado"}
                             </span>
                           </div>
-                          <div className="mt-4 rounded-lg border border-border bg-card p-3">
+                          <div className="mt-4 rounded border border-border bg-card p-3">
                             <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Link de indicação</p>
                             <div className="mt-2 flex gap-2">
                               <input
@@ -924,13 +920,13 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                             </div>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                            <div className="rounded-lg border border-border bg-card p-3">
+                            <div className="rounded border border-border bg-card p-3">
                               <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Convertidas</p>
                               <p className="mt-1 text-xl font-bold text-foreground">
                                 {referralProgram?.referrals.filter((referral) => referral.status === "converted").length ?? 0}
                               </p>
                             </div>
-                            <div className="rounded-lg border border-border bg-card p-3">
+                            <div className="rounded border border-border bg-card p-3">
                               <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Créditos recebidos</p>
                               <p className="mt-1 text-xl font-bold text-foreground">
                                 {referralProgram?.referrals.reduce((total, referral) => total + referral.creditsGranted, 0) ?? 0}
@@ -941,33 +937,33 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       </div>
 
                       {tokenSnapshot.isExhausted ? (
-                        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                        <div className="rounded border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
                           Os tokens deste tenant acabaram. Novas composições ficam bloqueadas até receber crédito adicional.
                         </div>
                       ) : tokenSnapshot.isLowBalance ? (
-                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-700">
+                        <div className="rounded border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-700">
                           Saldo baixo: restam {tokenSnapshot.account.balance} tokens. O limiar configurado é {tokenSnapshot.account.lowBalanceThreshold}.
                         </div>
                       ) : null}
 
                       <div className="grid gap-4 md:grid-cols-5">
-                        <div className="rounded-xl border border-border bg-background p-4">
+                        <div className="rounded border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Saldo</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.balance}</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-background p-4">
+                        <div className="rounded border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano incluído</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.includedTokens}</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-background p-4">
+                        <div className="rounded border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Bônus</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.bonusTokens}</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-background p-4">
+                        <div className="rounded border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Consumidos</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.consumedTokens}</p>
                         </div>
-                        <div className="rounded-xl border border-border bg-background p-4">
+                        <div className="rounded border border-border bg-background p-4">
                           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Excedente</p>
                           <p className={cn("mt-2 text-2xl font-bold", tokenSnapshot.account.overageTokens > 0 ? "text-amber-600" : "text-foreground")}>
                             {tokenSnapshot.account.overageTokens}
@@ -975,7 +971,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-border bg-background">
+                      <div className="rounded border border-border bg-background">
                         <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <h4 className="font-display text-base font-bold">Histórico de tokens</h4>

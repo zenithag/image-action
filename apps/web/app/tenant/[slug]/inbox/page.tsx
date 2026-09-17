@@ -305,24 +305,24 @@ export default function InboxPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex min-h-[60px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-5 lg:px-7">
-        <div className="flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            Atendimento
-          </p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
-            Inbox
-          </h1>
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-5 lg:px-8">
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">
+              inbox
+            </h1>
+            <p className="text-[10px] leading-none text-muted-foreground">atendimento · {slug}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-0.5 rounded-[10px] bg-muted p-[3px]">
-          {([["classic", "Clássica"], ["focus", "Foco"]] as const).map(([key, label]) => (
+        <div className="flex items-center gap-0.5 rounded-md border border-border bg-background p-[2px]">
+          {([["classic", "classic"], ["focus", "focus"]] as const).map(([key, label]) => (
             <button
               key={key}
               type="button"
               onClick={() => setVariant(key)}
-              className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all ${
+              className={`rounded px-3 py-1 text-[11px] font-medium transition-all ${
                 variant === key
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -355,14 +355,12 @@ export default function InboxPage({
         </div>
       ) : (
         <div className="relative min-h-0 flex-1 overflow-hidden lg:grid lg:grid-cols-[minmax(290px,360px)_minmax(0,1fr)]">
-          <aside className={hasSelectedConversation ? "hidden h-full min-h-0 overflow-hidden border-r border-border bg-card p-2 sm:p-3 lg:block" : "h-full min-h-0 overflow-hidden border-r border-border bg-card p-2 sm:p-3 lg:block"}>
-            <div className="flex h-full flex-col gap-2 overflow-y-auto">
+          <aside className={hasSelectedConversation ? "hidden h-full min-h-0 overflow-hidden border-r border-border bg-card lg:block" : "h-full min-h-0 overflow-hidden border-r border-border bg-card lg:block"}>
               <ConversationList
                 tenantSlug={slug}
                 selectedId={selectedConversation}
                 onSelect={setSelectedConversation}
               />
-            </div>
           </aside>
           <section className={hasSelectedConversation ? "h-full min-h-0 overflow-hidden" : "hidden h-full min-h-0 overflow-hidden lg:block"}>
             <ChatPanel

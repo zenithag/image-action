@@ -89,16 +89,6 @@ export default function TenantLayout({
   }, [slug])
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 1279px)")
-    const syncCollapsedState = () => setCollapsed(mediaQuery.matches)
-
-    syncCollapsedState()
-    mediaQuery.addEventListener("change", syncCollapsedState)
-
-    return () => mediaQuery.removeEventListener("change", syncCollapsedState)
-  }, [])
-
-  useEffect(() => {
     activeMobileNavRef.current?.scrollIntoView({ block: "nearest", inline: "center" })
   }, [pathname])
 
@@ -110,18 +100,18 @@ export default function TenantLayout({
   return (
     <SocketProvider>
       <div className="flex h-dvh overflow-hidden bg-background" style={brandingVariables}>
-        <AppSidebar 
-          variant="tenant" 
-          tenantSlug={slug} 
+        <AppSidebar
+          variant="tenant"
+          tenantSlug={slug}
           tenantDisplayName={branding.companyName}
           tenantLogoUrl={branding.logoUrl}
           tenantPrimaryColor={branding.primaryColor}
-          collapsed={collapsed} 
-          onToggle={() => setCollapsed(!collapsed)} 
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
         />
-        <main className="min-w-0 flex-1 overflow-hidden pb-[74px] md:pb-0">{children}</main>
-        <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 px-2 py-2 shadow-[0_-16px_40px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
-          <div className="flex gap-1 overflow-x-auto pb-[env(safe-area-inset-bottom)] scrollbar-hide">
+        <main className="min-w-0 flex-1 overflow-hidden bg-transparent pb-[72px] md:pb-0">{children}</main>
+        <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background md:hidden">
+          <div className="flex overflow-x-auto pb-[env(safe-area-inset-bottom)] scrollbar-hide">
             {mobileNavItems.map((item) => {
               const href = item.href.replace("/tenant", `/tenant/${slug}`)
               const isActive = pathname === href || pathname?.startsWith(`${href}/`)
@@ -131,12 +121,17 @@ export default function TenantLayout({
                   href={href}
                   ref={isActive ? activeMobileNavRef : undefined}
                   className={cn(
-                    "flex min-w-[62px] flex-none flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[9px] font-semibold transition-colors",
-                    isActive ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
+                    "relative flex min-w-[56px] flex-none flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-[9px] font-medium transition-colors",
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground"
                   )}
                 >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-primary" />
+                  )}
+                  <item.icon className="h-3.5 w-3.5" strokeWidth={isActive ? 2 : 1.5} />
+                  <span className="truncate max-w-full">{item.label}</span>
                 </Link>
               )
             })}

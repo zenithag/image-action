@@ -13,10 +13,22 @@ function isAuthorized(request: Request) {
   const expectedToken = getExpectedWorkerToken()
 
   if (!expectedToken) {
-    return process.env.NODE_ENV !== "production"
+    console.error("APP_JOB_WORKER_TOKEN or NEXTAUTH_SECRET not configured")
+    return false
   }
 
-  return request.headers.get("x-app-job-worker-token") === expectedToken
+  const token = request.headers.get("x-app-job-worker-token")
+  if (!token) {
+    return false
+  }
+
+  const { timingSafeEqual } = require("crypto")
+  const a = Buffer.from(token)
+  const b = Buffer.from(expectedToken)
+  if (a.length !== b.length) {
+    return false
+  }
+  return timingSafeEqual(a, b)
 }
 
 export async function POST(request: Request) {

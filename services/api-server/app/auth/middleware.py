@@ -1,9 +1,10 @@
 import logging
-from typing import Optional
+from typing import Annotated
 
 import httpx
 import jwt as pyjwt
-from fastapi import Request
+from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 _jwks_cache: dict | None = None
 
+security = HTTPBearer(auto_error=False)
+
 UNPROTECTED_PREFIXES = (
     "/v1/health",
     "/v1/webhooks/",
@@ -22,6 +25,34 @@ UNPROTECTED_PREFIXES = (
     "/openapi.json",
     "/socket.io",
 )
+
+
+async def get_current_user(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
+) -> AuthUser:
+    if not settings.auth_enabled:
+        request.state.auth_user = None
+        raise JSONResponse(status_code=401, content={"detail": "Authentication disabled"})
+
+    if not credentials:
+        raise JSONResponse(status_code=401, content={"detail": "Missing authorization header"})
+
+    token = credentials.credentials
+
+    try:
+        jwks = await _get_jwks()
+        claims = _decode_token(token, jwks)
+        return _extract_auth_user(claims)
+    except Exception as e:
+        logger.warning("Auth failed: %s", e)
+        raise JSONResponse(status_code=401, content={"detail": "Invalid token"})
+
+
+def require_tenant_id(user: Annotated[AuthUser, Depends(get_current_user)]) -> AuthUser:
+    if not user.tenant_id:
+        raise JSONResponse(status_code=403, content={"detail": "No tenant_id in token"})
+    return user
 
 
 async def _get_jwks() -> dict:
@@ -53,8 +84,13 @@ def _decode_token(token: str, jwks: dict) -> dict:
         token,
         key=public_keys[kid],
         algorithms=["RS256"],
-        options={"verify_aud": False},
+        options={
+            "verify_exp": True,
+            "verify_aud": True,
+            "require": ["exp", "aud"],
+        },
         issuer=settings.zitadel_issuer_url,
+        audience=settings.zitadel_project_id,
     )
 
 

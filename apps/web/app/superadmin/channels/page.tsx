@@ -398,7 +398,7 @@ export default function ChannelsPage() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-7">
         <div className="flex flex-col">
           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Canais</p>
           <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Instâncias WhatsApp</h1>
@@ -422,8 +422,8 @@ export default function ChannelsPage() {
           { label: "Reserva operacional", value: totalReserved, icon: ShieldCheck, tone: "text-amber-500" },
           { label: "Disponiveis", value: totalAvailable, icon: Zap, tone: totalAvailable > 10 ? "text-primary" : "text-destructive" },
         ].map((metric) => (
-          <div key={metric.label} className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+          <div key={metric.label} className="flex items-center gap-3 rounded border border-border bg-card p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-primary/10">
               <metric.icon className={cn("h-4 w-4", metric.tone)} />
             </div>
             <div>
@@ -446,7 +446,7 @@ export default function ChannelsPage() {
               type="button"
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={cn(
-                "rounded-[10px] px-4 py-2 text-sm font-medium transition-colors",
+                "rounded px-4 py-2 text-sm font-medium transition-colors",
                 activeTab === tab.id
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
@@ -464,7 +464,7 @@ export default function ChannelsPage() {
             placeholder="Buscar canal, provider ou tenant..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded-[10px] border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="w-full rounded border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -507,7 +507,7 @@ export default function ChannelsPage() {
             </div>
 
             <aside className="space-y-4">
-              <div className="rounded-[10px] border border-border bg-card p-5">
+              <div className="rounded border border-border bg-card p-5">
                 <h2 className="font-bold text-foreground font-display">Como alocar WhatsApp</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   O Superadmin cadastra os UAZAPIs e informa manualmente a capacidade contratada. O tenant cria as instancias WhatsApp dentro do proprio ambiente, respeitando o plano. A plataforma escolhe um UAZAPI ativo com capacidade disponivel.
@@ -520,7 +520,7 @@ export default function ChannelsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[10px] border border-border bg-card p-5">
+              <div className="rounded border border-border bg-card p-5">
                 <h2 className="font-bold text-foreground font-display">Instagram e Telegram</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   O Superadmin controla o conector global. A autorizacao final fica no tenant, porque a conta Instagram Business/Page e o bot Telegram pertencem ao cliente.
@@ -531,7 +531,7 @@ export default function ChannelsPage() {
         )}
 
         {activeTab === "instances" && (
-          <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+          <div className="overflow-hidden rounded border border-border bg-card">
             {isLoadingInstances ? (
               <EmptyState
                 title="Carregando instâncias..."
@@ -563,7 +563,7 @@ export default function ChannelsPage() {
                         </td>
                         <td className="px-5 py-4">
                           <span className="flex items-center gap-2 text-sm">
-                            <span className={cn("flex h-8 w-8 items-center justify-center rounded-[10px]", config.bg)}>
+                            <span className={cn("flex h-8 w-8 items-center justify-center rounded", config.bg)}>
                               <Icon className={cn("h-4 w-4", config.color)} />
                             </span>
                             {config.label}
@@ -597,7 +597,7 @@ export default function ChannelsPage() {
 
         {activeTab === "plans" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-[10px] border border-border bg-card p-4">
+            <div className="flex items-center justify-between rounded border border-border bg-card p-4">
               <div>
                 <h2 className="font-display text-lg font-bold text-foreground">Limites por plano</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -618,7 +618,7 @@ export default function ChannelsPage() {
             ) : (
               <div className="grid gap-4 lg:grid-cols-3">
                 {planLimits.map((plan) => (
-                  <div key={plan.planCode} className="rounded-[10px] border border-border bg-card p-6">
+                  <div key={plan.planCode} className="rounded border border-border bg-card p-6">
                     <h2 className="text-lg font-bold text-foreground font-display">{plan.label}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">Capacidade inicial concedida ao tenant neste plano.</p>
                     <div className="mt-6 space-y-4">
@@ -653,7 +653,7 @@ export default function ChannelsPage() {
                         value={plan.extra}
                         onChange={(event) => updatePlanLimit(plan.planCode, "extra", event.target.value)}
                         rows={3}
-                        className="w-full rounded-[10px] border border-input bg-secondary px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        className="w-full rounded border border-input bg-secondary px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       />
                       <p className="text-xs text-muted-foreground">
                         Atualizado em {plan.updatedAt ? new Date(plan.updatedAt).toLocaleString("pt-BR") : "agora"}
@@ -703,10 +703,10 @@ function ProviderCard({
     : null
 
   return (
-    <article className="rounded-[10px] border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md">
+    <article className="rounded border border-border bg-card p-6 transition-all hover:border-primary/30">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px]", config.bg)}>
+          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded", config.bg)}>
             <Icon className={cn("h-6 w-6", config.color)} />
           </div>
           <div>
@@ -737,7 +737,7 @@ function ProviderCard({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[10px]"
+            className="rounded"
             onClick={onTest}
             disabled={isTesting}
           >
@@ -747,7 +747,7 @@ function ProviderCard({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="rounded text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
             disabled={isDeleting}
           >
@@ -762,7 +762,7 @@ function ProviderCard({
       {testResult && (
         <div
           className={cn(
-            "mt-5 rounded-[10px] border p-4 text-sm",
+            "mt-5 rounded border p-4 text-sm",
             testResult.ok
               ? "border-primary/20 bg-primary/5 text-primary"
               : "border-destructive/20 bg-destructive/10 text-destructive"
@@ -841,9 +841,9 @@ function NewProviderModal({
   )
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
       <div
-        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[10px] border border-border bg-card p-6 shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded border border-border bg-card p-4"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-6 flex items-start justify-between gap-4">
@@ -854,7 +854,7 @@ function NewProviderModal({
               Cadastre infraestrutura global. As instancias finais continuam vinculadas aos tenants.
             </p>
           </div>
-          <div className={cn("flex h-12 w-12 items-center justify-center rounded-[10px]", config.bg)}>
+          <div className={cn("flex h-12 w-12 items-center justify-center rounded", config.bg)}>
             <Icon className={cn("h-6 w-6", config.color)} />
           </div>
         </div>
@@ -875,13 +875,13 @@ function NewProviderModal({
                   type="button"
                   onClick={() => onChange("kind", option.kind)}
                   className={cn(
-                    "rounded-[10px] border p-4 text-left transition-all",
+                    "rounded border p-4 text-left transition-all",
                     form.kind === option.kind
                       ? "border-primary bg-primary/5"
                       : "border-border bg-muted/20 hover:border-primary/30"
                   )}
                 >
-                  <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-[10px]", optionConfig.bg)}>
+                  <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded", optionConfig.bg)}>
                     <OptionIcon className={cn("h-4 w-4", optionConfig.color)} />
                   </span>
                   <span className="block text-sm font-bold text-foreground">{option.label}</span>
@@ -898,7 +898,7 @@ function NewProviderModal({
                 value={form.name}
                 onChange={(event) => onChange("name", event.target.value)}
                 placeholder={isUazapi ? "UAZAPI Sao Paulo 01" : form.kind === "instagram" ? "Meta App Principal" : "Telegram Adapter Principal"}
-                className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
               />
             </label>
 
@@ -907,7 +907,7 @@ function NewProviderModal({
               <select
                 value={form.provider}
                 onChange={(event) => onChange("provider", event.target.value as ProviderAccount["provider"])}
-                className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="uazapi">uazapi</option>
                 <option value="meta">meta</option>
@@ -924,7 +924,7 @@ function NewProviderModal({
               value={form.baseUrl}
               onChange={(event) => onChange("baseUrl", event.target.value)}
               placeholder={isUazapi ? "https://api.uazapi.dev/seu-endpoint" : "https://graph.facebook.com/app ou adapter interno"}
-              className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
@@ -938,7 +938,7 @@ function NewProviderModal({
                   onChange={(event) => onChange("adminToken", event.target.value)}
                   placeholder="Cole aqui o admintoken do provider"
                   autoComplete="off"
-                  className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </label>
 
@@ -950,7 +950,7 @@ function NewProviderModal({
                     min={1}
                     value={form.contractedCapacity}
                     onChange={(event) => onChange("contractedCapacity", event.target.value)}
-                    className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                   />
                 </label>
                 <label className="space-y-2">
@@ -960,7 +960,7 @@ function NewProviderModal({
                     min={0}
                     value={form.reservedCapacity}
                     onChange={(event) => onChange("reservedCapacity", event.target.value)}
-                    className="w-full rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                   />
                 </label>
               </div>
@@ -973,11 +973,11 @@ function NewProviderModal({
               value={form.notes}
               onChange={(event) => onChange("notes", event.target.value)}
               placeholder="Ex: provider dedicado para clientes enterprise, nao receber novas instancias sem aprovacao..."
-              className="h-24 w-full resize-none rounded-[10px] border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="h-24 w-full resize-none rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
-          <div className="rounded-[10px] border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+          <div className="rounded border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
             {isUazapi
               ? "Este provider entra no pool de alocacao WhatsApp. A capacidade disponivel sera calculada como contratada menos instancias em uso menos reserva."
               : "Este provider habilita o conector global. A conta final sera conectada dentro do tenant por OAuth/token."}
@@ -985,10 +985,10 @@ function NewProviderModal({
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button variant="outline" className="rounded-[10px]" onClick={onClose}>
+          <Button variant="outline" className="rounded" onClick={onClose}>
             Cancelar
           </Button>
-          <Button className="rounded-[10px]" onClick={onCreate} disabled={!canCreate || isCreating}>
+          <Button className="rounded" onClick={onCreate} disabled={!canCreate || isCreating}>
             {isCreating ? "Salvando..." : "Criar provider"}
           </Button>
         </div>
@@ -1009,14 +1009,14 @@ function EmptyState({
   onAction?: () => void
 }) {
   return (
-    <div className="rounded-[10px] border border-dashed border-border bg-card p-10 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-muted">
+    <div className="rounded border border-dashed border-border bg-card p-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded bg-muted">
         <Server className="h-5 w-5 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-lg font-bold text-foreground font-display">{title}</h2>
       <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
       {actionLabel && onAction && (
-        <Button className="mt-5 rounded-[10px]" onClick={onAction}>
+        <Button className="mt-5 rounded" onClick={onAction}>
           <Plus className="mr-2 h-4 w-4" />
           {actionLabel}
         </Button>
@@ -1110,7 +1110,7 @@ function PlanLimitInput({
   onChange: (value: number) => void
 }) {
   return (
-    <div className="flex items-center justify-between rounded-[10px] border border-border bg-muted/30 px-4 py-3">
+    <div className="flex items-center justify-between rounded border border-border bg-muted/30 px-4 py-3">
       <span className="flex items-center gap-2 text-sm text-muted-foreground">
         <Icon className="h-4 w-4 text-primary" />
         {label}
@@ -1120,7 +1120,7 @@ function PlanLimitInput({
         min={0}
         value={value}
         onChange={(event) => onChange(Math.max(0, Number(event.target.value) || 0))}
-        className="h-9 w-24 rounded-[8px] border border-input bg-background px-3 text-right font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+        className="h-9 w-24 rounded border border-input bg-background px-3 text-right font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
       />
     </div>
   )

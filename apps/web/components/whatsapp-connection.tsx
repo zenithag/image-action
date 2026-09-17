@@ -311,28 +311,28 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
     switch (status) {
       case "connected":
         return (
-          <Badge className="shrink-0 whitespace-nowrap rounded-[10px] border-primary/20 bg-primary/10 text-primary">
+          <Badge className="shrink-0 whitespace-nowrap rounded border-primary/20 bg-primary/10 text-primary">
             <CheckCircle2 className="mr-1 h-3 w-3" />
             Conectado
           </Badge>
         )
       case "connecting":
         return (
-          <Badge className="shrink-0 whitespace-nowrap rounded-[10px] border-amber-500/20 bg-amber-500/10 text-amber-500">
+          <Badge className="shrink-0 whitespace-nowrap rounded border-amber-500/20 bg-amber-500/10 text-amber-500">
             <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
             Aguardando leitura
           </Badge>
         )
       case "error":
         return (
-          <Badge className="shrink-0 whitespace-nowrap rounded-[10px] border-red-500/20 bg-red-500/10 text-red-500">
+          <Badge className="shrink-0 whitespace-nowrap rounded border-red-500/20 bg-red-500/10 text-red-500">
             <XCircle className="mr-1 h-3 w-3" />
             Erro
           </Badge>
         )
       default:
         return (
-          <Badge variant="secondary" className="shrink-0 whitespace-nowrap rounded-[10px]">
+          <Badge variant="secondary" className="shrink-0 whitespace-nowrap rounded">
             <Unlink className="mr-1 h-3 w-3" />
             Desconectado
           </Badge>
@@ -342,32 +342,28 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-background">
-      <div className="flex min-h-[60px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-6 lg:px-7">
-        <div className="min-w-0 flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Canal</p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">WhatsApp</h1>
+      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-8">
+        <div className="flex flex-col">
+          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">whatsapp</h1>
+          <p className="text-[10px] leading-none text-muted-foreground">canal · {activeInstance?.status === "connected" ? "conectado" : "sem instância"}</p>
         </div>
         {getStatusBadge()}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-5 scrollbar-hide sm:px-6 lg:px-10 lg:py-8">
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-5 xl:grid-cols-2">
-          {/* Left card: connected instance or name input */}
-          <div className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto px-8 py-5 scrollbar-hide">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="min-w-0 rounded border border-border bg-card p-4">
             {activeInstance?.status === "connected" ? (
               <>
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <h3 className="font-display text-lg font-bold">Instância principal</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">Canal conectado · {activeInstance.name}</p>
-                  </div>
-                  <span className="flex w-fit items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
-                    <CheckCircle2 className="h-3 w-3" /> Conectado
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="font-mono text-[12px] font-semibold text-foreground">instância principal</h3>
+                  <span className="flex w-fit items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                    <CheckCircle2 className="h-2.5 w-2.5" /> conectado
                   </span>
                 </div>
-                <div className="flex flex-col items-start gap-4 rounded-xl bg-muted/50 p-4 sm:flex-row sm:items-center">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Smartphone className="h-6 w-6" />
+                <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Smartphone className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-[15px] font-medium">{activeInstance.phoneNumber ? `+${activeInstance.phoneNumber}` : "Número não disponível"}</p>
@@ -398,7 +394,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                     ["Última sync", activeInstance.lastSyncedAt ? formatDate(activeInstance.lastSyncedAt) : "pendente"],
                     ["Status real", activeInstance.loggedIn ? "logado" : activeInstance.connected ? "conectado" : activeInstance.status],
                   ].map(([label, value]) => (
-                    <div key={label} className="rounded-xl border border-border p-3">
+                    <div key={label} className="rounded border border-border p-2">
                       <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
                       <p className="mt-1 font-mono text-sm font-medium">{value}</p>
                     </div>
@@ -441,7 +437,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
           </div>
 
           {/* Right card: QR code / new instance */}
-          <div className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-6">
+          <div className="min-w-0 rounded border border-border bg-card p-4 sm:p-6">
             <h3 className="font-display text-lg font-bold">Adicionar nova instância</h3>
             <p className="mt-1 mb-5 text-xs text-muted-foreground">Escaneie o QR com o WhatsApp do aparelho</p>
 
@@ -452,10 +448,10 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
               </Alert>
             )}
 
-            <div className="flex flex-col items-center rounded-xl bg-muted/50 p-4 sm:p-6">
+            <div className="flex flex-col items-center rounded bg-muted p-4 sm:p-6">
               {qrCode ? (
                 <>
-                  <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+                  <div className="rounded border border-border bg-card p-4">
                     <SafeImage
                       src={qrCode}
                       alt="QR Code WhatsApp"
@@ -529,7 +525,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
 
           {/* Instances list below (full width) */}
           {instances.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4 sm:p-5 xl:col-span-2">
+            <div className="rounded border border-border bg-card p-4 sm:p-5 xl:col-span-2">
               <h3 className="mb-3 font-display text-base font-bold">Instâncias do tenant</h3>
               <div className="space-y-2">
                 {instances.map((instance) => (

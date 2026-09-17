@@ -6,9 +6,15 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+_allowed_origins = [
+    origin.strip()
+    for origin in settings.cors_allowed_origins.split(",")
+    if origin.strip()
+]
+
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="*",
+    cors_allowed_origins=_allowed_origins,
     logger=False,
     engineio_logger=False,
 )

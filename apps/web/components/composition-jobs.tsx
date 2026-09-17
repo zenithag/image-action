@@ -50,17 +50,17 @@ const statusConfig = {
   processing: {
     label: "Processando",
     icon: Loader2,
-    className: "bg-primary text-white shadow-sm",
+    className: "bg-primary text-primary-foreground",
   },
   done: {
     label: "Concluido",
     icon: CheckCircle2,
-    className: "bg-primary text-white shadow-sm",
+    className: "bg-primary text-primary-foreground",
   },
   failed: {
     label: "Falhou",
     icon: XCircle,
-    className: "bg-destructive text-white shadow-sm",
+    className: "bg-destructive text-white",
   },
 }
 
@@ -374,60 +374,60 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-8">
         <div className="flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Pipeline visual</p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Composições</h1>
+          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">composições</h1>
+          <p className="text-[10px] leading-none text-muted-foreground">pipeline · {stats.done} concluídas · {stats.failed} falhas</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[10px] font-sans text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive"
+            className="h-8 text-[11px] text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive"
             onClick={() => cleanupStorage()}
             disabled={isCleaningStorage || isProcessingQueue || jobs.length === 0}
           >
-            {isCleaningStorage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-            Limpar base
+            {isCleaningStorage ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
+            limpar
           </Button>
           <Button
             size="sm"
-            className="rounded-[10px] font-sans"
+            className="h-8 text-[11px]"
             onClick={() => processQueue()}
             disabled={isProcessingQueue || stats.queued === 0}
           >
-            {isProcessingQueue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            Processar fila
+            {isProcessingQueue ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+            processar
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="rounded-[10px] shadow-none font-sans"
+            className="h-8 text-[11px] shadow-none"
             onClick={() => loadJobs()}
             disabled={isLoading}
           >
-            <RotateCcw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
-            Atualizar
+            <RotateCcw className={cn("mr-1.5 h-3.5 w-3.5", isLoading && "animate-spin")} />
+            refresh
           </Button>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-8 py-2.5">
         {[
-          { id: "all", label: "Todas", count: stats.queued + stats.processing + stats.done + stats.failed },
-          { id: "review", label: "Revisão", count: stats.queued },
-          { id: "processing", label: "Processando", count: stats.processing },
-          { id: "done", label: "Concluídos", count: stats.done },
-          { id: "failed", label: "Falhas", count: stats.failed },
+          { id: "all", label: "all", count: stats.queued + stats.processing + stats.done + stats.failed },
+          { id: "review", label: "review", count: stats.queued },
+          { id: "processing", label: "processing", count: stats.processing },
+          { id: "done", label: "done", count: stats.done },
+          { id: "failed", label: "failed", count: stats.failed },
         ].map((chip) => (
           <button
             key={chip.id}
             type="button"
             onClick={() => setStatusFilter(chip.id as typeof statusFilter)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "flex items-center gap-1 rounded border px-2.5 py-1 text-[10px] font-medium transition-colors",
               statusFilter === chip.id
-                ? "border-transparent bg-primary/10 text-primary"
+                ? "border-transparent bg-primary text-primary-foreground"
                 : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
             )}
           >
@@ -457,7 +457,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
               Carregando composicoes...
             </div>
           ) : jobs.length === 0 ? (
-            <div className="flex h-72 flex-col items-center justify-center rounded-[8px] border border-dashed border-border bg-card/40 p-8 text-center">
+            <div className="flex h-72 flex-col items-center justify-center rounded border border-dashed border-border bg-card/40 p-8 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
                 <Sparkles className="h-7 w-7 text-primary" />
               </div>
@@ -476,7 +476,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                 return (
                   <div
                     key={job.id}
-                    className="group cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/30 hover:shadow-md"
+                    className="group cursor-pointer overflow-hidden rounded border border-border bg-card transition-all hover:border-primary/30"
                     onClick={() => setViewingJob(job)}
                   >
                     <div className="relative aspect-[4/3] bg-muted">
@@ -497,7 +497,7 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                         </span>
                       </div>
                       <div className="absolute right-2.5 top-2.5">
-                        <span className="rounded-full border border-border/60 bg-background/90 px-2 py-0.5 font-mono text-[10px] text-foreground shadow-sm backdrop-blur">
+                        <span className="rounded border border-border bg-accent px-2 py-0.5 font-mono text-[10px] text-foreground">
                           {job.id.slice(0, 8)}
                         </span>
                       </div>
@@ -736,8 +736,8 @@ function CompositionViewerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}>
-      <div className="relative flex max-h-[92vh] w-full max-w-[1000px] flex-col overflow-hidden rounded-[10px] border border-border bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-in fade-in duration-300" onClick={onClose}>
+      <div className="relative flex max-h-[92vh] w-full max-w-[1000px] flex-col overflow-hidden rounded border border-border bg-card" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-6 py-4">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold font-display">
@@ -746,7 +746,7 @@ function CompositionViewerModal({
             <p className="text-xs text-muted-foreground">{job.catalogItemName || "Produto a definir"} - {modeLabels[job.mode]}</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex rounded-[10px] border border-border bg-background p-1">
+            <div className="flex rounded border border-border bg-background p-1">
               <button
                 type="button"
                 className={cn(
@@ -836,7 +836,7 @@ function CompositionViewerModal({
                       onTouchStart={handleMouseDown}
                     >
                       <div className="h-full w-1 -translate-x-1/2 bg-white/90 shadow-[0_0_18px_rgba(0,0,0,0.45)]" />
-                      <div className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white bg-primary shadow-xl transition-transform group-hover:scale-110">
+                      <div className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white bg-primary transition-transform group-hover:scale-110">
                         <div className="flex gap-0.5">
                           <div className="h-2 w-0.5 bg-white" />
                           <div className="h-2 w-0.5 bg-white" />
@@ -917,12 +917,12 @@ function CompositionViewerModal({
                 </div>
               </div>
 
-              <div className="rounded-[10px] border border-primary/10 bg-primary/5 p-4">
+              <div className="rounded border border-primary/10 bg-primary/5 p-4">
                 <p className="text-xs italic leading-relaxed text-muted-foreground">{job.prompt}</p>
               </div>
 
               {job.errorMessage && (
-                <div className="rounded-[10px] border border-destructive/20 bg-destructive/10 p-4">
+                <div className="rounded border border-destructive/20 bg-destructive/10 p-4">
                   <h4 className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-destructive">Falha registrada</h4>
                   <p className="text-xs leading-relaxed text-destructive">{job.errorMessage}</p>
                 </div>
@@ -932,7 +932,7 @@ function CompositionViewerModal({
             <div className="mt-6 space-y-2.5">
               {(job.status === "queued" || job.status === "failed") && (
                 <Button
-                  className="w-full rounded-[10px] py-5 font-sans"
+                  className="w-full rounded py-5 font-sans"
                   disabled={isProcessing === job.id}
                   onClick={() => onProcess(job.id)}
                 >
@@ -942,7 +942,7 @@ function CompositionViewerModal({
               )}
               <Button
                 variant="outline"
-                className="w-full rounded-[10px] py-5 font-sans shadow-none"
+                className="w-full rounded py-5 font-sans shadow-none"
                 disabled={isRetrying === job.id || job.status === "processing"}
                 onClick={() => onRetry(job.id)}
               >
@@ -952,19 +952,19 @@ function CompositionViewerModal({
 
               <div className="border-t border-border pt-2.5 mt-2.5 space-y-2.5">
                 {shareSuccess && (
-                  <p className="rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+                  <p className="rounded border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
                     {shareSuccess}
                   </p>
                 )}
                 {downloadError && (
-                  <p className="rounded-[10px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <p className="rounded border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     {downloadError}
                   </p>
                 )}
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="w-full rounded-[10px] font-sans"
+                  className="w-full rounded font-sans"
                   disabled={!baseImageUrl || !job.resultImageUrl || job.status !== "done" || isSharing}
                   onClick={copyShareLink}
                 >
@@ -974,7 +974,7 @@ function CompositionViewerModal({
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="w-full rounded-[10px] font-sans"
+                  className="w-full rounded font-sans"
                   disabled={!baseImageUrl || !job.resultImageUrl || isDownloadingComparison}
                   onClick={downloadSideBySideComparison}
                 >
@@ -984,7 +984,7 @@ function CompositionViewerModal({
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="w-full rounded-[10px] font-sans"
+                  className="w-full rounded font-sans"
                   disabled={!job.resultImageUrl || isDownloading}
                   onClick={downloadResult}
                 >
@@ -994,7 +994,7 @@ function CompositionViewerModal({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full rounded-[10px] font-sans text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="w-full rounded font-sans text-destructive hover:bg-destructive/10 hover:text-destructive"
                   disabled={isArchiving || job.status === "processing"}
                   onClick={archiveJob}
                 >

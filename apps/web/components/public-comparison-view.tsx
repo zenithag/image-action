@@ -51,7 +51,7 @@ export function PublicComparisonView({
           <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
         </div>
 
-        <div className="flex rounded-[10px] border border-border bg-background p-1">
+        <div className="flex rounded border border-border bg-background p-1">
           <button
             type="button"
             className={cn(

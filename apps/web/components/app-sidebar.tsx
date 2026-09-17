@@ -7,33 +7,32 @@ import { useTheme } from "next-themes"
 import { useSession, signOut } from "next-auth/react"
 import {
   MessageSquare,
-  LayoutGrid,
   Image as ImageIcon,
+  Paintbrush,
+  GitBranch,
+  LayoutGrid,
   Users,
-  Settings,
+  Smartphone,
   BarChart3,
+  Settings,
   Building2,
   Zap,
+  Bot,
+  CreditCard,
+  Globe,
   Sun,
   Moon,
-  Smartphone,
-  Bot,
-  Paintbrush,
-  Globe,
-  GitBranch,
-  ChevronDown,
   LogOut,
-  CreditCard,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 
-import { SafeImage } from "@/components/safe-image"
 import { cn } from "@/lib/utils"
 
 interface NavItem {
   href: string
   label: string
   icon: typeof MessageSquare
-  badge?: number
   hot?: boolean
 }
 
@@ -87,7 +86,6 @@ export function AppSidebar({
   const tenantName = tenantDisplayName || tenantSlug || "Tenant"
   const tenantInitial = tenantName[0]?.toUpperCase() || "T"
   const userName = session?.user?.name || "Usuário"
-  const userRole = session?.user?.roles?.includes("superadmin") ? "Superadmin" : "Tenant"
   const initials = userName
     .split(" ")
     .filter(Boolean)
@@ -119,7 +117,7 @@ export function AppSidebar({
           setInboxUnreadCount(unreadCount)
         }
       } catch {
-        // O badge nao deve quebrar a navegacao se o inbox estiver indisponivel.
+        // silence
       }
     }
 
@@ -137,196 +135,155 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "relative z-40 hidden h-dvh flex-col border-r border-border bg-secondary/50 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:flex",
-        collapsed ? "w-[60px]" : "w-60"
+        "relative z-40 flex h-dvh flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200",
+        collapsed ? "w-[52px]" : "w-[180px]",
       )}
     >
-      {/* Brand — 68px height, horizontal logo (or symbol when collapsed) */}
-      <div
-        className={cn(
-          "flex h-[68px] shrink-0 cursor-pointer items-center overflow-hidden px-[18px] py-5",
-          collapsed && "justify-center px-0"
-        )}
-        onClick={onToggle}
-      >
-        {collapsed ? (
-          <img src="/simbolo-azul.png" alt="Como Fica" className="h-8 w-8 shrink-0 rounded-[7px] object-contain" />
-        ) : (
-          <img
-            src="/logo-horizontal-azul.svg"
-            alt="Como Fica"
-            className="h-8 w-auto max-w-full shrink-0 object-contain"
-          />
-        )}
-      </div>
-
-      {/* Tenant card */}
-      {variant === "tenant" && (
-        <div
-          title={collapsed ? tenantName : undefined}
-          className={cn(
-            "flex cursor-pointer items-center border border-border bg-card transition-all duration-300",
-            collapsed
-              ? "mx-auto h-11 w-11 justify-center rounded-2xl p-1.5 shadow-sm"
-              : "mx-3 gap-2.5 rounded-[10px] p-2.5"
-          )}
+      {/* Header */}
+      <div className="flex h-12 shrink-0 items-center border-b border-sidebar-border px-5">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-center gap-2 transition-colors hover:opacity-80"
+          title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
         >
           <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-display text-lg"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[10px] font-bold"
             style={{
-              background: tenantLogoUrl ? "transparent" : "var(--sidebar-accent)",
-              color: "var(--sidebar-primary)",
-              border: tenantLogoUrl ? "1px solid var(--border)" : undefined,
+              background: tenantPrimaryColor || "var(--sidebar-primary)",
+              color: "var(--sidebar-primary-foreground)",
             }}
           >
-            {tenantLogoUrl ? (
-              <SafeImage
-                src={tenantLogoUrl}
-                alt={tenantName}
-                className="h-full w-full rounded-lg object-contain"
-                fallbackClassName="min-h-0 gap-0 p-0 text-[0]"
-                fallbackLabel={tenantInitial}
-                fallbackHint=""
-              />
-            ) : (
-              tenantInitial
-            )}
+            {tenantInitial}
           </div>
-          <div
-            className={cn(
-              "min-w-0 flex-1 transition-all duration-300",
-              collapsed ? "hidden" : "w-auto opacity-100"
-            )}
-          >
-            <p className="truncate text-[13px] font-medium text-foreground">{tenantName}</p>
-            <p className="truncate text-[11px] text-muted-foreground">{tenantSlug ? `${tenantSlug}.comofica.ai` : "Sem tenant vinculado"}</p>
-          </div>
-          {!collapsed && <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-        </div>
-      )}
-
-      {/* Section label */}
-      <div
-        className={cn(
-          "px-[18px] pb-1.5 pt-4 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground",
-          collapsed && "opacity-0"
-        )}
-      >
-        {variant === "superadmin" ? "Plataforma" : "Operação"}
+          {!collapsed && (
+            <span className="truncate text-[12px] font-medium text-sidebar-foreground">
+              {tenantName}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          className={cn(
+            "ml-auto shrink-0 flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/40 transition-all hover:text-sidebar-foreground",
+          )}
+          title={collapsed ? "Expandir" : "Recolher"}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+          ) : (
+            <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
+          )}
+        </button>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2.5 py-1">
+      {/* Nav items */}
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
         {navItems.map((item) => {
           const actualHref = tenantSlug ? item.href.replace("/tenant", `/tenant/${tenantSlug}`) : item.href
           const isActive = pathname === actualHref || pathname?.startsWith(actualHref + "/")
-          const badge = item.label === "Inbox" ? inboxUnreadCount : item.badge ?? 0
+          const badge = item.label === "Inbox" ? inboxUnreadCount : 0
+
           return (
             <Link
               key={item.href}
               href={actualHref}
               title={collapsed ? item.label : undefined}
               className={cn(
-                "relative flex items-center gap-3 rounded-[10px] px-2.5 py-2 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center gap-2.5 rounded px-2.5 py-2 transition-colors",
+                collapsed ? "justify-center" : "",
                 isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
+                  ? "bg-sidebar-accent text-sidebar-primary"
+                  : "text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
               )}
             >
-              <item.icon className="h-[18px] w-[18px] shrink-0" />
-              <span
-                className={cn(
-                  "flex-1 whitespace-nowrap transition-all duration-300",
-                  collapsed ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"
-                )}
-              >
-                {item.label}
-              </span>
-              {item.hot && !collapsed && (
-                <span className="rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-semibold text-primary">
-                  NOVO
-                </span>
+              {isActive && (
+                <span className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-r bg-primary" />
+              )}
+              <item.icon
+                className={cn("h-[17px] w-[17px] shrink-0", collapsed ? "" : "ml-0.5")}
+                strokeWidth={isActive ? 2.2 : 1.8}
+              />
+              {!collapsed && (
+                <span className="truncate text-[12px] font-medium">{item.label}</span>
+              )}
+              {item.hot && !isActive && (
+                <span className="ml-auto mr-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
               )}
               {badge > 0 && !collapsed && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-medium tabular-nums text-primary-foreground">
-                  {badge}
+                <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded bg-primary px-1 text-[9px] font-bold tabular-nums text-primary-foreground">
+                  {badge > 99 ? "99+" : badge}
                 </span>
               )}
               {badge > 0 && collapsed && (
-                <span className="absolute left-7 top-1 flex h-2 w-2 rounded-full bg-primary" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded bg-primary px-0.5 text-[8px] font-bold tabular-nums text-primary-foreground">
+                  {badge > 99 ? "99+" : badge}
+                </span>
               )}
             </Link>
           )
         })}
-
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border p-2.5 space-y-0.5 overflow-hidden">
-        {/* Theme toggle */}
+      <div className="flex flex-col gap-0.5 border-t border-sidebar-border px-3 py-2">
         <button
+          type="button"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           title={mounted ? (theme === "dark" ? "Modo claro" : "Modo escuro") : "Alternar tema"}
-          className="flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-primary/5 hover:text-primary"
+          className={cn(
+            "flex items-center gap-2.5 rounded px-2 py-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
+            collapsed ? "justify-center" : "",
+          )}
         >
           {mounted ? (
             theme === "dark" ? (
-              <Sun className="h-[18px] w-[18px] shrink-0" />
+              <Sun className="h-[17px] w-[17px] shrink-0" strokeWidth={1.8} />
             ) : (
-              <Moon className="h-[18px] w-[18px] shrink-0" />
+              <Moon className="h-[17px] w-[17px] shrink-0" strokeWidth={1.8} />
             )
           ) : (
-            <Sun className="h-[18px] w-[18px] shrink-0 opacity-0" />
+            <div className="h-[17px] w-[17px] shrink-0" />
           )}
-          <span
-            className={cn(
-              "whitespace-nowrap transition-all duration-300",
-              collapsed ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"
-            )}
-          >
-            {mounted ? (theme === "dark" ? "Modo claro" : "Modo escuro") : "Tema"}
-          </span>
+          {!collapsed && <span className="text-[12px] font-medium">Tema</span>}
         </button>
 
-        {/* User — gradient avatar */}
-        <div className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2">
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          title="Sair"
+          className={cn(
+            "flex items-center gap-2.5 rounded px-2 py-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-destructive",
+            collapsed ? "justify-center" : "",
+          )}
+        >
+          <LogOut className="h-[17px] w-[17px] shrink-0" strokeWidth={1.8} />
+          {!collapsed && <span className="text-[12px] font-medium">Sair</span>}
+        </button>
+
+        <div
+          title={userName}
+          className={cn(
+            "mt-1 flex items-center gap-2 rounded px-2 py-1.5",
+            collapsed ? "justify-center" : "",
+          )}
+        >
           <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-primary-foreground"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
             style={{
               background: tenantPrimaryColor
                 ? `linear-gradient(135deg, ${tenantPrimaryColor}, color-mix(in srgb, ${tenantPrimaryColor} 60%, #0ea5e9))`
-                : "linear-gradient(135deg, var(--sidebar-primary), oklch(0.6 0.12 190))",
+                : "var(--sidebar-primary)",
+              color: "var(--sidebar-primary-foreground)",
             }}
           >
             {initials || "VF"}
           </div>
-          <div
-            className={cn(
-              "min-w-0 flex-1 truncate transition-all duration-300",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-            )}
-          >
-            <p className="text-[13px] font-medium text-foreground">{userName}</p>
-            <p className="text-[11px] text-muted-foreground">{variant === "superadmin" ? "Superadmin" : userRole}</p>
-          </div>
+          {!collapsed && (
+            <span className="truncate text-[11px] text-sidebar-foreground">{userName}</span>
+          )}
         </div>
-
-        {/* Sign out */}
-        <button
-          type="button"
-          onClick={() => signOut({ callbackUrl: "/" })}
-          className="flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-primary/5 hover:text-primary"
-        >
-          <LogOut className="h-[18px] w-[18px] shrink-0" />
-          <span
-            className={cn(
-              "whitespace-nowrap transition-all duration-300",
-              collapsed ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"
-            )}
-          >
-            Sair
-          </span>
-        </button>
       </div>
     </aside>
   )

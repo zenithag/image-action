@@ -314,7 +314,7 @@ export default function SuperadminBillingPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-7">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Financeiro</p>
           <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Pagamentos</h1>
@@ -338,7 +338,7 @@ export default function SuperadminBillingPage() {
 
       <div className="flex-1 overflow-y-auto px-7 py-6 scrollbar-hide">
         {isLoading && !settings ? (
-          <div className="flex h-full items-center justify-center rounded-[10px] border border-border bg-card">
+          <div className="flex h-full items-center justify-center rounded border border-border bg-card">
             <div className="text-center">
               <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">Carregando AbacatePay...</p>
@@ -346,13 +346,13 @@ export default function SuperadminBillingPage() {
           </div>
         ) : settings && stripeSettings ? (
           <div className="mx-auto max-w-6xl space-y-6">
-            <div className="rounded-[10px] border border-border bg-card">
+            <div className="rounded border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                 <CreditCard className="h-4 w-4 text-primary" />
                 <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider AbacatePay</h2>
               </div>
               <div className="grid gap-4 p-6 md:grid-cols-2">
-                <label className="flex h-11 items-center gap-3 rounded-[10px] border border-input bg-muted/20 px-4 text-sm">
+                <label className="flex h-11 items-center gap-3 rounded border border-input bg-muted/20 px-4 text-sm">
                   <input
                     type="checkbox"
                     checked={settings.enabled}
@@ -364,7 +364,7 @@ export default function SuperadminBillingPage() {
                   <input
                     value={settings.baseUrl}
                     onChange={(event) => setSettings((current) => current ? { ...current, baseUrl: event.target.value } : current)}
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label={settings.apiKeyConfigured ? `API key configurada (${settings.apiKeyPreview})` : "API key"}>
@@ -373,14 +373,14 @@ export default function SuperadminBillingPage() {
                     value={apiKey}
                     placeholder={settings.apiKeyConfigured ? "Preencha apenas para trocar" : "Cole a API key da AbacatePay"}
                     onChange={(event) => setApiKey(event.target.value)}
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label="Webhook secret">
                   <input
                     value={settings.webhookSecret ?? ""}
                     onChange={(event) => setSettings((current) => current ? { ...current, webhookSecret: event.target.value } : current)}
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label="Webhook public key (opcional)">
@@ -388,7 +388,7 @@ export default function SuperadminBillingPage() {
                     value={settings.webhookPublicKey ?? ""}
                     onChange={(event) => setSettings((current) => current ? { ...current, webhookPublicKey: event.target.value } : current)}
                     placeholder="Use se habilitar validação HMAC"
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label="URL de retorno">
@@ -396,7 +396,7 @@ export default function SuperadminBillingPage() {
                     value={settings.returnUrl ?? ""}
                     onChange={(event) => setSettings((current) => current ? { ...current, returnUrl: event.target.value } : current)}
                     placeholder="https://comofica.ai/obrigado"
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label="URL de conclusão">
@@ -404,10 +404,10 @@ export default function SuperadminBillingPage() {
                     value={settings.completionUrl ?? ""}
                     onChange={(event) => setSettings((current) => current ? { ...current, completionUrl: event.target.value } : current)}
                     placeholder="https://comofica.ai/assinatura/concluida"
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
-                <div className="rounded-[10px] border border-border bg-muted/20 p-4 md:col-span-2">
+                <div className="rounded border border-border bg-muted/20 p-4 md:col-span-2">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="min-w-0">
                       <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Webhook</p>
@@ -428,7 +428,7 @@ export default function SuperadminBillingPage() {
               </div>
             </div>
 
-            <div className="rounded-[10px] border border-border bg-card">
+            <div className="rounded border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                 <CreditCard className="h-4 w-4 text-primary" />
                 <div>
@@ -437,7 +437,7 @@ export default function SuperadminBillingPage() {
                 </div>
               </div>
               <div className="grid gap-4 p-6 md:grid-cols-2">
-                <label className="flex h-11 items-center gap-3 rounded-[10px] border border-input bg-muted/20 px-4 text-sm">
+                <label className="flex h-11 items-center gap-3 rounded border border-input bg-muted/20 px-4 text-sm">
                   <input
                     type="checkbox"
                     checked={stripeSettings.enabled}
@@ -449,7 +449,7 @@ export default function SuperadminBillingPage() {
                   <input
                     value={stripeSettings.apiVersion}
                     onChange={(event) => setStripeSettings((current) => current ? { ...current, apiVersion: event.target.value } : current)}
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label={stripeSettings.secretKeyConfigured ? `Secret key configurada (${stripeSettings.secretKeyPreview})` : "Secret key"}>
@@ -458,7 +458,7 @@ export default function SuperadminBillingPage() {
                     value={stripeSecretKey}
                     placeholder={stripeSettings.secretKeyConfigured ? "Preencha apenas para trocar" : "Cole a sk_live ou sk_test"}
                     onChange={(event) => setStripeSecretKey(event.target.value)}
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label={stripeSettings.webhookSecretConfigured ? `Webhook secret (${stripeSettings.webhookSecretPreview})` : "Webhook secret"}>
@@ -467,14 +467,14 @@ export default function SuperadminBillingPage() {
                     value={stripeWebhookSecret}
                     placeholder={stripeSettings.webhookSecretConfigured ? "Preencha apenas para trocar" : "whsec_..."}
                     onChange={(event) => setStripeWebhookSecret(event.target.value)}
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label="Moeda">
                   <input
                     value={stripeSettings.currency}
                     onChange={(event) => setStripeSettings((current) => current ? { ...current, currency: event.target.value.toLowerCase() } : current)}
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label="Success URL">
@@ -482,7 +482,7 @@ export default function SuperadminBillingPage() {
                     value={stripeSettings.successUrl ?? ""}
                     onChange={(event) => setStripeSettings((current) => current ? { ...current, successUrl: event.target.value } : current)}
                     placeholder="https://comofica.ai/assinatura/sucesso"
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
                 <Field label="Cancel URL">
@@ -490,10 +490,10 @@ export default function SuperadminBillingPage() {
                     value={stripeSettings.cancelUrl ?? ""}
                     onChange={(event) => setStripeSettings((current) => current ? { ...current, cancelUrl: event.target.value } : current)}
                     placeholder="https://comofica.ai/assinatura/cancelada"
-                    className="h-11 w-full rounded-[10px] border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </Field>
-                <div className="rounded-[10px] border border-border bg-muted/20 p-4 md:col-span-2">
+                <div className="rounded border border-border bg-muted/20 p-4 md:col-span-2">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="min-w-0">
                       <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Webhook Stripe</p>
@@ -518,7 +518,7 @@ export default function SuperadminBillingPage() {
               {planCodes.map((planCode) => {
                 const plan = settings.plans[planCode]
                 return (
-                  <div key={planCode} className="rounded-[10px] border border-border bg-card p-5">
+                  <div key={planCode} className="rounded border border-border bg-card p-5">
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano</p>
@@ -530,22 +530,22 @@ export default function SuperadminBillingPage() {
                     </div>
                     <div className="space-y-3">
                       <Field label="Nome">
-                        <input value={plan.productName} onChange={(event) => updatePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                        <input value={plan.productName} onChange={(event) => updatePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                       </Field>
                       <Field label="Descrição">
-                        <textarea value={plan.description} rows={3} onChange={(event) => updatePlan(planCode, { description: event.target.value })} className="w-full rounded-[10px] border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                        <textarea value={plan.description} rows={3} onChange={(event) => updatePlan(planCode, { description: event.target.value })} className="w-full rounded border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                       </Field>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Field label="Preço em centavos">
-                          <input type="number" value={plan.priceCents} onChange={(event) => updatePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          <input type="number" value={plan.priceCents} onChange={(event) => updatePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                         </Field>
                         <Field label="Tokens">
-                          <input type="number" value={plan.tokensIncluded} onChange={(event) => updatePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          <input type="number" value={plan.tokensIncluded} onChange={(event) => updatePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                         </Field>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Field label="Ciclo">
-                          <select value={plan.cycle} onChange={(event) => updatePlan(planCode, { cycle: event.target.value as typeof plan.cycle })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                          <select value={plan.cycle} onChange={(event) => updatePlan(planCode, { cycle: event.target.value as typeof plan.cycle })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                             <option value="WEEKLY">Semanal</option>
                             <option value="MONTHLY">Mensal</option>
                             <option value="SEMIANNUALLY">Semestral</option>
@@ -553,13 +553,13 @@ export default function SuperadminBillingPage() {
                           </select>
                         </Field>
                         <Field label="Valor">
-                          <div className="flex h-10 items-center rounded-[10px] border border-border bg-muted/20 px-3 text-sm font-semibold">
+                          <div className="flex h-10 items-center rounded border border-border bg-muted/20 px-3 text-sm font-semibold">
                             {formatMoney(plan.priceCents)}
                           </div>
                         </Field>
                       </div>
                       <Field label="Product ID">
-                        <input value={plan.productId ?? ""} onChange={(event) => updatePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                        <input value={plan.productId ?? ""} onChange={(event) => updatePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
                       </Field>
                       <div className="grid gap-2">
                         <Button variant="outline" onClick={() => void createPlanProduct(planCode)} disabled={creatingProduct === planCode || !settings.enabled}>
@@ -585,7 +585,7 @@ export default function SuperadminBillingPage() {
               {planCodes.map((planCode) => {
                 const plan = stripeSettings.plans[planCode]
                 return (
-                  <div key={planCode} className="rounded-[10px] border border-border bg-card p-5">
+                  <div key={planCode} className="rounded border border-border bg-card p-5">
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Stripe fallback</p>
@@ -597,22 +597,22 @@ export default function SuperadminBillingPage() {
                     </div>
                     <div className="space-y-3">
                       <Field label="Nome">
-                        <input value={plan.productName} onChange={(event) => updateStripePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                        <input value={plan.productName} onChange={(event) => updateStripePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                       </Field>
                       <Field label="Descrição">
-                        <textarea value={plan.description} rows={3} onChange={(event) => updateStripePlan(planCode, { description: event.target.value })} className="w-full rounded-[10px] border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                        <textarea value={plan.description} rows={3} onChange={(event) => updateStripePlan(planCode, { description: event.target.value })} className="w-full rounded border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                       </Field>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Field label="Preço em centavos">
-                          <input type="number" value={plan.priceCents} onChange={(event) => updateStripePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          <input type="number" value={plan.priceCents} onChange={(event) => updateStripePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                         </Field>
                         <Field label="Tokens">
-                          <input type="number" value={plan.tokensIncluded} onChange={(event) => updateStripePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          <input type="number" value={plan.tokensIncluded} onChange={(event) => updateStripePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                         </Field>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Field label="Intervalo">
-                          <select value={plan.interval} onChange={(event) => updateStripePlan(planCode, { interval: event.target.value as typeof plan.interval })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                          <select value={plan.interval} onChange={(event) => updateStripePlan(planCode, { interval: event.target.value as typeof plan.interval })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                             <option value="day">Diário</option>
                             <option value="week">Semanal</option>
                             <option value="month">Mensal</option>
@@ -620,16 +620,16 @@ export default function SuperadminBillingPage() {
                           </select>
                         </Field>
                         <Field label="Valor">
-                          <div className="flex h-10 items-center rounded-[10px] border border-border bg-muted/20 px-3 text-sm font-semibold">
+                          <div className="flex h-10 items-center rounded border border-border bg-muted/20 px-3 text-sm font-semibold">
                             {formatMoney(plan.priceCents)}
                           </div>
                         </Field>
                       </div>
                       <Field label="Product ID">
-                        <input value={plan.productId ?? ""} onChange={(event) => updateStripePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                        <input value={plan.productId ?? ""} onChange={(event) => updateStripePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
                       </Field>
                       <Field label="Price ID">
-                        <input value={plan.priceId ?? ""} onChange={(event) => updateStripePlan(planCode, { priceId: event.target.value || undefined })} className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                        <input value={plan.priceId ?? ""} onChange={(event) => updateStripePlan(planCode, { priceId: event.target.value || undefined })} className="h-10 w-full rounded border border-input bg-muted/20 px-3 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
                       </Field>
                       <div className="grid gap-2">
                         <Button variant="outline" onClick={() => void createStripePlanProduct(planCode)} disabled={creatingStripeProduct === planCode || !stripeSettings.enabled}>
@@ -652,7 +652,7 @@ export default function SuperadminBillingPage() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[10px] border border-border bg-card">
+              <div className="rounded border border-border bg-card">
                 <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Ticket className="h-4 w-4 text-primary" />
                   <div>
@@ -666,7 +666,7 @@ export default function SuperadminBillingPage() {
                       value={couponForm.code}
                       onChange={(event) => setCouponForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
                       placeholder="BONUS25"
-                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm uppercase focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm uppercase focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Créditos">
@@ -675,7 +675,7 @@ export default function SuperadminBillingPage() {
                       min={1}
                       value={couponForm.creditAmount}
                       onChange={(event) => setCouponForm((current) => ({ ...current, creditAmount: Number(event.target.value) }))}
-                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Validade">
@@ -683,7 +683,7 @@ export default function SuperadminBillingPage() {
                       type="datetime-local"
                       value={couponForm.expiresAt}
                       onChange={(event) => setCouponForm((current) => ({ ...current, expiresAt: event.target.value }))}
-                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Limite total">
@@ -693,7 +693,7 @@ export default function SuperadminBillingPage() {
                       value={couponForm.maxRedemptions}
                       onChange={(event) => setCouponForm((current) => ({ ...current, maxRedemptions: event.target.value }))}
                       placeholder="Sem limite"
-                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Usos por tenant">
@@ -702,14 +702,14 @@ export default function SuperadminBillingPage() {
                       min={1}
                       value={couponForm.maxRedemptionsPerTenant}
                       onChange={(event) => setCouponForm((current) => ({ ...current, maxRedemptionsPerTenant: Number(event.target.value) }))}
-                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Observação">
                     <input
                       value={couponForm.notes}
                       onChange={(event) => setCouponForm((current) => ({ ...current, notes: event.target.value }))}
-                      className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <div className="md:col-span-2">
@@ -741,7 +741,7 @@ export default function SuperadminBillingPage() {
                 </div>
               </div>
 
-              <div className="rounded-[10px] border border-border bg-card">
+              <div className="rounded border border-border bg-card">
                 <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Users className="h-4 w-4 text-primary" />
                   <div>
@@ -751,7 +751,7 @@ export default function SuperadminBillingPage() {
                 </div>
                 {referralsPayload ? (
                   <div className="space-y-4 p-6">
-                    <label className="flex h-11 items-center gap-3 rounded-[10px] border border-input bg-muted/20 px-4 text-sm">
+                    <label className="flex h-11 items-center gap-3 rounded border border-input bg-muted/20 px-4 text-sm">
                       <input
                         type="checkbox"
                         checked={referralsPayload.settings.enabled}
@@ -771,7 +771,7 @@ export default function SuperadminBillingPage() {
                           ...current,
                           settings: { ...current.settings, defaultCreditAmount: Number(event.target.value) },
                         } : current)}
-                        className="h-10 w-full rounded-[10px] border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="h-10 w-full rounded border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </Field>
                     <Button onClick={saveReferralSettings} disabled={isSaving}>
@@ -783,7 +783,7 @@ export default function SuperadminBillingPage() {
                       <ReferralMetric label="Convertidas" value={referralsPayload.referrals.filter((item) => item.status === "converted").length} />
                       <ReferralMetric label="Créditos" value={referralsPayload.referrals.reduce((total, item) => total + item.creditsGranted, 0)} />
                     </div>
-                    <div className="divide-y divide-border rounded-[10px] border border-border">
+                    <div className="divide-y divide-border rounded border border-border">
                       {referralsPayload.referrals.slice(0, 6).map((referral) => (
                         <div key={referral.id} className="px-4 py-3 text-sm">
                           <div className="flex items-center justify-between gap-3">
@@ -804,7 +804,7 @@ export default function SuperadminBillingPage() {
               </div>
             </div>
 
-            <div className="rounded-[10px] border border-border bg-card p-5 text-sm text-muted-foreground">
+            <div className="rounded border border-border bg-card p-5 text-sm text-muted-foreground">
               <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
                 <ExternalLink className="h-4 w-4 text-primary" />
                 Próximo uso
@@ -831,7 +831,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function ReferralMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-[10px] border border-border bg-muted/20 p-3">
+    <div className="rounded border border-border bg-muted/20 p-3">
       <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-bold text-foreground">{value}</p>
     </div>

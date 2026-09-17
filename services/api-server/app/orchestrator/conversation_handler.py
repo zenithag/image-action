@@ -50,7 +50,6 @@ async def handle_inbound(inbound: NormalizedInbound) -> dict:
         mime_type = media_item.get("mime_type", "image/jpeg")
         role = media_item.get("kind", "attachment")
 
-        # Download image from WhatsApp URL and upload to MinIO
         image_url = media_item.get("url", "")
         image_data = None
         if image_url:
@@ -58,7 +57,18 @@ async def handle_inbound(inbound: NormalizedInbound) -> dict:
                 async with httpx.AsyncClient(timeout=30) as http:
                     img_resp = await http.get(image_url)
                     img_resp.raise_for_status()
+                    content_length = img_resp.headers.get("content-length")
+                    if content_length and int(content_length) > 20 * 1024 * 1024:
+                        logger.warning("Media too large from %s: %s bytes", image_url, content_length)
+                        continue
+                    content_type = img_resp.headers.get("content-type", "")
+                    if content_type and not content_type.startswith(("image/", "video/", "audio/")):
+                        logger.warning("Invalid content-type from %s: %s", image_url, content_type)
+                        continue
                     image_data = img_resp.content
+                    if len(image_data) > 20 * 1024 * 1024:
+                        logger.warning("Downloaded media exceeds 20MB limit")
+                        image_data = None
             except Exception as e:
                 logger.warning("Failed to download media from %s: %s", image_url, e)
 

@@ -219,7 +219,7 @@ function ConversationFlowCanvasNode({ data, selected }: NodeProps<FlowNode>) {
   return (
     <div
       className={cn(
-        "relative min-w-36 rounded-[8px] border bg-card px-3 py-2 text-sm font-semibold shadow-sm",
+        "relative min-w-36 rounded border bg-card px-3 py-2 text-sm font-semibold",
         nodeColor(data.nodeType),
         selected && "ring-2 ring-primary/50"
       )}
@@ -708,14 +708,11 @@ export default function TenantFlowsPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex min-h-[64px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-5 lg:px-7">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Automação WhatsApp</p>
-          <h1 className="font-display text-xl font-semibold leading-tight text-foreground">Fluxos de conversa</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 sm:px-5 lg:px-7">
+        <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">fluxos · automação</h1>
+        <div className="flex items-center gap-2">
           <form
-            className="flex min-w-[220px] flex-1 gap-2 sm:flex-none"
+            className="flex gap-1.5"
             onSubmit={(event) => {
               event.preventDefault()
               void createFlow()
@@ -724,12 +721,11 @@ export default function TenantFlowsPage({
             <input
               value={newFlowName}
               onChange={(event) => setNewFlowName(event.target.value)}
-              placeholder="Nome do novo fluxo"
-              className="h-9 min-w-0 flex-1 rounded-[8px] border border-border bg-card px-3 text-xs text-foreground outline-none sm:w-48"
+              placeholder="novo fluxo"
+              className="h-7 w-36 rounded border border-border bg-card px-2 text-[11px] text-foreground outline-none"
             />
-            <Button type="submit" size="sm" disabled={!newFlowName.trim()}>
-              <Plus className="h-4 w-4" />
-              Criar
+            <Button type="submit" size="sm" className="h-7 px-2 text-[11px]" disabled={!newFlowName.trim()}>
+              <Plus className="h-3.5 w-3.5" />
             </Button>
           </form>
           {allFlows.length > 0 && (
@@ -739,7 +735,7 @@ export default function TenantFlowsPage({
                 const flow = allFlows.find((item) => item.id === event.target.value)
                 if (flow) selectFlow(flow)
               }}
-              className="h-9 rounded-[8px] border border-border bg-card px-3 text-xs text-foreground outline-none"
+              className="h-7 rounded border border-border bg-card px-2 text-[11px] text-foreground outline-none"
             >
               {allFlows.map((flow) => (
                 <option key={flow.id} value={flow.id}>{flow.name}</option>
@@ -749,9 +745,9 @@ export default function TenantFlowsPage({
           <select
             value={settings?.automation.defaultConversationFlowId ?? ""}
             onChange={(event) => void updateDefaultFlow(event.target.value)}
-            className="h-9 rounded-[8px] border border-border bg-card px-3 text-xs text-foreground outline-none"
+            className="h-7 rounded border border-border bg-card px-2 text-[11px] text-foreground outline-none"
           >
-            <option value="">Sem fluxo padrão</option>
+            <option value="">padrão</option>
             {publishedFlows.map((flow) => (
               <option key={flow.id} value={flow.id}>{flow.name}</option>
             ))}
@@ -766,23 +762,20 @@ export default function TenantFlowsPage({
           <Button
             size="sm"
             variant="outline"
+            className="h-7 px-2 text-[11px]"
             onClick={() => importInputRef.current?.click()}
             disabled={isImporting}
           >
-            {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Importar
+            {isImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
           </Button>
-          <Button size="sm" variant="outline" onClick={exportFlow} disabled={!selectedFlow}>
-            <Download className="h-4 w-4" />
-            Exportar
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={exportFlow} disabled={!selectedFlow}>
+            <Download className="h-3.5 w-3.5" />
           </Button>
-          <Button size="sm" variant="outline" onClick={saveFlow} disabled={!selectedFlowId || isSaving}>
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={saveFlow} disabled={!selectedFlowId || isSaving}>
+            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           </Button>
-          <Button size="sm" onClick={publishFlow} disabled={!selectedFlowId || isPublishing}>
-            {isPublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Publicar
+          <Button size="sm" className="h-7 px-2 text-[11px]" onClick={publishFlow} disabled={!selectedFlowId || isPublishing}>
+            {isPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </header>
@@ -800,34 +793,27 @@ export default function TenantFlowsPage({
       )}
 
       {exportJson && (
-        <section className="shrink-0 border-b border-border bg-card px-4 py-3 sm:px-5 lg:px-7">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Exportação do fluxo</p>
-              <p className="mt-1 text-sm font-medium text-foreground">{exportName}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => void copyExportJson()}>
-                <Copy className="h-4 w-4" />
-                Copiar JSON
-              </Button>
-              <Button size="sm" variant="outline" onClick={downloadExportJson}>
-                <Download className="h-4 w-4" />
-                Baixar arquivo
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setExportJson("")}>
-                <X className="h-4 w-4" />
-                Fechar
-              </Button>
-            </div>
+        <>
+        <section className="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 sm:px-5 lg:px-7">
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void copyExportJson()}>
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={downloadExportJson}>
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => setExportJson("")}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
           </div>
-          <textarea
-            ref={exportTextAreaRef}
-            readOnly
-            value={exportJson}
-            className="mt-3 h-40 w-full resize-y rounded-[8px] border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none"
-          />
         </section>
+        <textarea
+          ref={exportTextAreaRef}
+          readOnly
+          value={exportJson}
+          className="mt-3 h-40 w-full resize-y rounded border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none"
+        />
+        </>
       )}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:grid-rows-1">
@@ -844,7 +830,7 @@ export default function TenantFlowsPage({
                 value={newFlowName}
                 onChange={(event) => setNewFlowName(event.target.value)}
                 placeholder="Novo fluxo"
-                className="min-w-0 flex-1 rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                className="min-w-0 flex-1 rounded border border-border bg-background px-3 py-2 text-sm outline-none"
               />
               <Button type="submit" size="icon" className="h-9 w-9" disabled={!newFlowName.trim()}>
                 <Plus className="h-4 w-4" />
@@ -866,7 +852,7 @@ export default function TenantFlowsPage({
                     type="button"
                     onClick={() => selectFlow(flow)}
                     className={cn(
-                      "w-full rounded-[8px] border px-3 py-3 text-left transition-colors",
+                      "w-full rounded border px-3 py-3 text-left transition-colors",
                       selectedFlowId === flow.id ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-muted"
                     )}
                   >
@@ -885,7 +871,7 @@ export default function TenantFlowsPage({
                 ))}
               </div>
             ) : (
-              <div className="rounded-[8px] border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
+              <div className="rounded border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
                 Crie o primeiro fluxo para montar a conversa.
               </div>
             )}
@@ -899,13 +885,13 @@ export default function TenantFlowsPage({
                 <input
                   value={flowMeta.name}
                   onChange={(event) => setFlowMeta((current) => ({ ...current, name: event.target.value }))}
-                  className="min-w-56 flex-1 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-sm font-semibold text-foreground outline-none focus:border-border focus:bg-background"
+                  className="min-w-56 flex-1 rounded border border-transparent bg-transparent px-2 py-1 text-sm font-semibold text-foreground outline-none focus:border-border focus:bg-background"
                 />
                 <input
                   value={flowMeta.description}
                   onChange={(event) => setFlowMeta((current) => ({ ...current, description: event.target.value }))}
                   placeholder="Descrição"
-                  className="min-w-56 flex-1 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-sm text-muted-foreground outline-none focus:border-border focus:bg-background"
+                  className="min-w-56 flex-1 rounded border border-transparent bg-transparent px-2 py-1 text-sm text-muted-foreground outline-none focus:border-border focus:bg-background"
                 />
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={deleteFlow}>
                   <Trash2 className="h-4 w-4" />
@@ -944,7 +930,7 @@ export default function TenantFlowsPage({
                   value={newFlowName}
                   onChange={(event) => setNewFlowName(event.target.value)}
                   placeholder="Ex.: Boas-vindas do WhatsApp"
-                  className="min-w-0 flex-1 rounded-[8px] border border-border bg-card px-3 py-2 text-sm text-foreground outline-none"
+                  className="min-w-0 flex-1 rounded border border-border bg-card px-3 py-2 text-sm text-foreground outline-none"
                 />
                 <Button type="submit" disabled={!newFlowName.trim()}>
                   <Plus className="h-4 w-4" />
@@ -965,7 +951,7 @@ export default function TenantFlowsPage({
                   type="button"
                   onClick={() => addBlock(block.type)}
                   disabled={!selectedFlow}
-                  className="flex items-center gap-2 rounded-[8px] border border-border bg-background px-2 py-2 text-left text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                  className="flex items-center gap-2 rounded border border-border bg-background px-2 py-2 text-left text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
                 >
                   <block.icon className="h-4 w-4 text-primary" />
                   {block.label}
@@ -993,7 +979,7 @@ export default function TenantFlowsPage({
                 <input
                   value={String(selectedNode.data.label ?? "")}
                   onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, label: event.target.value }))}
-                  className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                  className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
                 />
               </label>
 
@@ -1001,12 +987,12 @@ export default function TenantFlowsPage({
                 <div className="space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Mensagens</p>
                   {(selectedNode.data.contents ?? []).map((item, index) => (
-                    <div key={index} className="rounded-[8px] border border-border bg-background p-3">
+                    <div key={index} className="rounded border border-border bg-background p-3">
                       <div className="mb-2 flex gap-2">
                         <select
                           value={item.type}
                           onChange={(event) => updateContent(selectedNode, index, contentDefaults(event.target.value as ConversationFlowContentItem["type"]))}
-                          className="min-w-0 flex-1 rounded-[8px] border border-border bg-card px-2 py-2 text-xs"
+                          className="min-w-0 flex-1 rounded border border-border bg-card px-2 py-2 text-xs"
                         >
                           <option value="text">Texto</option>
                           <option value="image">Imagem</option>
@@ -1022,23 +1008,23 @@ export default function TenantFlowsPage({
                         <textarea
                           value={item.text ?? ""}
                           onChange={(event) => updateContent(selectedNode, index, { text: event.target.value })}
-                          className="h-24 w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none"
+                          className="h-24 w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none"
                         />
                       )}
                       {item.type === "image" && (
                         <div className="space-y-2">
-                          <input value={item.url ?? ""} onChange={(event) => updateContent(selectedNode, index, { url: event.target.value })} placeholder="URL da imagem" className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none" />
-                          <input value={item.caption ?? ""} onChange={(event) => updateContent(selectedNode, index, { caption: event.target.value })} placeholder="Legenda" className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none" />
+                          <input value={item.url ?? ""} onChange={(event) => updateContent(selectedNode, index, { url: event.target.value })} placeholder="URL da imagem" className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none" />
+                          <input value={item.caption ?? ""} onChange={(event) => updateContent(selectedNode, index, { caption: event.target.value })} placeholder="Legenda" className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none" />
                         </div>
                       )}
                       {item.type === "contact" && (
                         <div className="space-y-2">
-                          <input value={item.name ?? ""} onChange={(event) => updateContent(selectedNode, index, { name: event.target.value })} placeholder="Nome" className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none" />
-                          <input value={item.phone ?? ""} onChange={(event) => updateContent(selectedNode, index, { phone: event.target.value })} placeholder="Telefone" className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none" />
+                          <input value={item.name ?? ""} onChange={(event) => updateContent(selectedNode, index, { name: event.target.value })} placeholder="Nome" className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none" />
+                          <input value={item.phone ?? ""} onChange={(event) => updateContent(selectedNode, index, { phone: event.target.value })} placeholder="Telefone" className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none" />
                         </div>
                       )}
                       {(item.type === "delay" || item.type === "typing") && (
-                        <input value={item.seconds ?? 5} type="number" min={1} onChange={(event) => updateContent(selectedNode, index, { seconds: Number(event.target.value) })} className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none" />
+                        <input value={item.seconds ?? 5} type="number" min={1} onChange={(event) => updateContent(selectedNode, index, { seconds: Number(event.target.value) })} className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none" />
                       )}
                     </div>
                   ))}
@@ -1060,7 +1046,7 @@ export default function TenantFlowsPage({
                     <textarea
                       value={selectedNode.data.question ?? ""}
                       onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, question: event.target.value }))}
-                      className="mt-1 h-24 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                      className="mt-1 h-24 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
                     />
                   </label>
                   <label className="block text-xs font-semibold text-muted-foreground">
@@ -1068,7 +1054,7 @@ export default function TenantFlowsPage({
                     <textarea
                       value={selectedNode.data.invalid_text ?? ""}
                       onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, invalid_text: event.target.value }))}
-                      className="mt-1 h-20 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                      className="mt-1 h-20 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
                     />
                   </label>
                   <label className="block text-xs font-semibold text-muted-foreground">
@@ -1078,7 +1064,7 @@ export default function TenantFlowsPage({
                       type="number"
                       min={0}
                       onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, timeout_minutes: Number(event.target.value) }))}
-                      className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                      className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none"
                     />
                   </label>
                 </div>
@@ -1092,7 +1078,7 @@ export default function TenantFlowsPage({
                     <textarea
                       value={selectedNode.data.prompt ?? ""}
                       onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, prompt: event.target.value }))}
-                      className="mt-1 h-28 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                      className="mt-1 h-28 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
                     />
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1101,7 +1087,7 @@ export default function TenantFlowsPage({
                       <select
                         value={selectedNode.data.mode ?? "interior"}
                         onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, mode: event.target.value }))}
-                        className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm"
                       >
                         <option value="interior">Interiores</option>
                         <option value="product">Produto</option>
@@ -1117,7 +1103,7 @@ export default function TenantFlowsPage({
                         min={0}
                         max={100}
                         onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, changeStrength: Number(event.target.value) }))}
-                        className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                        className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none"
                       />
                     </label>
                   </div>
@@ -1126,20 +1112,20 @@ export default function TenantFlowsPage({
 
               {selectedNode.data.nodeType === "menu" && (
                 <div className="space-y-3">
-                  <textarea value={selectedNode.data.question ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, question: event.target.value }))} className="h-24 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
-                  <input value={selectedNode.data.invalid_text ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, invalid_text: event.target.value }))} placeholder="Texto para resposta inválida" className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
+                  <textarea value={selectedNode.data.question ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, question: event.target.value }))} className="h-24 w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
+                  <input value={selectedNode.data.invalid_text ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, invalid_text: event.target.value }))} placeholder="Texto para resposta inválida" className="w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
                   <div className="grid grid-cols-2 gap-2">
-                    <input value={selectedNode.data.max_errors ?? 3} type="number" min={0} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, max_errors: Number(event.target.value) }))} className="rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
-                    <input value={selectedNode.data.timeout_minutes ?? 0} type="number" min={0} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, timeout_minutes: Number(event.target.value) }))} className="rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
+                    <input value={selectedNode.data.max_errors ?? 3} type="number" min={0} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, max_errors: Number(event.target.value) }))} className="rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
+                    <input value={selectedNode.data.timeout_minutes ?? 0} type="number" min={0} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, timeout_minutes: Number(event.target.value) }))} className="rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
                   </div>
-                  <select value={edgeTarget(selectedNode.id, "timeout")} onChange={(event) => setHandleEdge(selectedNode.id, "timeout", event.target.value)} className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                  <select value={edgeTarget(selectedNode.id, "timeout")} onChange={(event) => setHandleEdge(selectedNode.id, "timeout", event.target.value)} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
                     <option value="">Encerrar no timeout</option>
                     {nodeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </select>
                   {(selectedNode.data.answers ?? []).map((answer) => (
                     <div key={answer.id} className="grid grid-cols-[1fr_120px_32px] gap-2">
-                      <input value={answer.label} onChange={(event) => updateAnswer(selectedNode, answer.id, { label: event.target.value })} className="min-w-0 rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
-                      <select value={edgeTarget(selectedNode.id, answer.id)} onChange={(event) => setHandleEdge(selectedNode.id, answer.id, event.target.value)} className="min-w-0 rounded-[8px] border border-border bg-background px-2 py-2 text-sm">
+                      <input value={answer.label} onChange={(event) => updateAnswer(selectedNode, answer.id, { label: event.target.value })} className="min-w-0 rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
+                      <select value={edgeTarget(selectedNode.id, answer.id)} onChange={(event) => setHandleEdge(selectedNode.id, answer.id, event.target.value)} className="min-w-0 rounded border border-border bg-background px-2 py-2 text-sm">
                         <option value="">Fim</option>
                         {nodeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                       </select>
@@ -1158,7 +1144,7 @@ export default function TenantFlowsPage({
                     <textarea
                       value={selectedNode.data.question ?? ""}
                       onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, question: event.target.value }))}
-                      className="mt-1 h-24 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                      className="mt-1 h-24 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
                     />
                   </label>
                   <label className="block text-xs font-semibold text-muted-foreground">
@@ -1166,7 +1152,7 @@ export default function TenantFlowsPage({
                     <textarea
                       value={selectedNode.data.invalid_text ?? ""}
                       onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, invalid_text: event.target.value }))}
-                      className="mt-1 h-20 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
+                      className="mt-1 h-20 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground outline-none"
                     />
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1175,7 +1161,7 @@ export default function TenantFlowsPage({
                       <input
                         value={selectedNode.data.field ?? "composition.preference"}
                         onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, field: event.target.value }))}
-                        className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                        className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none"
                       />
                     </label>
                     <label className="block text-xs font-semibold text-muted-foreground">
@@ -1185,7 +1171,7 @@ export default function TenantFlowsPage({
                         type="number"
                         min={1}
                         onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, min_length: Number(event.target.value) }))}
-                        className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                        className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none"
                       />
                     </label>
                   </div>
@@ -1196,10 +1182,10 @@ export default function TenantFlowsPage({
                       type="number"
                       min={0}
                       onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, timeout_minutes: Number(event.target.value) }))}
-                      className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none"
+                      className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none"
                     />
                   </label>
-                  <select value={edgeTarget(selectedNode.id, "timeout")} onChange={(event) => setHandleEdge(selectedNode.id, "timeout", event.target.value)} className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                  <select value={edgeTarget(selectedNode.id, "timeout")} onChange={(event) => setHandleEdge(selectedNode.id, "timeout", event.target.value)} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
                     <option value="">Encerrar no timeout</option>
                     {nodeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </select>
@@ -1208,7 +1194,7 @@ export default function TenantFlowsPage({
 
               {selectedNode.data.nodeType === "action" && (
                 <div className="space-y-3">
-                  <select value={selectedNode.data.action ?? "set_context"} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, action: event.target.value as never }))} className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                  <select value={selectedNode.data.action ?? "set_context"} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, action: event.target.value as never }))} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
                     <option value="set_ai">Devolver para IA</option>
                     <option value="set_operator">Transferir para operador</option>
                     <option value="set_state">Atualizar etapa da conversa</option>
@@ -1218,17 +1204,17 @@ export default function TenantFlowsPage({
                     <option value="complete_conversation">Fechar conversa</option>
                   </select>
                   {selectedNode.data.action === "set_state" && (
-                    <select value={selectedNode.data.state ?? "idle"} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, state: event.target.value }))} className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                    <select value={selectedNode.data.state ?? "idle"} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, state: event.target.value }))} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
                       {stateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   )}
                   {["add_context_tag", "remove_context_tag"].includes(selectedNode.data.action ?? "") && (
-                    <input value={selectedNode.data.tag ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, tag: event.target.value }))} placeholder="Tag" className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
+                    <input value={selectedNode.data.tag ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, tag: event.target.value }))} placeholder="Tag" className="w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
                   )}
                   {selectedNode.data.action === "set_context" && (
                     <div className="grid grid-cols-2 gap-2">
-                      <input value={selectedNode.data.field ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, field: event.target.value }))} placeholder="Campo" className="rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
-                      <input value={String(selectedNode.data.value ?? "")} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, value: event.target.value }))} placeholder="Valor" className="rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
+                      <input value={selectedNode.data.field ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, field: event.target.value }))} placeholder="Campo" className="rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
+                      <input value={String(selectedNode.data.value ?? "")} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, value: event.target.value }))} placeholder="Valor" className="rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
                     </div>
                   )}
                 </div>
@@ -1237,9 +1223,9 @@ export default function TenantFlowsPage({
               {selectedNode.data.nodeType === "condition" && (
                 <div className="space-y-3">
                   {(selectedNode.data.conditions ?? []).map((condition, index) => (
-                    <div key={condition.handle} className="space-y-2 rounded-[8px] border border-border bg-background p-3">
-                      <input value={condition.field} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, conditions: (data.conditions ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, field: event.target.value } : item) }))} className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none" />
-                      <select value={condition.operator} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, conditions: (data.conditions ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, operator: event.target.value as never } : item) }))} className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm">
+                    <div key={condition.handle} className="space-y-2 rounded border border-border bg-background p-3">
+                      <input value={condition.field} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, conditions: (data.conditions ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, field: event.target.value } : item) }))} className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none" />
+                      <select value={condition.operator} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, conditions: (data.conditions ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, operator: event.target.value as never } : item) }))} className="w-full rounded border border-border bg-card px-3 py-2 text-sm">
                         <option value="equals">Igual</option>
                         <option value="not_equals">Diferente</option>
                         <option value="contains">Contém</option>
@@ -1250,15 +1236,15 @@ export default function TenantFlowsPage({
                         <option value="false">Falso</option>
                       </select>
                       {!["filled", "blank", "true", "false"].includes(condition.operator) && (
-                        <input value={String(condition.value ?? "")} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, conditions: (data.conditions ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item) }))} className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm outline-none" />
+                        <input value={String(condition.value ?? "")} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, conditions: (data.conditions ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item) }))} className="w-full rounded border border-border bg-card px-3 py-2 text-sm outline-none" />
                       )}
-                      <select value={edgeTarget(selectedNode.id, condition.handle)} onChange={(event) => setHandleEdge(selectedNode.id, condition.handle, event.target.value)} className="w-full rounded-[8px] border border-border bg-card px-3 py-2 text-sm">
+                      <select value={edgeTarget(selectedNode.id, condition.handle)} onChange={(event) => setHandleEdge(selectedNode.id, condition.handle, event.target.value)} className="w-full rounded border border-border bg-card px-3 py-2 text-sm">
                         <option value="">Fim se verdadeiro</option>
                         {nodeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                       </select>
                     </div>
                   ))}
-                  <select value={edgeTarget(selectedNode.id, "false")} onChange={(event) => setHandleEdge(selectedNode.id, "false", event.target.value)} className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                  <select value={edgeTarget(selectedNode.id, "false")} onChange={(event) => setHandleEdge(selectedNode.id, "false", event.target.value)} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
                     <option value="">Fim se falso</option>
                     {nodeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </select>
@@ -1266,7 +1252,7 @@ export default function TenantFlowsPage({
               )}
 
               {selectedNode.data.nodeType === "flow_connection" && (
-                <select value={selectedNode.data.flow_id ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, flow_id: event.target.value || null }))} className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                <select value={selectedNode.data.flow_id ?? ""} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, flow_id: event.target.value || null }))} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
                   <option value="">Selecione um fluxo publicado</option>
                   {publishedFlows.filter((flow) => flow.id !== selectedFlowId).map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}
                 </select>
@@ -1276,7 +1262,7 @@ export default function TenantFlowsPage({
                 <div className="space-y-2">
                   {edges.filter((edge) => edge.source === selectedNode.id).map((edge) => (
                     <div key={edge.id} className="grid grid-cols-[1fr_32px] gap-2">
-                      <select value={edge.target} onChange={(event) => setEdges((current) => current.map((item) => item.id === edge.id ? { ...item, target: event.target.value } : item))} className="rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                      <select value={edge.target} onChange={(event) => setEdges((current) => current.map((item) => item.id === edge.id ? { ...item, target: event.target.value } : item))} className="rounded border border-border bg-background px-3 py-2 text-sm">
                         {nodeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                       </select>
                       <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => setEdges((current) => current.filter((item) => item.id !== edge.id))}><Trash2 className="h-4 w-4" /></Button>
@@ -1289,14 +1275,14 @@ export default function TenantFlowsPage({
               {selectedNode.data.nodeType === "smart_delay" && (
                 <label className="block text-xs font-semibold text-muted-foreground">
                   Segundos
-                  <input value={selectedNode.data.seconds ?? 5} type="number" min={1} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, seconds: Number(event.target.value) }))} className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none" />
+                  <input value={selectedNode.data.seconds ?? 5} type="number" min={1} onChange={(event) => updateNodeData(selectedNode.id, (data) => ({ ...data, seconds: Number(event.target.value) }))} className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm outline-none" />
                 </label>
               )}
 
               {!["menu", "condition", "flow_connection", "randomizer"].includes(selectedNode.data.nodeType) && (
                 <label className="block text-xs font-semibold text-muted-foreground">
                   Próximo bloco
-                  <select value={edgeTarget(selectedNode.id)} onChange={(event) => setHandleEdge(selectedNode.id, null, event.target.value)} className="mt-1 w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm">
+                  <select value={edgeTarget(selectedNode.id)} onChange={(event) => setHandleEdge(selectedNode.id, null, event.target.value)} className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-sm">
                     <option value="">Fim</option>
                     {nodeOptions.filter((option) => option.id !== selectedNode.id).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </select>

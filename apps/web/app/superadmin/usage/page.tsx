@@ -100,7 +100,7 @@ export default function UsagePage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-background px-7">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-7">
         <div className="flex flex-col">
           <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Observabilidade</p>
           <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Uso da plataforma</h1>
@@ -124,8 +124,8 @@ export default function UsagePage() {
           { label: "Contatos", value: data?.totals.contacts ?? 0, delta: data?.deltas.contacts, icon: Users },
           { label: "Instâncias conectadas", value: data?.totals.connectedInstances ?? 0, delta: null, icon: Smartphone },
         ].map((kpi) => (
-          <div key={kpi.label} className="rounded-[10px] border border-border bg-card p-4">
-            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10">
+          <div key={kpi.label} className="rounded border border-border bg-card p-4">
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded bg-primary/10">
               <kpi.icon className="h-4 w-4 text-primary" />
             </div>
             <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{kpi.label}</p>
@@ -137,7 +137,7 @@ export default function UsagePage() {
 
       <div className="flex-1 overflow-y-auto px-7 py-2 scrollbar-hide">
         {isLoading && !data ? (
-          <div className="flex h-full items-center justify-center rounded-[10px] border border-border bg-card">
+          <div className="flex h-full items-center justify-center rounded border border-border bg-card">
             <div className="text-center">
               <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">Carregando dados reais...</p>
@@ -146,7 +146,7 @@ export default function UsagePage() {
         ) : data ? (
           <>
             <div className="grid grid-cols-[1.6fr_1fr] gap-4">
-              <div className="rounded-[10px] border border-border bg-card p-5">
+              <div className="rounded border border-border bg-card p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h3 className="font-display text-[15px] font-semibold text-foreground">Volume da plataforma</h3>
@@ -173,7 +173,7 @@ export default function UsagePage() {
                 </div>
               </div>
 
-              <div className="rounded-[10px] border border-border bg-card p-5">
+              <div className="rounded border border-border bg-card p-5">
                 <div className="mb-4">
                   <h3 className="font-display text-[15px] font-semibold text-foreground">Top 5 tenants</h3>
                   <p className="text-xs text-muted-foreground">Mais ativos por conversas reais</p>
@@ -205,32 +205,32 @@ export default function UsagePage() {
             </div>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-              <div className="rounded-[10px] border border-border bg-card p-5">
+              <div className="rounded border border-border bg-card p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <Activity className="h-4 w-4 text-primary" />
                   <h2 className="font-display text-[15px] font-semibold text-foreground">Resumo operacional</h2>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-[10px] border border-border bg-secondary/50 p-4">
+                  <div className="rounded border border-border bg-secondary/50 p-4">
                     <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Tenants cadastrados</p>
                     <p className="mt-2 font-mono text-2xl font-medium text-foreground">{data.totals.tenants}</p>
                   </div>
-                  <div className="rounded-[10px] border border-border bg-secondary/50 p-4">
+                  <div className="rounded border border-border bg-secondary/50 p-4">
                     <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Providers ativos</p>
                     <p className="mt-2 font-mono text-2xl font-medium text-foreground">{data.providerSummary.active}</p>
                   </div>
-                  <div className="rounded-[10px] border border-border bg-secondary/50 p-4">
+                  <div className="rounded border border-border bg-secondary/50 p-4">
                     <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Providers em alerta</p>
                     <p className="mt-2 font-mono text-2xl font-medium text-foreground">{data.providerSummary.warning + data.providerSummary.error}</p>
                   </div>
-                  <div className="rounded-[10px] border border-border bg-secondary/50 p-4">
+                  <div className="rounded border border-border bg-secondary/50 p-4">
                     <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Custo de infra</p>
                     <p className="mt-2 font-mono text-2xl font-medium text-foreground">n/d</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[10px] border border-border bg-card p-5">
+              <div className="rounded border border-border bg-card p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <Bot className="h-4 w-4 text-primary" />
                   <h2 className="font-display text-[15px] font-semibold text-foreground">Leitura atual</h2>

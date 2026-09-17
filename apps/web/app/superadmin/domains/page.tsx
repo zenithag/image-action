@@ -233,7 +233,7 @@ export default function DomainsPage() {
             placeholder="Buscar domínio ou tenant..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-[10px] border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="w-full rounded border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
         <div className="text-xs text-muted-foreground">
@@ -254,7 +254,7 @@ export default function DomainsPage() {
       )}
 
       <div className="flex-1 overflow-auto p-7">
-        <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+        <div className="overflow-hidden rounded border border-border bg-card">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-border bg-secondary">
@@ -350,7 +350,7 @@ export default function DomainsPage() {
 
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-border bg-card shadow-xl">
+          <div className="w-full max-w-xl rounded border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border p-5">
               <div>
                 <h2 className="font-display text-xl font-bold text-foreground">Novo domínio</h2>
@@ -395,7 +395,7 @@ export default function DomainsPage() {
                 />
               </label>
 
-              <label className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
+              <label className="flex items-center gap-3 rounded border border-border bg-background px-4 py-3">
                 <input
                   type="checkbox"
                   checked={form.isPrimary}

@@ -15,8 +15,9 @@ class Settings(BaseSettings):
     uazapi_api_key: str = ""
     zitadel_issuer_url: str = "http://localhost:8080"
     zitadel_project_id: str = ""
-    auth_enabled: bool = False
+    auth_enabled: bool = True
     cors_allowed_origins: str = "http://localhost:3000,http://localhost:3001"
+    allowed_hosts: str = "localhost,127.0.0.1"
 
     model_config = {"env_prefix": "", "env_file": ".env"}
 

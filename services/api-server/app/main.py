@@ -1,11 +1,41 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.db import close_pool, open_pool
 from app.config import settings
+
+from app.limiter import limiter
+
+
+class SecurityHeadersMiddlewareConfig(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        host = request.headers.get("host", "")
+        allowed = [
+            h.strip() for h in settings.allowed_hosts.split(",") if h.strip()
+        ]
+        is_allowed = any(
+            allowed_host in host
+            for allowed_host in allowed
+        ) if host else True
+
+        if not is_allowed and settings.allowed_hosts:
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse("Forbidden", status_code=403)
+
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';"
+        return response
 
 
 @asynccontextmanager
@@ -28,6 +58,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    fastapi_app.state.limiter = limiter
+    fastapi_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     allowed_origins = [
         origin.strip()
         for origin in settings.cors_allowed_origins.split(",")
@@ -37,9 +70,11 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
     )
+
+    fastapi_app.add_middleware(SecurityHeadersMiddlewareConfig)
 
     from app.auth.middleware import AuthMiddleware
     fastapi_app.add_middleware(AuthMiddleware)
@@ -56,7 +91,6 @@ def create_app() -> FastAPI:
     fastapi_app.include_router(orchestrator_router, prefix="/v1")
     fastapi_app.include_router(realtime_router, prefix="/v1")
 
-    # Mount Socket.IO
     from app.realtime.manager import sio_app
     fastapi_app.mount("/socket.io", sio_app)
 

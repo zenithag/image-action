@@ -13,6 +13,7 @@ dependencies = [
     "python-socketio[asyncio]>=5.12.0",
     "PyJWT[crypto]>=2.10.0",
     "httpx>=0.28.0",
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]

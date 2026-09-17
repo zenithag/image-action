@@ -6,7 +6,7 @@
 
 @theme inline {
   --font-sans: var(--font-sans);
-  --font-display: var(--font-display);
+  --font-display: var(--font-sans);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -37,101 +37,93 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --radius-sm: calc(var(--radius) - 8px);
-  --radius-md: calc(var(--radius) - 4px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 8px);
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
 
-  /* Marca ComoFica.ai (site institucional) — aditivo, não substitui os tokens
-     do produto (--primary etc.) usados pelo console autenticado. */
   --color-brand-blue: #00165a;
   --color-brand-blue-light: #0a2472;
   --color-brand-tiffany: #01cfb0;
-  /* #00a88f (o tom "oficial" mais próximo do turquesa puro) só dá 3:1 contra
-     branco — abaixo do mínimo AA de 4.5:1 pra texto pequeno (eyebrows, badges,
-     números de passo usam esse token). Escurecido pra #007a68 (5.3:1 contra
-     branco, 4.8:1 contra o mist) mantendo o mesmo matiz — achado na QA final
-     (Guia, cap. 16.2: "contraste compatível com WCAG AA"). */
   --color-brand-tiffany-dark: #007a68;
-  /* Neutro claro com leve tom de marca — usado pra alternar respiro entre
-     seções brancas e evitar cinza genérico (Guia, cap. 15.2: "alternar
-     blocos claros e escuros para criar ritmo sem repetir seções"). */
   --color-brand-mist: #f2f5fb;
 }
 
 :root {
-  --background: #F9FAFB;
-  --foreground: #111827;
-  --card: #FFFFFF;
-  --card-foreground: #111827;
-  --popover: #FFFFFF;
-  --popover-foreground: #111827;
-  --primary: #00AF67;
-  --primary-foreground: #FFFFFF;
-  --secondary: #F3F4F6;
-  --secondary-foreground: #111827;
-  --muted: #F3F4F6;
-  --muted-foreground: #6B7280;
-  --accent: #F3F4F6;
-  --accent-foreground: #111827;
-  --destructive: oklch(0.61 0.24 27.8);
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --ring: #00AF67;
-  --radius: 10px;
+  --background: #f8f8f8;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #6b6bff;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f0f2;
+  --secondary-foreground: #3a3a3c;
+  --muted: #f0f0f2;
+  --muted-foreground: #71717a;
+  --accent: #e8e8ea;
+  --accent-foreground: #1a1a1a;
+  --destructive: #ef4444;
+  --border: #e0e0e0;
+  --input: #e0e0e0;
+  --ring: #6b6bff;
+  --radius: 4px;
 
-  --sidebar: #f3f4f6;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #00AF67;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #e5e7eb;
-  --sidebar-accent-foreground: #111827;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #00AF67;
+  --sidebar: #f0f0f2;
+  --sidebar-foreground: #3a3a3c;
+  --sidebar-primary: #1a1a1a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e0e0e0;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #d4d4d6;
+  --sidebar-ring: #6b6bff;
 
-  /* WhatsApp Colors - Light */
-  --chat-bg: #efeae2;
+  --chat-bg: #e8e8ea;
   --chat-bubble-in: #ffffff;
+  --chat-bubble-in-foreground: #1a1a1a;
   --chat-bubble-out: #dcf8c6;
+  --chat-bubble-out-foreground: #1a1a1a;
 }
 
 .dark {
-  --background: #16161E;
-  --foreground: oklch(0.962 0.008 82.1);
-  --card: #1c1c27;
-  --card-foreground: oklch(0.962 0.008 82.1);
-  --popover: #1c1c27;
-  --popover-foreground: oklch(0.962 0.008 82.1);
-  --primary: oklch(0.69 0.17 150);
-  --primary-foreground: oklch(0.19 0.012 150);
-  --secondary: #252531;
-  --secondary-foreground: oklch(0.962 0.008 82.1);
-  --muted: #252531;
-  --muted-foreground: #a1a1b5;
-  --accent: oklch(0.33 0.018 44.8);
-  --accent-foreground: oklch(0.962 0.008 82.1);
-  --destructive: oklch(0.66 0.22 27.8);
-  --border: #2a2a37;
-  --input: #2a2a37;
-  --ring: oklch(0.69 0.17 150);
+  --background: #0a0a0b;
+  --foreground: #f0f0f0;
+  --card: #111113;
+  --card-foreground: #e8e8e8;
+  --popover: #111113;
+  --popover-foreground: #e8e8e8;
+  --primary: #6b6bff;
+  --primary-foreground: #ffffff;
+  --secondary: #18181b;
+  --secondary-foreground: #d4d4d8;
+  --muted: #1c1c1f;
+  --muted-foreground: #71717a;
+  --accent: #1f1f23;
+  --accent-foreground: #e4e4e7;
+  --destructive: #ef4444;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #6b6bff;
 
-  --sidebar: #1c1c27;
-  --sidebar-foreground: oklch(0.962 0.008 82.1);
-  --sidebar-primary: oklch(0.69 0.17 150);
-  --sidebar-primary-foreground: oklch(0.19 0.012 150);
-  --sidebar-accent: #252531;
-  --sidebar-accent-foreground: oklch(0.962 0.008 82.1);
-  --sidebar-border: #2a2a37;
-  --sidebar-ring: oklch(0.69 0.17 150);
+  --sidebar: #0a0a0b;
+  --sidebar-foreground: #a1a1aa;
+  --sidebar-primary: #f0f0f0;
+  --sidebar-primary-foreground: #0a0a0b;
+  --sidebar-accent: #1c1c1f;
+  --sidebar-accent-foreground: #e4e4e7;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #6b6bff;
 
-  /* WhatsApp Colors - Dark */
   --chat-bg: #0b141a;
-  --chat-bubble-in: #202c33;
-  --chat-bubble-out: #005c4b;
+  --chat-bubble-in: #1e2c33;
+  --chat-bubble-in-foreground: #e8e8e8;
+  --chat-bubble-out: #0d3322;
+  --chat-bubble-out-foreground: #e8e8e8;
 }
 
 * {
-  @apply border-border;
+  border-color: var(--border);
 }
 
 html {
@@ -139,42 +131,27 @@ html {
 }
 
 body {
-  @apply bg-background text-foreground font-sans;
-  background-image:
-    radial-gradient(circle at top left, color-mix(in oklab, var(--primary) 12%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in oklab, var(--background) 92%, white) 0%, var(--background) 100%);
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.4;
-  background-image:
-    linear-gradient(to right, transparent 0, transparent calc(100% - 1px), color-mix(in oklab, var(--border) 40%, transparent) calc(100% - 1px)),
-    linear-gradient(to bottom, transparent 0, transparent calc(100% - 1px), color-mix(in oklab, var(--border) 26%, transparent) calc(100% - 1px));
-  background-size: 120px 120px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 80%);
+::selection {
+  background: color-mix(in oklab, var(--primary) 30%, transparent);
+  color: var(--foreground);
 }
 
 @layer base {
   * {
-    @apply border-border;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4 {
-    @apply font-[family-name:var(--font-display)];
+    border-color: var(--border);
   }
 
   ::selection {
-    background: color-mix(in oklab, var(--primary) 24%, white);
+    background: color-mix(in oklab, var(--primary) 30%, transparent);
     color: var(--foreground);
   }
 }
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -185,95 +162,67 @@ body::before {
   }
 }
 
-/* ============ Theme variants ============ */
-
-/* Graphite — paper + ink */
 [data-theme="graphite"] {
-  --background: oklch(0.975 0.006 60);
-  --foreground: oklch(0.18 0.014 60);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.014 60);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.014 60);
-  --primary: oklch(0.52 0.15 28);
-  --primary-foreground: #FFFFFF;
-  --secondary: oklch(0.95 0.006 60);
-  --secondary-foreground: oklch(0.18 0.014 60);
-  --muted: oklch(0.95 0.006 60);
-  --muted-foreground: oklch(0.52 0.010 60);
-  --accent: oklch(0.95 0.006 60);
-  --accent-foreground: oklch(0.18 0.014 60);
-  --border: oklch(0.88 0.008 60);
-  --input: oklch(0.88 0.008 60);
-  --ring: oklch(0.52 0.15 28);
+  --background: #fafafa;
+  --foreground: #09090b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #3f3f46;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #27272a;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #e4e4e7;
+  --accent-foreground: #18181b;
+  --destructive: #dc2626;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #3f3f46;
 
-  --sidebar: oklch(0.95 0.006 60);
-  --sidebar-foreground: oklch(0.18 0.014 60);
-  --sidebar-primary: oklch(0.52 0.15 28);
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: oklch(0.88 0.008 60);
-  --sidebar-accent-foreground: oklch(0.18 0.014 60);
-  --sidebar-border: oklch(0.88 0.008 60);
-  --sidebar-ring: oklch(0.52 0.15 28);
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: #27272a;
+  --sidebar-primary: #09090b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e4e7;
+  --sidebar-accent-foreground: #09090b;
+  --sidebar-border: #d4d4d8;
+  --sidebar-ring: #3f3f46;
 }
 
-/* Prisma — soft pastel */
 [data-theme="prisma"] {
-  --background: oklch(0.985 0.012 290);
-  --foreground: oklch(0.24 0.04 290);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.24 0.04 290);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.04 290);
-  --primary: oklch(0.56 0.14 268);
-  --primary-foreground: #FFFFFF;
-  --secondary: oklch(0.96 0.018 290);
-  --secondary-foreground: oklch(0.24 0.04 290);
-  --muted: oklch(0.96 0.018 290);
-  --muted-foreground: oklch(0.56 0.025 290);
-  --accent: oklch(0.96 0.018 290);
-  --accent-foreground: oklch(0.24 0.04 290);
-  --border: oklch(0.90 0.018 290);
-  --input: oklch(0.90 0.018 290);
-  --ring: oklch(0.56 0.14 268);
-  --radius: 18px;
+  --background: #fafafa;
+  --foreground: #09090b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #27272a;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #e4e4e7;
+  --accent-foreground: #18181b;
+  --destructive: #dc2626;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #6366f1;
+  --radius: 6px;
 
-  --sidebar: oklch(0.96 0.018 290);
-  --sidebar-foreground: oklch(0.24 0.04 290);
-  --sidebar-primary: oklch(0.56 0.14 268);
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: oklch(0.90 0.018 290);
-  --sidebar-accent-foreground: oklch(0.24 0.04 290);
-  --sidebar-border: oklch(0.90 0.018 290);
-  --sidebar-ring: oklch(0.56 0.14 268);
-}
-
-/* Dark mode adjustments for theme variants */
-.dark[data-theme="graphite"] {
-  --primary: oklch(0.70 0.15 28);
-  --ring: oklch(0.70 0.15 28);
-  --sidebar-primary: oklch(0.70 0.15 28);
-  --sidebar-ring: oklch(0.70 0.15 28);
-}
-.dark[data-theme="prisma"] {
-  --primary: oklch(0.75 0.13 268);
-  --ring: oklch(0.75 0.13 268);
-  --sidebar-primary: oklch(0.75 0.13 268);
-  --sidebar-ring: oklch(0.75 0.13 268);
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: #27272a;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e4e7;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #d4d4d8;
+  --sidebar-ring: #6366f1;
 }
 
-/* ============ Density variants ============ */
-[data-density="compact"] {
-  font-size: 13px;
-}
-[data-density="spacious"] {
-  /* Spacious / Editorial mode */
-}
-
-/* Guia de Estratégia do site, cap. 16.2: "respeitar prefers-reduced-motion".
-   Rede de segurança global — as transições do site público já são discretas
-   (cor, sombra, um pequeno giro de ícone), mas isso garante que ninguém que
-   peça menos movimento veja alguma, mesmo se uma futura adicionar mais. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
