@@ -102,19 +102,6 @@ services:
       api-server:
         condition: service_started
 
-  segmentation-service:
-    build:
-      context: ./services/segmentation-service
-    ports:
-      - "8010:8010"
-    environment:
-      SEGMENTATION_PROVIDER: ${SEGMENTATION_PROVIDER:-grounded_sam}
-      SEGMENTATION_LOCAL_MODEL: ${SEGMENTATION_LOCAL_MODEL:-nvidia/segformer-b2-finetuned-ade-512-512}
-      SEGMENTATION_GROUNDED_SAM_DETECTOR_MODEL: ${SEGMENTATION_GROUNDED_SAM_DETECTOR_MODEL:-IDEA-Research/grounding-dino-tiny}
-      SEGMENTATION_GROUNDED_SAM_SEGMENTER_MODEL: ${SEGMENTATION_GROUNDED_SAM_SEGMENTER_MODEL:-facebook/sam-vit-base}
-      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN:-}
-      REPLICATE_MODEL: ${REPLICATE_MODEL:-idea-research/ram-grounded-sam}
-
   web:
     build:
       context: .
@@ -129,14 +116,11 @@ services:
       AUTH_TRUST_HOST: "true"
       DATABASE_URL: postgresql://studio:studio_dev@postgres:5432/studio_app
       NODE_OPTIONS: --no-experimental-webstorage
-      SEGMENTATION_SERVICE_URL: ${SEGMENTATION_SERVICE_URL:-}
       HOSTNAME: "0.0.0.0"
     depends_on:
       postgres:
         condition: service_healthy
       api-server:
-        condition: service_started
-      segmentation-service:
         condition: service_started
 
   app-job-worker:
@@ -154,7 +138,6 @@ services:
       AUTH_TRUST_HOST: "true"
       DATABASE_URL: postgresql://studio:studio_dev@postgres:5432/studio_app
       NODE_OPTIONS: --no-experimental-webstorage
-      SEGMENTATION_SERVICE_URL: ${SEGMENTATION_SERVICE_URL:-}
       HOSTNAME: "0.0.0.0"
       PORT: 3001
       APP_JOB_WORKER_URL: http://127.0.0.1:3001/api/internal/app-jobs/process
@@ -164,8 +147,6 @@ services:
       postgres:
         condition: service_healthy
       web:
-        condition: service_started
-      segmentation-service:
         condition: service_started
 
 volumes:

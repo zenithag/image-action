@@ -10,9 +10,10 @@ import { listCatalogItems } from "@/lib/server/catalog-store"
 import { isDurableCompositionBaseImageUrl, saveCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
 import { readGeneratedAsset, saveGeneratedAsset } from "@/lib/server/generated-assets-store"
 import { findInboxMessage, listInboxMessages } from "@/lib/server/inbox-store"
-import { requestSegmentationMask, type SegmentationTarget } from "@/lib/server/segmentation-service-client"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
+
+type SegmentationTarget = "painted_wall" | "wall" | "floor" | "ceiling" | "foreground_objects" | "objects"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
 
@@ -710,59 +711,14 @@ async function prepareImageForSegmentation(baseImage: BaseImage): Promise<Segmen
   }
 }
 
-async function requestExternalSurfaceMask(job: CompositionJob, baseImage: BaseImage): Promise<SurfaceMask | null> {
-  const segmentationImage = await prepareImageForSegmentation(baseImage)
-  const result = await requestSegmentationMask({
-    image: segmentationImage.dataUrl,
-    target: getSegmentationTarget(job),
-    prompt: job.prompt,
-    exclude: getMaskExcludeList(job),
-    width: segmentationImage.width,
-    height: segmentationImage.height,
-  })
-
-  if (!result) {
-    return null
-  }
-
-  return {
-    polygons: [],
-    maskDataUrl: result.mask || undefined,
-    confidence: typeof result.confidence === "number" ? result.confidence : undefined,
-    provider: result.provider,
-    model: [result.model, segmentationImage.scale > 1 ? `analysis-upscale-${segmentationImage.scale.toFixed(2)}x` : null]
-      .filter(Boolean)
-    .join("+") || null,
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function requestExternalSurfaceMask(_job: CompositionJob, _baseImage: BaseImage): Promise<SurfaceMask | null> {
+  return null
 }
 
-async function requestExternalForegroundMask(job: CompositionJob, baseImage: BaseImage): Promise<SurfaceMask | null> {
-  const segmentationImage = await prepareImageForSegmentation(baseImage)
-  const result = await requestSegmentationMask({
-    image: segmentationImage.dataUrl,
-    target: "foreground_objects",
-    prompt: [
-      job.prompt,
-      "Selecione moveis, sofa, poltronas, mesas, cadeiras, cortinas, luminarias, plantas, vasos, portas, janelas, eletrodomesticos e objetos que devem ficar exatamente iguais por cima da superficie renderizada.",
-    ].join("\n"),
-    exclude: ["painted wall", "bare wall", "floor", "ceiling"],
-    width: segmentationImage.width,
-    height: segmentationImage.height,
-  })
-
-  if (!result) {
-    return null
-  }
-
-  return {
-    polygons: [],
-    maskDataUrl: result.mask || undefined,
-    confidence: typeof result.confidence === "number" ? result.confidence : undefined,
-    provider: result.provider,
-    model: [result.model, segmentationImage.scale > 1 ? `foreground-upscale-${segmentationImage.scale.toFixed(2)}x` : null]
-      .filter(Boolean)
-      .join("+") || null,
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function requestExternalForegroundMask(_job: CompositionJob, _baseImage: BaseImage): Promise<SurfaceMask | null> {
+  return null
 }
 
 function getWallMaskPrompt(job: CompositionJob, baseImage: BaseImage) {

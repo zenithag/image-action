@@ -22,7 +22,6 @@ services:
       AUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
       AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_APP_URL: ${APP_URL}
-      SEGMENTATION_SERVICE_URL: http://segmentation-service:8010
       OPENROUTER_SITE_URL: ${APP_URL}
       OPENROUTER_SITE_NAME: ${OPENROUTER_SITE_NAME:-ComoFica}
       OPENROUTER_IMAGE_QUALITY: ${OPENROUTER_IMAGE_QUALITY:-medium}
@@ -46,8 +45,6 @@ services:
     volumes:
       - web_data:/app/apps/web/.local
       - web_generated:/app/apps/web/public/generated
-    depends_on:
-      - segmentation-service
     expose:
       - "3000"
 
@@ -80,7 +77,6 @@ services:
       AUTH_SECRET: ${NEXTAUTH_SECRET:?Configure NEXTAUTH_SECRET in Dokploy}
       AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_APP_URL: ${APP_URL}
-      SEGMENTATION_SERVICE_URL: http://segmentation-service:8010
       OPENROUTER_SITE_URL: ${APP_URL}
       OPENROUTER_SITE_NAME: ${OPENROUTER_SITE_NAME:-ComoFica}
       OPENROUTER_IMAGE_QUALITY: ${OPENROUTER_IMAGE_QUALITY:-medium}
@@ -91,29 +87,7 @@ services:
       - web_generated:/app/apps/web/public/generated
     depends_on:
       - web
-      - segmentation-service
-
-  segmentation-service:
-    build:
-      context: ./services/segmentation-service
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      SEGMENTATION_PROVIDER: ${SEGMENTATION_PROVIDER:-grounded_sam}
-      SEGMENTATION_LOCAL_MODEL: ${SEGMENTATION_LOCAL_MODEL:-nvidia/segformer-b2-finetuned-ade-512-512}
-      GROUNDING_DINO_MODEL: ${GROUNDING_DINO_MODEL:-IDEA-Research/grounding-dino-tiny}
-      SAM_MODEL: ${SAM_MODEL:-facebook/sam-vit-base}
-      SEGMENTATION_GROUNDED_SAM_BOX_THRESHOLD: ${SEGMENTATION_GROUNDED_SAM_BOX_THRESHOLD:-0.25}
-      SEGMENTATION_GROUNDED_SAM_TEXT_THRESHOLD: ${SEGMENTATION_GROUNDED_SAM_TEXT_THRESHOLD:-0.25}
-      SEGMENTATION_REQUEST_TIMEOUT_SECONDS: ${SEGMENTATION_REQUEST_TIMEOUT_SECONDS:-120}
-      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN:-}
-      REPLICATE_MODEL: ${REPLICATE_MODEL:-idea-research/ram-grounded-sam}
-    volumes:
-      - segmentation_cache:/root/.cache
-    expose:
-      - "8010"
 
 volumes:
   web_data:
   web_generated:
-  segmentation_cache:
