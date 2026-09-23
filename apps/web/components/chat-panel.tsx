@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxMessage } from "@/lib/inbox-types"
 import { useInboxRealtime } from "@/lib/inbox-realtime-client"
 import type { StudioDraft, StudioImageSlot } from "@/lib/studio-draft"
-import { getStudioDraftStorageKey } from "@/lib/studio-draft"
+import { addStudioBaseImage, addStudioReference, getStudioDraftStorageKey } from "@/lib/studio-draft"
 import {
   AlertCircle,
   Bot,
@@ -147,19 +147,6 @@ function MessageText({ children }: { children: string }) {
       {renderTextWithLinks(children)}
     </p>
   )
-}
-
-function addStudioReference(draft: StudioDraft, artifact: StudioDraft["baseImage"]) {
-  if (!artifact) return draft.references ?? []
-
-  const currentReferences = draft.references ?? (draft.referenceImage ? [draft.referenceImage] : [])
-  const key = artifact.messageId ? `inbox:${artifact.messageId}` : artifact.mediaUrl
-  const exists = currentReferences.some((reference) => {
-    const referenceKey = reference.messageId ? `inbox:${reference.messageId}` : reference.mediaUrl
-    return referenceKey === key
-  })
-
-  return exists ? currentReferences : [...currentReferences, artifact]
 }
 
 function MediaMessage({
@@ -788,10 +775,15 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
       }
       const nextDraft: StudioDraft = {
         ...currentDraft,
-        ...(slot === "base" ? { baseImage: artifact } : {
-          referenceImage: artifact,
-          references: addStudioReference(currentDraft, artifact),
-        }),
+        ...(slot === "base"
+          ? {
+              baseImage: artifact,
+              baseImages: addStudioBaseImage(currentDraft, artifact),
+            }
+          : {
+              referenceImage: artifact,
+              references: addStudioReference(currentDraft, artifact),
+            }),
         updatedAt: new Date().toISOString(),
       }
 

@@ -15,31 +15,31 @@ type RouteContext = {
 }
 
 const CompositionJobInputSchema = z.object({
-  conversationId: z.string().uuid(),
-  channelInstanceId: z.string().uuid(),
+  conversationId: z.string().min(1).max(255),
+  channelInstanceId: z.string().min(1).max(255),
   contactName: z.string().min(1).max(255),
   contactPhone: z.string().max(50).optional(),
   mode: z.enum(["interior", "product", "print", "fashion"]).optional(),
   source: z.enum(["ai", "operator"]).optional(),
   sourceMessageId: z.string().optional(),
   baseMessageId: z.string().optional(),
-  baseImageUrl: z.string().url().optional(),
+  baseImageUrl: z.string().min(1).optional(),
   referenceMessageId: z.string().optional(),
-  referenceImageUrl: z.string().url().optional(),
+  referenceImageUrl: z.string().min(1).optional(),
   catalogItemId: z.string().optional(),
   catalogItemName: z.string().optional(),
   catalogColorReference: z.string().optional(),
   references: z.array(z.object({
     source: z.enum(["inbox", "catalog", "url"]),
     messageId: z.string().optional(),
-    imageUrl: z.string().url().optional(),
+    imageUrl: z.string().min(1).optional(),
     catalogItemId: z.string().optional(),
     catalogItemName: z.string().optional(),
     catalogSku: z.string().optional(),
     catalogCategory: z.string().optional(),
     catalogDescription: z.string().optional(),
   })).optional(),
-  changeStrength: z.number().min(0).max(1).optional(),
+  changeStrength: z.number().min(0).max(100).optional(),
   prompt: z.string().max(5000).optional(),
 })
 

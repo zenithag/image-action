@@ -5,12 +5,17 @@ import type { ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowRight,
+  Check,
   ChevronRight,
+  Copy,
   Eraser,
+  Grid,
   Image as ImageIcon,
   Layers,
   Loader2,
+  Minus,
   MousePointer2,
+  Package,
   Paintbrush,
   Plus,
   Sparkles,
@@ -21,8 +26,15 @@ import {
 import { SafeImage } from "@/components/safe-image"
 import type { CatalogItem } from "@/lib/catalog-types"
 import type { CompositionJob, CompositionJobInput } from "@/lib/composition-types"
-import type { StudioDraft, StudioImageArtifact } from "@/lib/studio-draft"
-import { getStudioDraftStorageKey } from "@/lib/studio-draft"
+import type {
+  StudioCompositionStrategy,
+  StudioDraft,
+  StudioImageArtifact,
+} from "@/lib/studio-draft"
+import {
+  getStudioArtifactKey,
+  getStudioDraftStorageKey,
+} from "@/lib/studio-draft"
 import { cn } from "@/lib/utils"
 
 function parseDraft(value: string | null): StudioDraft {
@@ -67,21 +79,6 @@ function normalizeSku(value: string | undefined) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
-}
-
-function getReferenceKey(reference: StudioImageArtifact) {
-  if (reference.source === "catalog" && reference.catalogItemId) return `catalog:${reference.catalogItemId}`
-  if (reference.source === "catalog" && reference.catalogSku) return `catalog-sku:${normalizeSku(reference.catalogSku)}`
-  if (reference.source === "inbox" && reference.messageId) return `inbox:${reference.messageId}`
-  if (reference.source === "upload") return `upload:${reference.mediaUrl.slice(0, 80)}`
-  return `${reference.source}:${reference.mediaUrl}`
-}
-
-function mergeReferences(current: StudioImageArtifact[], nextReference: StudioImageArtifact) {
-  const nextKey = getReferenceKey(nextReference)
-  const alreadyExists = current.some((reference) => getReferenceKey(reference) === nextKey)
-
-  return alreadyExists ? current : [...current, nextReference]
 }
 
 const uploadMaxDimension = 2000
@@ -144,74 +141,118 @@ async function fileToOptimizedWebpDataUrl(file: File) {
   }
 }
 
-function ImageSlotCard({
-  title,
-  description,
-  image,
-  onClear,
+function BaseEnvironmentCollectionCard({
+  baseImages,
+  activeBaseIndex,
+  onSelectBase,
+  onRemove,
   onUpload,
 }: {
-  title: string
-  description: string
-  image: StudioImageArtifact | null
-  onClear: () => void
+  baseImages: StudioImageArtifact[]
+  activeBaseIndex: number
+  onSelectBase: (index: number) => void
+  onRemove: (index: number) => void
   onUpload?: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
     <div className="rounded border border-border bg-card p-2.5">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-foreground">{title}</div>
-          <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{description}</div>
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-semibold text-foreground">
+              1. Ambientes base (Cenários)
+            </span>
+            {baseImages.length > 0 && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-medium text-primary">
+                {baseImages.length} {baseImages.length === 1 ? "cenário" : "cenários"}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            Adicione um ou mais cômodos ou ângulos que serão transformados.
+          </div>
         </div>
-        {image && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            title="Remover imagem"
+        {baseImages.length > 0 && onUpload && (
+          <label
+            className="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
+            title="Adicionar mais cenários"
           >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+            <Plus className="mr-1 h-3 w-3" />
+            Adicionar
+            <input type="file" accept="image/*" multiple className="sr-only" onChange={onUpload} />
+          </label>
         )}
       </div>
 
-      {image ? (
-        <div className="overflow-hidden rounded border border-border bg-muted">
-          <SafeImage
-            src={image.mediaUrl}
-            alt={image.caption || title}
-            className="aspect-[4/3] w-full object-cover"
-            fallbackClassName="aspect-[4/3] w-full"
-            fallbackLabel="Imagem indisponivel"
-            fallbackHint="Volte ao Inbox e envie novamente."
-          />
-          <div className="border-t border-border bg-background/80 px-2.5 py-2">
-            <div className="truncate text-[11px] font-medium text-foreground">
-              {formatSourceLabel(image)}
-            </div>
-            {image.caption && (
-              <div className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
-                {image.caption}
+      {baseImages.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2">
+          {baseImages.map((base, index) => {
+            const isSelected = index === activeBaseIndex
+            return (
+              <div
+                key={`${getStudioArtifactKey(base)}:${index}`}
+                onClick={() => onSelectBase(index)}
+                className={cn(
+                  "group relative cursor-pointer overflow-hidden rounded border bg-muted transition-all",
+                  isSelected
+                    ? "border-primary ring-2 ring-primary/30"
+                    : "border-border hover:border-muted-foreground/40"
+                )}
+              >
+                <div className="relative aspect-[4/3] w-full">
+                  <SafeImage
+                    src={base.mediaUrl}
+                    alt={base.caption || `Cenário ${index + 1}`}
+                    className="h-full w-full object-cover"
+                    fallbackClassName="h-full w-full"
+                    fallbackLabel="Cenário indisponível"
+                  />
+                  {isSelected && (
+                    <div className="absolute left-1.5 top-1.5 rounded bg-primary px-1.5 py-0.5 text-[9.5px] font-semibold text-primary-foreground shadow">
+                      Ativo no preview
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onRemove(index)
+                    }}
+                    className="absolute right-1.5 top-1.5 rounded bg-background/80 p-1 text-muted-foreground opacity-0 backdrop-blur-sm transition-opacity hover:text-foreground group-hover:opacity-100"
+                    title="Remover cenário"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="border-t border-border bg-background/80 px-2 py-1.5">
+                  <div className="truncate text-[10.5px] font-semibold text-foreground">
+                    Cenário {index + 1}: {formatSourceLabel(base)}
+                  </div>
+                  {base.caption && (
+                    <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                      {base.caption}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            )
+          })}
         </div>
       ) : (
         <div className="grid min-h-36 place-items-center rounded border-[1.5px] border-dashed border-border bg-muted/40 p-5 text-center">
           <div>
             <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground" />
             <p className="mt-2 text-[12px] font-medium text-foreground">
-              Envie uma imagem do Inbox ou do dispositivo
+              Adicione um ou mais cenários base
             </p>
             <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-              Abra uma imagem na conversa e escolha "Usar como ambiente" ou "Usar como referencia".
+              Envie fotos de ambientes do Inbox ou selecione várias fotos do dispositivo.
             </p>
             {onUpload && (
               <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Upload
-                <input type="file" accept="image/*" className="sr-only" onChange={onUpload} />
+                Upload de cenários
+                <input type="file" accept="image/*" multiple className="sr-only" onChange={onUpload} />
               </label>
             )}
           </div>
@@ -232,19 +273,38 @@ function ReferenceCollectionCard({
 }) {
   return (
     <div className="rounded border border-border bg-card p-2.5">
-      <div className="mb-2">
-        <div className="text-[12px] font-semibold text-foreground">
-          2. Referencias
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-semibold text-foreground">
+              2. Referências
+            </span>
+            {references.length > 0 && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-medium text-primary">
+                {references.length} {references.length === 1 ? "ref." : "refs."}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            Combine produtos, texturas, revestimentos ou objetos no mesmo briefing.
+          </div>
         </div>
-        <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-          Combine produtos, texturas, materiais ou objetos no mesmo briefing.
-        </div>
+        {references.length > 0 && onUpload && (
+          <label
+            className="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
+            title="Adicionar mais referências"
+          >
+            <Plus className="mr-1 h-3 w-3" />
+            Adicionar
+            <input type="file" accept="image/*" multiple className="sr-only" onChange={onUpload} />
+          </label>
+        )}
       </div>
 
       {references.length > 0 ? (
         <div className="grid grid-cols-2 gap-2">
           {references.map((reference, index) => (
-            <div key={`${getReferenceKey(reference)}:${index}`} className="overflow-hidden rounded border border-border bg-muted">
+            <div key={`${getStudioArtifactKey(reference)}:${index}`} className="overflow-hidden rounded border border-border bg-muted">
               <div className="relative">
                 <SafeImage
                   src={reference.mediaUrl}
@@ -284,13 +344,13 @@ function ReferenceCollectionCard({
               Adicione uma ou mais referencias
             </p>
             <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-              Use imagens do Inbox ou busque produtos por SKU.
+              Use imagens do Inbox, selecione múltiplos arquivos ou busque por SKU.
             </p>
             {onUpload && (
               <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Upload
-                <input type="file" accept="image/*" className="sr-only" onChange={onUpload} />
+                Upload de referências
+                <input type="file" accept="image/*" multiple className="sr-only" onChange={onUpload} />
               </label>
             )}
           </div>
@@ -298,6 +358,14 @@ function ReferenceCollectionCard({
       )}
     </div>
   )
+}
+
+type PlannedComposition = {
+  id: string
+  baseIndex: number
+  base: StudioImageArtifact
+  references: StudioImageArtifact[]
+  label: string
 }
 
 const CANVAS_TOOLS = [
@@ -323,48 +391,81 @@ export default function EditorPage({
   const { slug } = use(params)
   const router = useRouter()
   const storageKey = useMemo(() => getStudioDraftStorageKey(slug), [slug])
-  const [baseImage, setBaseImage] = useState<StudioImageArtifact | null>(null)
+
+  // Multi-cenários e multi-referências
+  const [baseImages, setBaseImages] = useState<StudioImageArtifact[]>([])
+  const [activeBaseIndex, setActiveBaseIndex] = useState(0)
   const [references, setReferences] = useState<StudioImageArtifact[]>([])
+
+  // Estratégia e controle de quantidade de montagens
+  const [strategy, setStrategy] = useState<StudioCompositionStrategy>("matrix")
+  const [targetOutputCount, setTargetOutputCount] = useState<number | null>(null)
+
+  // Configurações gerais
   const [strength, setStrength] = useState(72)
   const [prompt, setPrompt] = useState("")
   const [tool, setTool] = useState("cursor")
   const [leftOpen, setLeftOpen] = useState(true)
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isBatchProgress, setIsBatchProgress] = useState<{ current: number; total: number } | null>(null)
   const [isSearchingSku, setIsSearchingSku] = useState(false)
   const [skuQuery, setSkuQuery] = useState("")
   const [skuStatus, setSkuStatus] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [createdJob, setCreatedJob] = useState<CompositionJob | null>(null)
+  const [createdJobs, setCreatedJobs] = useState<CompositionJob[]>([])
+
   // TODO: Revisit direct canvas tools when Studio supports in-place editing workflows.
   const showCanvasTools = false
 
   async function handleUpload(event: ChangeEvent<HTMLInputElement>, slot: "base" | "reference") {
-    const file = event.target.files?.[0]
+    const files = event.target.files ? Array.from(event.target.files) : []
     event.target.value = ""
-    if (!file) return
+    if (files.length === 0) return
 
     try {
       setError(null)
-      setStatusMessage("Otimizando imagem para WebP...")
-      const mediaUrl = await fileToOptimizedWebpDataUrl(file)
-      const artifact: StudioImageArtifact = {
-        source: "upload",
-        mediaUrl,
-        caption: file.name,
-        contactName: "Studio",
-        createdAt: new Date().toISOString(),
+      setStatusMessage(`Otimizando ${files.length} ${files.length === 1 ? "imagem" : "imagens"} para WebP...`)
+
+      const artifacts: StudioImageArtifact[] = []
+      for (const file of files) {
+        const mediaUrl = await fileToOptimizedWebpDataUrl(file)
+        artifacts.push({
+          source: "upload",
+          mediaUrl,
+          caption: file.name,
+          contactName: "Studio",
+          createdAt: new Date().toISOString(),
+        })
       }
 
       if (slot === "base") {
-        setBaseImage(artifact)
-        setStatusMessage("Imagem base otimizada para WebP.")
+        setBaseImages((current) => {
+          const updated = [...current]
+          for (const art of artifacts) {
+            const key = getStudioArtifactKey(art)
+            if (!updated.some((item) => getStudioArtifactKey(item) === key)) {
+              updated.push(art)
+            }
+          }
+          return updated
+        })
+        setStatusMessage(`${files.length} ${files.length === 1 ? "cenário adicionado" : "cenários adicionados"}.`)
         return
       }
 
-      setReferences((current) => mergeReferences(current, artifact))
-      setStatusMessage("Referencia otimizada para WebP.")
+      setReferences((current) => {
+        const updated = [...current]
+        for (const art of artifacts) {
+          const key = getStudioArtifactKey(art)
+          if (!updated.some((item) => getStudioArtifactKey(item) === key)) {
+            updated.push(art)
+          }
+        }
+        return updated
+      })
+      setStatusMessage(`${files.length} ${files.length === 1 ? "referência adicionada" : "referências adicionadas"}.`)
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Erro ao carregar imagem.")
     }
@@ -382,37 +483,88 @@ export default function EditorPage({
     return () => window.removeEventListener("resize", check)
   }, [])
 
+  // Carrega rascunho
   useEffect(() => {
     const draft = parseDraft(window.localStorage.getItem(storageKey))
-    setBaseImage(draft.baseImage ?? null)
+    const initialBases = draft.baseImages ?? (draft.baseImage ? [draft.baseImage] : [])
+    setBaseImages(initialBases)
+    setActiveBaseIndex(0)
     setReferences(draft.references ?? (draft.referenceImage ? [draft.referenceImage] : []))
+    setStrategy(draft.generationStrategy ?? "matrix")
+    setTargetOutputCount(typeof draft.targetOutputCount === "number" ? draft.targetOutputCount : null)
     setPrompt(draft.instruction ?? "")
     setStrength(typeof draft.strength === "number" ? draft.strength : 72)
     setDraftLoaded(true)
   }, [storageKey])
 
+  // Salva rascunho
   useEffect(() => {
     if (!draftLoaded) return
 
     const nextDraft: StudioDraft = {
-      baseImage: baseImage ?? undefined,
+      baseImage: baseImages[0] ?? undefined,
+      baseImages,
       referenceImage: references.at(-1),
       references,
+      generationStrategy: strategy,
+      targetOutputCount: targetOutputCount ?? undefined,
       instruction: prompt,
       strength,
       updatedAt: new Date().toISOString(),
     }
     window.localStorage.setItem(storageKey, JSON.stringify(nextDraft))
-  }, [baseImage, draftLoaded, prompt, references, storageKey, strength])
+  }, [baseImages, draftLoaded, prompt, references, storageKey, strategy, strength, targetOutputCount])
 
-  const canGenerate = Boolean(baseImage && prompt.trim())
+  // Cálculo das combinações planejadas
+  const plannedCombinations: PlannedComposition[] = useMemo(() => {
+    if (baseImages.length === 0) return []
+
+    // Caso 1: Modo pacote (todas as referências juntas em cada cenário) ou apenas 1 referência/nenhuma
+    if (strategy === "bundle" || references.length <= 1) {
+      return baseImages.map((base, bIdx) => ({
+        id: `bundle:${bIdx}`,
+        baseIndex: bIdx,
+        base,
+        references,
+        label: `Cenário ${bIdx + 1}${references.length > 0 ? ` + ${references.length} ${references.length === 1 ? "referência" : "referências"}` : ""}`,
+      }))
+    }
+
+    // Caso 2: Modo matriz (cada cenário combinado com cada referência individualmente)
+    const list: PlannedComposition[] = []
+    baseImages.forEach((base, bIdx) => {
+      references.forEach((ref, rIdx) => {
+        const refTitle = ref.catalogItemName || ref.caption || `Ref. ${rIdx + 1}`
+        list.push({
+          id: `matrix:${bIdx}:${rIdx}`,
+          baseIndex: bIdx,
+          base,
+          references: [ref],
+          label: `Cenário ${bIdx + 1} × ${refTitle}`,
+        })
+      })
+    })
+    return list
+  }, [baseImages, references, strategy])
+
+  const maxAvailable = plannedCombinations.length
+  const effectiveTargetCount = targetOutputCount !== null
+    ? Math.max(1, Math.min(targetOutputCount, maxAvailable || 1))
+    : maxAvailable
+
+  const canGenerate = Boolean(baseImages.length > 0 && prompt.trim() && effectiveTargetCount > 0)
+
+  // Cenário atualmente selecionado para preview
+  const activeBaseImage = baseImages[activeBaseIndex] ?? baseImages[0] ?? null
 
   function clearDraft() {
-    setBaseImage(null)
+    setBaseImages([])
+    setActiveBaseIndex(0)
     setReferences([])
     setPrompt("")
     setStrength(72)
-    setCreatedJob(null)
+    setTargetOutputCount(null)
+    setCreatedJobs([])
     setError(null)
     setStatusMessage("Rascunho limpo.")
   }
@@ -452,7 +604,12 @@ export default function EditorPage({
         caption: item.sku ? `${item.name} - SKU ${item.sku}` : item.name,
         createdAt: new Date().toISOString(),
       }
-      setReferences((current) => mergeReferences(current, reference))
+
+      setReferences((current) => {
+        const key = getStudioArtifactKey(reference)
+        if (current.some((ref) => getStudioArtifactKey(ref) === key)) return current
+        return [...current, reference]
+      })
       setSkuStatus(`Referencia adicionada: ${item.name}${item.sku ? ` (${item.sku})` : ""}.`)
     } catch (searchError) {
       setSkuStatus(searchError instanceof Error ? searchError.message : "Erro ao buscar SKU.")
@@ -461,84 +618,110 @@ export default function EditorPage({
     }
   }
 
-  async function createComposition() {
-    if (!baseImage || !prompt.trim() || isGenerating) return
+  // Disparo em lote das montagens planejadas
+  async function createBatchCompositions() {
+    const toGenerate = plannedCombinations.slice(0, effectiveTargetCount)
+    if (toGenerate.length === 0 || !prompt.trim() || isGenerating) return
 
     setIsGenerating(true)
     setError(null)
     setStatusMessage(null)
-    setCreatedJob(null)
+    setCreatedJobs([])
+    setIsBatchProgress({ current: 0, total: toGenerate.length })
 
-    const body: CompositionJobInput = {
-      conversationId: baseImage.conversationId || `studio:${slug}`,
-      channelInstanceId: baseImage.channelInstanceId || "studio-upload",
-      contactName: baseImage.contactName || "Contato",
-      contactPhone: baseImage.contactPhone,
-      mode: "interior",
-      source: "operator",
-      baseMessageId: baseImage.source === "inbox" ? baseImage.messageId : undefined,
-      baseImageUrl: baseImage.mediaUrl,
-      referenceMessageId: references.find((reference) => reference.source === "inbox")?.messageId,
-      referenceImageUrl: references.find((reference) => reference.source === "inbox")?.mediaUrl,
-      catalogItemId: references.find((reference) => reference.source === "catalog")?.catalogItemId,
-      catalogItemName: references.find((reference) => reference.source === "catalog")?.catalogItemName,
-      references: references.map((reference) => ({
-        source: reference.source === "upload" ? "url" : reference.source,
-        messageId: reference.source === "inbox" ? reference.messageId : undefined,
-        imageUrl: reference.source === "inbox" || reference.source === "upload" ? reference.mediaUrl : undefined,
-        catalogItemId: reference.source === "catalog" ? reference.catalogItemId : undefined,
-        catalogItemName: reference.source === "catalog" ? reference.catalogItemName : undefined,
-        catalogSku: reference.catalogSku,
-        catalogCategory: reference.catalogCategory,
-        catalogDescription: reference.catalogDescription,
-      })),
-      changeStrength: strength,
-      prompt: [
-        prompt.trim(),
-        references
-          .filter((reference) => reference.source === "catalog")
-          .map((reference, index) => [
-            `Referencia ${index + 1} selecionada por SKU: ${reference.catalogItemName || "produto"}.`,
-            reference.catalogSku ? `SKU: ${reference.catalogSku}.` : "",
-            reference.catalogCategory ? `Categoria: ${reference.catalogCategory}.` : "",
-            reference.catalogDescription ? `Descricao do produto: ${reference.catalogDescription}.` : "",
-          ].filter(Boolean).join(" "))
-          .join("\n"),
-        references.length > 0 ? "Use todas as imagens de referencia do Estudio em conjunto, respeitando o papel de cada uma descrito na instrucao do operador." : "",
-      ].filter(Boolean).join("\n"),
-    }
+    const newlyCreated: CompositionJob[] = []
 
     try {
-      const response = await fetch(`/api/tenant/${slug}/compositions/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const payload = await response.json().catch(() => null) as { job?: CompositionJob; error?: string } | null
+      for (let i = 0; i < toGenerate.length; i++) {
+        const item = toGenerate[i]
+        setIsBatchProgress({ current: i + 1, total: toGenerate.length })
+        setStatusMessage(`Enviando montagem ${i + 1} de ${toGenerate.length}: ${item.label}...`)
 
-      if (!response.ok || !payload?.job) {
-        throw new Error(payload?.error || "Nao foi possivel criar a composicao.")
+        const body: CompositionJobInput = {
+          conversationId: item.base.conversationId || `studio:${slug}`,
+          channelInstanceId: item.base.channelInstanceId || "studio-upload",
+          contactName: item.base.contactName || "Contato",
+          contactPhone: item.base.contactPhone,
+          mode: "interior",
+          source: "operator",
+          baseMessageId: item.base.source === "inbox" ? item.base.messageId : undefined,
+          baseImageUrl: item.base.mediaUrl,
+          referenceMessageId: item.references.find((reference) => reference.source === "inbox")?.messageId,
+          referenceImageUrl: item.references.find((reference) => reference.source === "inbox" || reference.source === "upload")?.mediaUrl,
+          catalogItemId: item.references.find((reference) => reference.source === "catalog")?.catalogItemId,
+          catalogItemName: item.references.find((reference) => reference.source === "catalog")?.catalogItemName,
+          references: item.references.map((reference) => ({
+            source: reference.source === "upload" ? "url" : reference.source,
+            messageId: reference.source === "inbox" ? reference.messageId : undefined,
+            imageUrl: reference.source === "inbox" || reference.source === "upload" ? reference.mediaUrl : undefined,
+            catalogItemId: reference.source === "catalog" ? reference.catalogItemId : undefined,
+            catalogItemName: reference.source === "catalog" ? reference.catalogItemName : undefined,
+            catalogSku: reference.catalogSku,
+            catalogCategory: reference.catalogCategory,
+            catalogDescription: reference.catalogDescription,
+          })),
+          changeStrength: strength,
+          prompt: [
+            prompt.trim(),
+            item.references
+              .filter((reference) => reference.source === "catalog")
+              .map((reference, index) => [
+                `Referencia ${index + 1} selecionada por SKU: ${reference.catalogItemName || "produto"}.`,
+                reference.catalogSku ? `SKU: ${reference.catalogSku}.` : "",
+                reference.catalogCategory ? `Categoria: ${reference.catalogCategory}.` : "",
+                reference.catalogDescription ? `Descricao do produto: ${reference.catalogDescription}.` : "",
+              ].filter(Boolean).join(" "))
+              .join("\n"),
+            item.references.length > 1
+              ? "Use todas as imagens de referencia do Estudio em conjunto, respeitando o papel de cada uma descrito na instrucao do operador."
+              : "",
+          ].filter(Boolean).join("\n"),
+        }
+
+        const response = await fetch(`/api/tenant/${slug}/compositions/jobs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+        const payload = await response.json().catch(() => null) as { job?: CompositionJob; error?: string } | null
+
+        if (!response.ok || !payload?.job) {
+          throw new Error(payload?.error || `Erro ao enfileirar montagem ${i + 1}.`)
+        }
+
+        newlyCreated.push(payload.job)
       }
 
-      setCreatedJob(payload.job)
-      setStatusMessage("Composicao enviada para a fila de processamento.")
+      setCreatedJobs(newlyCreated)
+      setStatusMessage(
+        `${newlyCreated.length} ${newlyCreated.length === 1 ? "composição enviada" : "composições enviadas"} para a fila com sucesso!`
+      )
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Erro ao criar composicao.")
+      setError(createError instanceof Error ? createError.message : "Erro ao criar composições em lote.")
     } finally {
       setIsGenerating(false)
+      setIsBatchProgress(null)
     }
   }
 
   return (
     <div className="flex h-full flex-col">
+      {/* Top Header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-7">
-        <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            NOVO
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              NOVO
+            </div>
+            <div className="font-display text-xl font-semibold leading-tight tracking-tight">
+              Estudio
+            </div>
           </div>
-          <div className="font-display text-xl font-semibold leading-tight tracking-tight">
-            Estudio
-          </div>
+          {maxAvailable > 1 && (
+            <span className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-xs font-semibold text-primary">
+              Modo Lote ({effectiveTargetCount} de {maxAvailable} {maxAvailable === 1 ? "montagem" : "montagens"})
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -557,41 +740,64 @@ export default function EditorPage({
           </button>
           <button
             type="button"
-            onClick={createComposition}
+            onClick={createBatchCompositions}
             disabled={!canGenerate || isGenerating}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[13px] font-medium text-primary-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            Gerar composicao
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>
+                  {isBatchProgress
+                    ? `Gerando (${isBatchProgress.current}/${isBatchProgress.total})...`
+                    : "Gerando..."}
+                </span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>
+                  Gerar {effectiveTargetCount > 1 ? `${effectiveTargetCount} composições` : "composição"}
+                </span>
+              </>
+            )}
           </button>
         </div>
       </div>
 
-      {(error || statusMessage || createdJob) && (
+      {/* Feedback Bar */}
+      {(error || statusMessage || createdJobs.length > 0) && (
         <div className={cn(
           "flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-5 py-2 text-xs",
-          error ? "border-destructive/20 bg-destructive/10 text-destructive" : "border-primary/20 bg-primary/10 text-primary"
+          error
+            ? "border-destructive/20 bg-destructive/10 text-destructive"
+            : "border-primary/20 bg-primary/10 text-primary"
         )}>
-          <span>{error || statusMessage}</span>
-          {createdJob && (
+          <div className="flex items-center gap-2">
+            {isGenerating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            <span>{error || statusMessage}</span>
+          </div>
+          {createdJobs.length > 0 && (
             <button
               type="button"
               onClick={() => router.push(`/tenant/${slug}/compositions`)}
               className="inline-flex items-center gap-1 font-semibold underline-offset-4 hover:underline"
             >
-              Ver fila <ArrowRight className="h-3.5 w-3.5" />
+              Ver {createdJobs.length} {createdJobs.length === 1 ? "composição na fila" : "composições na fila"} <ArrowRight className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       )}
 
+      {/* Main Grid */}
       <div
         className="grid flex-1 overflow-hidden bg-muted/30"
         style={{
-          gridTemplateColumns: `${leftOpen ? "minmax(220px, 280px)" : "44px"} minmax(0, 1fr)`,
+          gridTemplateColumns: `${leftOpen ? "minmax(280px, 340px)" : "44px"} minmax(0, 1fr)`,
           transition: "grid-template-columns 0.2s",
         }}
       >
+        {/* Left Sidebar */}
         {!leftOpen ? (
           <div className="flex flex-col items-center border-r border-border bg-background pt-3">
             <button
@@ -605,14 +811,14 @@ export default function EditorPage({
               className="mt-5 text-[11px] uppercase tracking-[0.08em] text-muted-foreground"
               style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
             >
-              Entradas
+              Entradas & Lote
             </div>
           </div>
         ) : (
           <div className="flex min-w-0 flex-col overflow-hidden border-r border-border bg-background">
             <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
               <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Entradas
+                Entradas & Lote
               </span>
               <button
                 onClick={() => setLeftOpen(false)}
@@ -623,24 +829,35 @@ export default function EditorPage({
               </button>
             </div>
 
-            <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5 scrollbar-hide">
-              <ImageSlotCard
-                title="1. Ambiente base"
-                description="Imagem principal que sera transformada."
-                image={baseImage}
-                onClear={() => setBaseImage(null)}
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 scrollbar-hide">
+              {/* 1. Ambientes base (Cenários) */}
+              <BaseEnvironmentCollectionCard
+                baseImages={baseImages}
+                activeBaseIndex={activeBaseIndex}
+                onSelectBase={(index) => setActiveBaseIndex(index)}
+                onRemove={(index) => {
+                  setBaseImages((current) => {
+                    const updated = current.filter((_, i) => i !== index)
+                    if (activeBaseIndex >= updated.length) {
+                      setActiveBaseIndex(Math.max(0, updated.length - 1))
+                    }
+                    return updated
+                  })
+                }}
                 onUpload={(event) => void handleUpload(event, "base")}
               />
 
+              {/* 2. Referências */}
               <ReferenceCollectionCard
                 references={references}
-                onRemove={(index) => setReferences((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                onRemove={(index) => setReferences((current) => current.filter((_, i) => i !== index))}
                 onUpload={(event) => void handleUpload(event, "reference")}
               />
 
-              <div className="rounded border border-border bg-card p-3">
+              {/* Buscar referência por SKU */}
+              <div className="rounded border border-border bg-card p-2.5">
                 <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  Buscar referencia por SKU
+                  Buscar referência por SKU
                 </div>
                 <form
                   className="flex gap-2"
@@ -653,36 +870,188 @@ export default function EditorPage({
                     value={skuQuery}
                     onChange={(event) => setSkuQuery(event.target.value)}
                     placeholder="Ex: REV-MOSAICO..."
-                    className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                   />
                   <button
                     type="submit"
                     disabled={!skuQuery.trim() || isSearchingSku}
-                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isSearchingSku ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                    {isSearchingSku ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
                     Buscar
                   </button>
                 </form>
                 {skuStatus && (
-                  <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+                  <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
                     {skuStatus}
                   </p>
                 )}
               </div>
 
+              {/* 3. Configuração das Montagens (Estratégia & Quantidade de Entradas) */}
+              {(baseImages.length > 0 || references.length > 0) && (
+                <div className="rounded border border-border bg-card p-2.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-semibold text-foreground">
+                      3. Configuração das Montagens
+                    </span>
+                    <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-foreground">
+                      {maxAvailable} {maxAvailable === 1 ? "combinação" : "combinações"}
+                    </span>
+                  </div>
+
+                  {/* Modo de Combinação */}
+                  <div>
+                    <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                      Modo de combinação:
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setStrategy("matrix")}
+                        className={cn(
+                          "flex flex-col items-start rounded-md border p-2 text-left transition-colors",
+                          strategy === "matrix"
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                          <Grid className="h-3.5 w-3.5" />
+                          Matriz 1x1
+                        </div>
+                        <div className="mt-0.5 text-[10px] leading-snug opacity-80">
+                          {baseImages.length} {baseImages.length === 1 ? "cenário" : "cenários"} × {references.length} {references.length === 1 ? "ref." : "refs."}
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setStrategy("bundle")}
+                        className={cn(
+                          "flex flex-col items-start rounded-md border p-2 text-left transition-colors",
+                          strategy === "bundle"
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                          <Package className="h-3.5 w-3.5" />
+                          Pacote Único
+                        </div>
+                        <div className="mt-0.5 text-[10px] leading-snug opacity-80">
+                          Todas as refs juntas em cada cenário
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Seletor de Quantidade de Composições a Gerar */}
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                      <span className="font-medium text-muted-foreground">
+                        Quantidade a gerar:
+                      </span>
+                      <span className="font-semibold text-foreground">
+                        {effectiveTargetCount} de {maxAvailable}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTargetOutputCount((prev) => Math.max(1, (prev ?? maxAvailable) - 1))}
+                        disabled={effectiveTargetCount <= 1}
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted disabled:opacity-40"
+                        title="Diminuir quantidade"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+
+                      <input
+                        type="number"
+                        min={1}
+                        max={maxAvailable || 1}
+                        value={effectiveTargetCount}
+                        onChange={(event) => {
+                          const val = parseInt(event.target.value, 10)
+                          if (!isNaN(val)) {
+                            setTargetOutputCount(Math.max(1, Math.min(val, maxAvailable || 1)))
+                          }
+                        }}
+                        className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-center text-xs font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => setTargetOutputCount((prev) => Math.min(maxAvailable, (prev ?? maxAvailable) + 1))}
+                        disabled={effectiveTargetCount >= maxAvailable}
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted disabled:opacity-40"
+                        title="Aumentar quantidade"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Presets rápidos */}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {[1, 2, 4, maxAvailable]
+                        .filter((val, idx, arr) => val > 0 && val <= maxAvailable && arr.indexOf(val) === idx)
+                        .map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setTargetOutputCount(val === maxAvailable ? null : val)}
+                            className={cn(
+                              "rounded border px-2 py-0.5 text-[10.5px] font-medium transition-colors",
+                              effectiveTargetCount === val
+                                ? "border-primary bg-primary/10 text-primary font-semibold"
+                                : "border-border bg-background text-muted-foreground hover:bg-muted"
+                            )}
+                          >
+                            {val === maxAvailable ? `Todas (${maxAvailable})` : `${val} ${val === 1 ? "montagem" : "montagens"}`}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Prévia da lista planejada */}
+                  <div className="rounded border border-border/70 bg-muted/30 p-2">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      Resumo da fila:
+                    </div>
+                    <ul className="space-y-1 text-[10.5px] text-muted-foreground">
+                      {plannedCombinations.slice(0, effectiveTargetCount).map((item, idx) => (
+                        <li key={item.id} className="flex items-center gap-1.5 truncate">
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-foreground">
+                            {idx + 1}
+                          </span>
+                          <span className="truncate">{item.label}</span>
+                        </li>
+                      ))}
+                      {effectiveTargetCount < maxAvailable && (
+                        <li className="text-[10px] italic text-muted-foreground">
+                          + {maxAvailable - effectiveTargetCount} combinação(ões) ignoradas pelo limite
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Instrução */}
               <div>
-                <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  3. Instrucao
+                <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  4. Instrução
                 </div>
                 <textarea
                   className="w-full resize-y rounded border border-border bg-card p-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-                  style={{ minHeight: 110 }}
+                  style={{ minHeight: 95 }}
                   placeholder="Ex: aplique o revestimento da referencia na parede do fundo, mantendo moveis, portas, janelas e iluminacao natural."
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                 />
-                <div className="mt-2 flex flex-wrap gap-1">
+                <div className="mt-1.5 flex flex-wrap gap-1">
                   {QUICK_TAGS.map((tag) => (
                     <button
                       key={tag}
@@ -696,6 +1065,7 @@ export default function EditorPage({
                 </div>
               </div>
 
+              {/* 5. Intensidade da mudança */}
               <div>
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
@@ -712,12 +1082,12 @@ export default function EditorPage({
                   className="w-full accent-primary"
                 />
                 <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                  Baixa intensidade deixa a alteração mais discreta. Alta intensidade deixa a mudança mais evidente, mantendo realismo, escala e perspectiva.
+                  Baixa intensidade deixa a alteração mais discreta. Alta intensidade deixa a mudança mais evidente, mantendo escala e perspectiva.
                 </p>
               </div>
             </div>
 
-            <div className="border-t border-border bg-muted/50 px-4 py-3">
+            <div className="border-t border-border bg-muted/50 px-4 py-2.5">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Processamento</span>
                 <span className="font-mono">fila do tenant</span>
@@ -726,6 +1096,7 @@ export default function EditorPage({
           </div>
         )}
 
+        {/* Right Canvas / Preview Area */}
         <div className="flex flex-col overflow-hidden bg-muted/30 p-5">
           {showCanvasTools && (
             <div className="mb-3.5 flex items-center gap-0.5 self-center rounded border border-border bg-card p-1">
@@ -748,16 +1119,40 @@ export default function EditorPage({
             </div>
           )}
 
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+          {/* Central Split View: Base Image & Preview */}
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Base Image Box */}
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Ambiente base
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Ambiente Base ({baseImages.length > 0 ? `${activeBaseIndex + 1} de ${baseImages.length}` : "Nenhum"})
+                </span>
+                {baseImages.length > 1 && (
+                  <div className="flex items-center gap-1">
+                    {baseImages.map((_, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveBaseIndex(idx)}
+                        className={cn(
+                          "rounded px-2 py-0.5 text-[10.5px] font-semibold transition-colors",
+                          idx === activeBaseIndex
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Cenário {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="relative flex-1 overflow-hidden rounded border border-border bg-card">
-                {baseImage ? (
+                {activeBaseImage ? (
                   <SafeImage
-                    src={baseImage.mediaUrl}
-                    alt={baseImage.caption || "Ambiente base"}
+                    src={activeBaseImage.mediaUrl}
+                    alt={activeBaseImage.caption || "Ambiente base"}
                     className="h-full w-full object-contain"
                     fallbackClassName="h-full w-full"
                     fallbackLabel="Ambiente indisponivel"
@@ -769,48 +1164,55 @@ export default function EditorPage({
                       <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
                       <p className="mt-3 text-sm font-medium">Nenhum ambiente base selecionado</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Use uma imagem recebida no Inbox como ponto de partida.
+                        Adicione um ou mais ambientes no painel lateral esquerdo.
                       </p>
                     </div>
                   </div>
                 )}
-                {baseImage && (
+                {activeBaseImage && (
                   <div className="absolute left-3 top-3 rounded bg-accent px-2.5 py-1 text-[10.5px] font-semibold">
-                    Ambiente do Inbox
+                    Cenário {activeBaseIndex + 1} ({formatSourceLabel(activeBaseImage)})
                   </div>
                 )}
               </div>
             </div>
 
+            {/* Preview Box */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  Pre-visualizacao
+                  Pré-visualização da Composição
                 </span>
-                <div className="flex gap-1">
-                  <button type="button" className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                    Rascunho
-                  </button>
-                  <button type="button" className="rounded-full border border-border px-1.5 py-0.5 text-muted-foreground hover:bg-muted">
-                    <Plus className="h-3 w-3" />
-                  </button>
+                <div className="flex items-center gap-1.5">
+                  {effectiveTargetCount > 1 ? (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                      Lote: {effectiveTargetCount} montagens
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                      Rascunho
+                    </span>
+                  )}
                 </div>
               </div>
+
               <div className="relative flex-1 overflow-hidden rounded border border-primary/20 bg-card">
-                {baseImage ? (
+                {activeBaseImage ? (
                   <>
                     <SafeImage
-                      src={baseImage.mediaUrl}
+                      src={activeBaseImage.mediaUrl}
                       alt="Pre-visualizacao"
                       className="h-full w-full object-contain opacity-95"
                       fallbackClassName="h-full w-full"
                       fallbackLabel="Pre-visualizacao indisponivel"
                     />
-                    <div className="absolute inset-0 bg-primary/5" />
+                    <div className="absolute inset-0 bg-primary/5 pointer-events-none" />
+
+                    {/* Miniaturas de referências sobrepostas no canto superior */}
                     {references.length > 0 && (
-                      <div className="absolute right-3 top-3 flex max-w-[55%] gap-1.5 overflow-hidden rounded border border-border bg-background/90 p-1.5">
-                        {references.slice(0, 3).map((reference, index) => (
-                          <div key={`${getReferenceKey(reference)}:preview:${index}`} className="relative h-14 w-14 overflow-hidden rounded-md bg-muted">
+                      <div className="absolute right-3 top-3 flex max-w-[65%] gap-1.5 overflow-hidden rounded border border-border bg-background/90 p-1.5 shadow-sm">
+                        {references.slice(0, 4).map((reference, index) => (
+                          <div key={`${getStudioArtifactKey(reference)}:preview:${index}`} className="relative h-12 w-12 overflow-hidden rounded-md bg-muted">
                             <SafeImage
                               src={reference.mediaUrl}
                               alt="Referencia"
@@ -820,32 +1222,47 @@ export default function EditorPage({
                             />
                           </div>
                         ))}
-                        {references.length > 3 && (
-                          <div className="grid h-14 w-14 place-items-center rounded-md bg-muted text-xs font-semibold">
-                            +{references.length - 3}
+                        {references.length > 4 && (
+                          <div className="grid h-12 w-12 place-items-center rounded-md bg-muted text-xs font-semibold">
+                            +{references.length - 4}
                           </div>
                         )}
                       </div>
                     )}
-                    <div className="absolute inset-x-3 bottom-3 flex items-center">
+
+                    {/* Barra de ação inferior */}
+                    <div className="absolute inset-x-3 bottom-3 flex items-center gap-2">
                       <span className="flex items-center gap-1.5 rounded bg-accent px-2.5 py-1 text-[10.5px] font-semibold">
-                        <Sparkles className="h-3 w-3" /> pronto para gerar
+                        <Sparkles className="h-3 w-3" />
+                        {effectiveTargetCount > 1
+                          ? `${effectiveTargetCount} composições prontas para gerar`
+                          : "Pronto para gerar"}
                       </span>
                       <span className="flex-1" />
                       <button
                         type="button"
-                        onClick={() => void createComposition()}
+                        onClick={() => void createBatchCompositions()}
                         disabled={!canGenerate || isGenerating}
-                        className="rounded-full bg-primary px-2.5 py-1 text-[10.5px] font-medium text-primary-foreground shadow-sm hover:brightness-105 disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground shadow-sm hover:brightness-105 disabled:opacity-50"
                       >
-                        Gerar
+                        {isGenerating ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Enviando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3" />
+                            <span>Gerar {effectiveTargetCount > 1 ? `${effectiveTargetCount} montagens` : "montagem"}</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </>
                 ) : (
                   <div className="grid h-full min-h-72 place-items-center text-center text-muted-foreground">
                     <p className="max-w-xs px-6 text-sm">
-                      A pre-visualizacao aparece depois que o ambiente base for enviado do Inbox.
+                      A pré-visualização aparecerá assim que você carregar ao menos um ambiente base.
                     </p>
                   </div>
                 )}
@@ -853,19 +1270,38 @@ export default function EditorPage({
             </div>
           </div>
 
+          {/* Histórico / Galeria das entradas selecionadas */}
           <div className="mt-4 flex items-center gap-2.5">
             <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-              Historico
+              Entradas ({baseImages.length} {baseImages.length === 1 ? "cenário" : "cenários"}, {references.length} {references.length === 1 ? "ref" : "refs"})
             </span>
-            <div className="flex gap-2.5 overflow-hidden">
-              {[baseImage, ...references].map((image, index) => (
+            <div className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
+              {baseImages.map((image, index) => (
                 <div
-                  key={index}
-                  className="aspect-[4/3] w-20 shrink-0 overflow-hidden rounded border border-border bg-muted"
+                  key={`base-thumb:${index}`}
+                  onClick={() => setActiveBaseIndex(index)}
+                  className={cn(
+                    "group relative aspect-[4/3] w-16 shrink-0 cursor-pointer overflow-hidden rounded border transition-all",
+                    index === activeBaseIndex ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-muted-foreground/40"
+                  )}
+                  title={`Cenário ${index + 1}`}
                 >
-                  {image ? (
-                    <SafeImage src={image.mediaUrl} alt="Historico" className="h-full w-full object-cover" />
-                  ) : null}
+                  <SafeImage src={image.mediaUrl} alt={`Cenário ${index + 1}`} className="h-full w-full object-cover" />
+                  <div className="absolute bottom-0 inset-x-0 bg-background/80 px-1 py-0.5 text-[8.5px] font-bold text-center">
+                    Cen {index + 1}
+                  </div>
+                </div>
+              ))}
+              {references.map((image, index) => (
+                <div
+                  key={`ref-thumb:${index}`}
+                  className="relative aspect-square w-16 shrink-0 overflow-hidden rounded border border-border bg-muted"
+                  title={image.catalogItemName || `Referência ${index + 1}`}
+                >
+                  <SafeImage src={image.mediaUrl} alt="Referência" className="h-full w-full object-cover" />
+                  <div className="absolute bottom-0 inset-x-0 bg-background/80 px-1 py-0.5 text-[8.5px] font-bold text-center truncate">
+                    Ref {index + 1}
+                  </div>
                 </div>
               ))}
             </div>

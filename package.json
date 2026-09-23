@@ -12,7 +12,7 @@
     "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit -p tsconfig.typecheck.json",
     "dev:api": "cd services/api-server && uvicorn app.main:app --reload --port 8000",
     "dev:segmentation": "cd services/segmentation-service && uvicorn app.main:app --reload --port 8010",
-    "dev:worker": "cd services/composition-worker && python -m worker.main",
+    "dev:worker": "cd services/composition-worker && python3 -m worker.main",
     "test:api": "cd services/api-server && pytest -v",
     "test:segmentation": "cd services/segmentation-service && pytest -v",
     "dev": "echo 'Run: docker compose up -d && pnpm dev:api & pnpm dev:segmentation & pnpm dev:worker & pnpm dev:web'"
