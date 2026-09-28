@@ -39,7 +39,7 @@ export function getStudioArtifactKey(artifact: StudioImageArtifact): string {
   if (artifact.source === "catalog" && artifact.catalogItemId) return `catalog:${artifact.catalogItemId}`
   if (artifact.source === "catalog" && artifact.catalogSku) return `catalog-sku:${artifact.catalogSku.toLowerCase()}`
   if (artifact.source === "inbox" && artifact.messageId) return `inbox:${artifact.messageId}`
-  if (artifact.source === "upload") return `upload:${artifact.mediaUrl.slice(0, 80)}`
+  if (artifact.source === "upload") return `upload:${artifact.mediaUrl}`
   return `${artifact.source}:${artifact.mediaUrl}`
 }
 
