@@ -49,6 +49,7 @@ export type CompositionJob = {
 }
 
 export type CompositionJobInput = {
+  studioVersion?: "v1"
   conversationId: string
   channelInstanceId: string
   contactName: string

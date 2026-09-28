@@ -976,14 +976,19 @@ async function resolveLegacyMaterialImage(job: CompositionJob) {
 async function getCatalogMaterialImages(job: CompositionJob) {
   const references = job.references ?? []
   const images: string[] = []
+  const strictStudioReferences = job.source === "operator" && job.sourceMessageId?.startsWith("studio:")
 
-  for (const reference of references) {
+  for (const [index, reference] of references.entries()) {
     try {
       const image = await resolveReferenceMaterialImage(job, reference)
-      if (image && isSupportedOpenRouterReferenceImage(image) && !images.includes(image)) {
+      if (strictStudioReferences && (!image || !isSupportedOpenRouterReferenceImage(image))) {
+        throw new Error("Reference image unavailable")
+      }
+      if (image && isSupportedOpenRouterReferenceImage(image) && (strictStudioReferences || !images.includes(image))) {
         images.push(image)
       }
     } catch {
+      if (strictStudioReferences) throw new Error(`A referência ${index + 1} não pôde ser carregada. Remova e adicione a imagem novamente no Studio.`)
       // Individual references are optional. Keep the job processable with the remaining ones.
     }
   }

@@ -15,6 +15,7 @@ type RouteContext = {
 }
 
 const CompositionJobInputSchema = z.object({
+  studioVersion: z.literal("v1").optional(),
   conversationId: z.string().min(1).max(255),
   channelInstanceId: z.string().min(1).max(255),
   contactName: z.string().min(1).max(255),
@@ -41,6 +42,17 @@ const CompositionJobInputSchema = z.object({
   })).optional(),
   changeStrength: z.number().min(0).max(100).optional(),
   prompt: z.string().max(5000).optional(),
+}).superRefine((input, context) => {
+  if (input.studioVersion !== "v1") return
+  if (!input.baseImageUrl?.trim() && !input.baseMessageId?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["baseImageUrl"], message: "Adicione uma foto do ambiente." })
+  }
+  if (!input.prompt?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["prompt"], message: "Descreva a transformação." })
+  }
+  if ((input.references?.length ?? 0) > 5) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["references"], message: "Use no máximo 5 referências." })
+  }
 })
 
 const MAX_BODY_SIZE = 10_000_000
@@ -95,14 +107,13 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = CompositionJobInputSchema.safeParse(rawPayload)
   if (!parsed.success) {
     return NextResponse.json({
-      error: "Payload invalido.",
+      error: parsed.error.issues.map((issue) => issue.message).join(" "),
       details: parsed.error.flatten().fieldErrors,
     }, { status: 400 })
   }
 
-  const payload = await normalizeCompositionJobInputImages(parsed.data)
-
   try {
+    const payload = await normalizeCompositionJobInputImages(parsed.data)
     const tokenCheck = await canTenantCreateComposition(slug)
 
     if (!tokenCheck.allowed) {
