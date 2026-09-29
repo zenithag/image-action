@@ -3,6 +3,8 @@ export type StudioImageSlot = "base" | "reference"
 export type StudioCompositionStrategy = "matrix" | "bundle"
 
 export type StudioImageArtifact = {
+  selectedReferenceUrls?: string[]
+  instruction?: string
   source: "inbox" | "catalog" | "upload"
   conversationId?: string
   channelInstanceId?: string

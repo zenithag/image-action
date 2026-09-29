@@ -9,13 +9,11 @@ import {
   ChevronRight,
   Copy,
   Eraser,
-  Grid,
   Image as ImageIcon,
   Layers,
   Loader2,
   Minus,
   MousePointer2,
-  Package,
   Paintbrush,
   Plus,
   Sparkles,
@@ -37,7 +35,7 @@ import {
   getStudioDraftStorageKey,
 } from "@/lib/studio-draft"
 import { cn } from "@/lib/utils"
-import { buildStudioInput, IMAGE_TYPES, MAX_REFERENCES, MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, validateStudioFiles } from "@/lib/studio-v1"
+import { buildStudioInput, getEnvironmentReferences, IMAGE_TYPES, MAX_REFERENCES, MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, validateStudioFiles } from "@/lib/studio-v1"
 import { loadStudioSession, saveStudioSession } from "@/lib/studio-v1-storage"
 
 function parseDraft(value: string | null): StudioDraft {
@@ -404,7 +402,7 @@ export default function StudioBatchPage({
   const [references, setReferences] = useState<StudioImageArtifact[]>([])
 
   // Estratégia e controle de quantidade de montagens
-  const [strategy, setStrategy] = useState<StudioCompositionStrategy>("bundle")
+  const strategy: StudioCompositionStrategy = "bundle"
   const [targetOutputCount, setTargetOutputCount] = useState<number | null>(null)
 
   // Configurações gerais
@@ -543,7 +541,7 @@ export default function StudioBatchPage({
         setActiveBaseIndex(0)
         setReferences(draft.references ?? (draft.referenceImage ? [draft.referenceImage] : []))
         if ((draft.references?.length ?? 0) > MAX_REFERENCES) setError("Este rascunho tem mais de 5 referências. Remova as excedentes para gerar.")
-        setStrategy(draft.generationStrategy ?? "bundle")
+        // Legacy matrix drafts now produce one composition per environment.
         setTargetOutputCount(typeof draft.targetOutputCount === "number" ? draft.targetOutputCount : null)
         setPrompt(draft.instruction ?? "")
         setStrength(typeof draft.strength === "number" ? draft.strength : 72)
@@ -585,31 +583,16 @@ export default function StudioBatchPage({
     if (baseImages.length === 0) return []
 
     // Caso 1: Modo pacote (todas as referências juntas em cada cenário) ou apenas 1 referência/nenhuma
-    if (strategy === "bundle" || references.length <= 1) {
+    {
       return baseImages.map((base, bIdx) => ({
         id: `bundle:${bIdx}`,
         baseIndex: bIdx,
         base,
-        references,
-        label: `Cenário ${bIdx + 1}${references.length > 0 ? ` + ${references.length} ${references.length === 1 ? "referência" : "referências"}` : ""}`,
+        references: getEnvironmentReferences(base, references),
+        label: `Cenário ${bIdx + 1} + ${getEnvironmentReferences(base, references).length} referência(s) → 1 composição`,
       }))
     }
 
-    // Caso 2: Modo matriz (cada cenário combinado com cada referência individualmente)
-    const list: PlannedComposition[] = []
-    baseImages.forEach((base, bIdx) => {
-      references.forEach((ref, rIdx) => {
-        const refTitle = ref.catalogItemName || ref.caption || `Ref. ${rIdx + 1}`
-        list.push({
-          id: `matrix:${bIdx}:${rIdx}`,
-          baseIndex: bIdx,
-          base,
-          references: [ref],
-          label: `Cenário ${bIdx + 1} × ${refTitle}`,
-        })
-      })
-    })
-    return list
   }, [baseImages, references, strategy])
 
   const maxAvailable = plannedCombinations.length
@@ -617,10 +600,15 @@ export default function StudioBatchPage({
     ? Math.max(1, Math.min(targetOutputCount, maxAvailable || 1))
     : maxAvailable
 
-  const canGenerate = Boolean(draftLoaded && !isUploading && !isSearchingSku && references.length <= MAX_REFERENCES && baseImages.length > 0 && prompt.trim() && effectiveTargetCount > 0)
+  const canGenerate = Boolean(draftLoaded && !isUploading && !isSearchingSku && references.length <= MAX_REFERENCES && baseImages.length > 0 && plannedCombinations.slice(0, effectiveTargetCount).every(item => (item.base.instruction || prompt).trim()) && effectiveTargetCount > 0)
 
   // Cenário atualmente selecionado para preview
   const activeBaseImage = baseImages[activeBaseIndex] ?? baseImages[0] ?? null
+
+  function updateActiveEnvironment(patch: Partial<StudioImageArtifact>) {
+    if (!activeBaseImage) return
+    setBaseImages(current => current.map(base => base === activeBaseImage ? { ...base, ...patch } : base))
+  }
 
   function clearDraft() {
     if (operationLock.current) return
@@ -713,7 +701,7 @@ export default function StudioBatchPage({
         setStatusMessage(`Enviando montagem ${i + 1} de ${toGenerate.length}: ${item.label}...`)
 
         const body: CompositionJobInput = {
-          ...buildStudioInput(slug, item.base, item.references, prompt),
+          ...buildStudioInput(slug, item.base, item.references, item.base.instruction || prompt),
           changeStrength: strength,
         }
 
@@ -952,47 +940,11 @@ export default function StudioBatchPage({
                   {/* Modo de Combinação */}
                   <div>
                     <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-                      Modo de combinação:
+                      Uma composição por foto
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setStrategy("matrix")}
-                        className={cn(
-                          "flex flex-col items-start rounded-md border p-2 text-left transition-colors",
-                          strategy === "matrix"
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-                          <Grid className="h-3.5 w-3.5" />
-                          Matriz 1x1
-                        </div>
-                        <div className="mt-0.5 text-[10px] leading-snug opacity-80">
-                          {baseImages.length} {baseImages.length === 1 ? "cenário" : "cenários"} × {references.length} {references.length === 1 ? "ref." : "refs."}
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setStrategy("bundle")}
-                        className={cn(
-                          "flex flex-col items-start rounded-md border p-2 text-left transition-colors",
-                          strategy === "bundle"
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-                          <Package className="h-3.5 w-3.5" />
-                          Pacote Único
-                        </div>
-                        <div className="mt-0.5 text-[10px] leading-snug opacity-80">
-                          Todas as refs juntas em cada cenário
-                        </div>
-                      </button>
-                    </div>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Os produtos escolhidos para cada foto são aplicados juntos na mesma imagem. Tentar novamente reprocessa apenas a composição escolhida.
+                    </p>
                   </div>
 
                   {/* Seletor de Quantidade de Composições a Gerar */}
@@ -1091,7 +1043,7 @@ export default function StudioBatchPage({
               {/* 4. Instrução */}
               <div>
                 <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  4. Instrução
+                  4. Instrução geral
                 </div>
                 <textarea
                   aria-label="Instrução da composição"
@@ -1115,6 +1067,33 @@ export default function StudioBatchPage({
                   ))}
                 </div>
               </div>
+
+              {activeBaseImage && (
+                <fieldset className="space-y-3 rounded border border-border p-3">
+                  <legend className="px-1 text-sm font-medium">Configurar cenário {activeBaseIndex + 1}</legend>
+                  <label className="block text-xs text-muted-foreground">
+                    Ambiente
+                    <select aria-label="Ambiente para configurar" value={activeBaseIndex} onChange={event => setActiveBaseIndex(Number(event.target.value))} className="mt-1 w-full rounded border border-border bg-background p-2 text-sm">
+                      {baseImages.map((base, index) => <option key={index} value={index}>Cenário {index + 1} · {base.caption || "Ambiente"}</option>)}
+                    </select>
+                  </label>
+                  <p className="text-xs text-muted-foreground">Escolha os produtos desta foto. Todos os marcados entram em uma única composição.</p>
+                  {references.map((reference, index) => (
+                    <label key={getStudioArtifactKey(reference)} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={getEnvironmentReferences(activeBaseImage, references).includes(reference)} onChange={event => {
+                        const selected = getEnvironmentReferences(activeBaseImage, references).map(item => item.mediaUrl)
+                        updateActiveEnvironment({ selectedReferenceUrls: event.target.checked ? [...selected, reference.mediaUrl] : selected.filter(url => url !== reference.mediaUrl) })
+                      }} />
+                      <span className="min-w-0 break-words">Ref. {index + 1} · {formatSourceLabel(reference)}</span>
+                    </label>
+                  ))}
+                  {references.length === 0 && <p className="text-xs text-muted-foreground">Sem produtos. Você pode transformar o ambiente apenas com instruções.</p>}
+                  <label className="block text-xs text-muted-foreground">
+                    Instrução específica desta foto (opcional)
+                    <textarea maxLength={4000} value={activeBaseImage.instruction || ""} onChange={event => updateActiveEnvironment({ instruction: event.target.value })} placeholder="Deixe vazio para usar a instrução geral." className="mt-1 min-h-24 w-full rounded border border-border bg-background p-2 text-sm" />
+                  </label>
+                </fieldset>
+              )}
 
               {/* 5. Intensidade da mudança */}
               <div>
@@ -1248,7 +1227,7 @@ export default function StudioBatchPage({
                 </div>
               </div>
 
-              {createdJobs.length > 0 && showResults ? <StudioResults slug={slug} jobs={createdJobs} /> : <div className="relative flex-1 overflow-hidden rounded border border-primary/20 bg-card">
+              {createdJobs.length > 0 && showResults ? <StudioResults slug={slug} jobs={createdJobs} onCreated={job => setCreatedJobs(current => current.some(item => item.id === job.id) ? current : [...current, job])} /> : <div className="relative flex-1 overflow-hidden rounded border border-primary/20 bg-card">
                 {activeBaseImage ? (
                   <>
                     <SafeImage

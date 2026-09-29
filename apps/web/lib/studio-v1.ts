@@ -6,6 +6,10 @@ export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 export const MAX_REQUEST_BYTES = 9_500_000
 export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
 
+export function getEnvironmentReferences(base: StudioImageArtifact, references: StudioImageArtifact[]) {
+  return base.selectedReferenceUrls === undefined ? references : references.filter(reference => base.selectedReferenceUrls!.includes(reference.mediaUrl))
+}
+
 export function validateStudioFiles(files: Pick<File, "type" | "size">[], currentCount: number, slot: "base" | "reference") {
   if (slot === "base" && files.length !== 1) return "Selecione apenas uma foto do ambiente."
   if (slot === "reference" && currentCount + files.length > MAX_REFERENCES) return "Você pode adicionar até 5 referências. Remova uma para continuar."
