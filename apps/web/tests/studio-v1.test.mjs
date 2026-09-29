@@ -10,10 +10,27 @@ async function load(relative) {
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } })
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`)
 }
-const { validateStudioFiles, buildStudioInput, MAX_UPLOAD_BYTES } = await load("../lib/studio-v1.ts")
+const { validateStudioFiles, buildStudioInput, getEnvironmentReferences, MAX_UPLOAD_BYTES } = await load("../lib/studio-v1.ts")
 const { getStudioArtifactKey } = await load("../lib/studio-draft.ts")
 const file = { type: "image/png", size: 100 }
 const base = { source: "upload", mediaUrl: "data:image/webp;base64,base", createdAt: "2026-09-28" }
+
+test("three environments with separate products create three single-reference requests", () => {
+  const refs = [1, 2, 3].map(i => ({ ...base, mediaUrl: `product-${i}` }))
+  const environments = refs.map((ref, i) => ({ ...base, mediaUrl: `room-${i}`, selectedReferenceUrls: [ref.mediaUrl] }))
+  const requests = environments.map(room => buildStudioInput("test", room, getEnvironmentReferences(room, refs), "Aplicar produtos"))
+  assert.equal(requests.length, 3)
+  requests.forEach((request, i) => assert.deepEqual(request.references.map(ref => ref.imageUrl), [refs[i].mediaUrl]))
+})
+
+test("one environment with three selected products produces one request containing all three", () => {
+  const refs = [1, 2, 3].map(i => ({ ...base, mediaUrl: `product-${i}` }))
+  const room = { ...base, selectedReferenceUrls: refs.map(ref => ref.mediaUrl) }
+  const request = buildStudioInput("test", room, getEnvironmentReferences(room, refs), "Aplicar todos juntos")
+  assert.equal(request.references.length, 3)
+  assert.equal(getEnvironmentReferences({ ...base, selectedReferenceUrls: [] }, refs).length, 0)
+  assert.equal(getEnvironmentReferences(room, refs.slice(1)).length, 2)
+})
 
 test("accepts five references together and rejects a sixth or multiple environments", () => {
   assert.equal(validateStudioFiles(Array(5).fill(file), 0, "reference"), null)
