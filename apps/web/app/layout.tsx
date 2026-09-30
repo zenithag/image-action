@@ -1,21 +1,26 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { ReactNode } from "react";
-import { Poppins, DM_Sans } from "next/font/google";
+import localFont from "next/font/local";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/session-provider";
 
-const poppins = Poppins({
+const poppins = localFont({
   variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  src: [
+    { path: "./fonts/Poppins-Regular.ttf", weight: "400", style: "normal" },
+    { path: "./fonts/Poppins-Medium.ttf", weight: "500", style: "normal" },
+    { path: "./fonts/Poppins-SemiBold.ttf", weight: "600", style: "normal" },
+    { path: "./fonts/Poppins-Bold.ttf", weight: "700", style: "normal" },
+  ],
 });
 
-const dmSans = DM_Sans({
+const dmSans = localFont({
   variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  display: "swap",
+  src: [{ path: "./fonts/DM-Sans-Variable.ttf", weight: "100 1000", style: "normal" }],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://comofica.ai";
