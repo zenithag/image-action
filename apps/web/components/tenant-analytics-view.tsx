@@ -8,6 +8,8 @@ import { Cell } from "recharts"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
+import { TenantOverview } from "@/components/tenant-overview"
+import overviewStyles from "./tenant-overview.module.css"
 
 const LineChart = dynamic(
   () => import("recharts").then((m) => m.LineChart),
@@ -54,7 +56,7 @@ const Bar = dynamic(
   { ssr: false }
 )
 
-type AnalyticsPayload = {
+export type AnalyticsPayload = {
   meta: {
     range: "7d" | "30d" | "month" | "custom"
     label: string
@@ -403,24 +405,25 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
   [data])
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-11 shrink-0 items-center justify-between gap-4 px-8 border-b border-border">
+    <div className={`flex h-full min-h-0 flex-col bg-background ${compact ? overviewStyles.surface : ""}`}>
+      <div className={compact ? overviewStyles.header : "flex h-11 shrink-0 items-center justify-between gap-4 px-8 border-b border-border"}>
         <div className="flex flex-col">
-          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">
-            {tenantSlug}
+          <h1 className={compact ? undefined : "font-mono text-[13px] font-semibold tracking-tight text-foreground"}>
+            {compact ? "Visão geral" : tenantSlug}
           </h1>
-          <p className="text-[10px] leading-none text-muted-foreground">overview · {data?.meta.label}</p>
+          <p className={compact ? undefined : "text-[10px] leading-none text-muted-foreground"}>{compact ? "Acompanhe a operação da sua empresa." : `Analytics · ${data?.meta.label ?? ""}`}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className={compact ? overviewStyles.controls : "flex flex-wrap items-center gap-1.5"}>
           <select
+            aria-label="Período dos indicadores"
             value={dateRange}
             onChange={(event) => setDateRange(event.target.value as DateRange)}
             className="h-8 rounded border border-border bg-background px-2 text-[11px] outline-none focus:border-primary"
           >
-            <option value="7d">7d</option>
-            <option value="30d">30d</option>
-            <option value="month">month</option>
-            <option value="custom">custom</option>
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+            <option value="month">Este mês</option>
+            <option value="custom">Personalizado</option>
           </select>
           {dateRange === "custom" && (
             <div className="flex items-center gap-2">
@@ -440,12 +443,13 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
               />
             </div>
           )}
-          <div className="flex items-center gap-0.5 rounded border border-border bg-background p-[2px]">
-            {([["classic", "classic"], ["editorial", "workspace"]] as const).map(([key, label]) => (
+          {!compact && <div className="flex items-center gap-0.5 rounded border border-border bg-background p-[2px]">
+            {([["classic", "Clássico"], ["editorial", "Workspace"]] as const).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setVariant(key)}
+                aria-pressed={variant === key}
                 className={`rounded px-2.5 py-1 text-[11px] font-medium transition-all ${
                   variant === key
                     ? "bg-primary text-primary-foreground"
@@ -455,10 +459,10 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
                 {label}
               </button>
             ))}
-          </div>
+          </div>}
           <Button variant="outline" size="sm" onClick={() => loadAnalytics(dateRange)} disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-            refresh
+            Atualizar
           </Button>
         </div>
       </div>
@@ -472,14 +476,16 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 py-6 md:px-8">
-        {isLoading || !data ? (
+      <div className={compact ? overviewStyles.content : "min-h-0 flex-1 overflow-auto px-6 py-6 md:px-8"}>
+        {isLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Carregando analytics...
+            Carregando indicadores...
           </div>
-        ) : variant === "editorial" ? (
-          <DashboardEditorial data={data} />
+        ) : !data ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">Não foi possível carregar os indicadores. Clique em Atualizar para tentar novamente.</p>
+        ) : compact || variant === "editorial" ? (
+          compact ? <TenantOverview data={data} tenantSlug={tenantSlug} /> : <DashboardEditorial data={data} />
         ) : (
           <div className="flex flex-col gap-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

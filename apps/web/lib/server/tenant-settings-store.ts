@@ -364,8 +364,17 @@ export async function getTenantSettings(tenantSlug: string) {
     ? mergeTenantSettings(defaultTenantSettings(tenantSlug), existing)
     : defaultTenantSettings(tenantSlug)
 
+  const tenant = await findTenant(tenantSlug)
+  const companyName = baseSettings.general.companyName
+
   return {
     ...baseSettings,
+    general: {
+      ...baseSettings.general,
+      companyName: !companyName || companyName === tenantSlug
+        ? tenant?.name || tenantSlug.replace(/[-_]+/g, " ")
+        : companyName,
+    },
     team: {
       members: await hydrateTeamMembersFromAuth(tenantSlug, baseSettings.team.members),
     },

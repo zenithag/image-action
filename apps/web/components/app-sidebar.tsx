@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useSession, signOut } from "next-auth/react"
 import {
+  House,
   MessageSquare,
   Image as ImageIcon,
   Paintbrush,
@@ -37,6 +38,7 @@ interface NavItem {
 }
 
 const tenantNavItems: NavItem[] = [
+  { href: "/tenant", label: "Visão geral", icon: House },
   { href: "/tenant/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/tenant/compositions", label: "Composições", icon: ImageIcon },
   { href: "/tenant/editor", label: "Estúdio", icon: Paintbrush, hot: true },
@@ -83,7 +85,9 @@ export function AppSidebar({
   const [mounted, setMounted] = useState(false)
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
   const navItems = variant === "superadmin" ? superadminNavItems : tenantNavItems
-  const tenantName = tenantDisplayName || tenantSlug || "Tenant"
+  const tenantName = variant === "superadmin" ? "Administração" : tenantDisplayName && tenantDisplayName !== tenantSlug
+    ? tenantDisplayName
+    : (tenantSlug || "Empresa").replace(/[-_]+/g, " ")
   const tenantInitial = tenantName[0]?.toUpperCase() || "T"
   const userName = session?.user?.name || "Usuário"
   const initials = userName
@@ -136,28 +140,29 @@ export function AppSidebar({
     <aside
       className={cn(
         "relative z-40 flex h-dvh flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200",
-        collapsed ? "w-[52px]" : "w-[180px]",
+        collapsed ? (variant === "tenant" ? "w-[64px]" : "w-[52px]") : variant === "tenant" ? "w-[220px] xl:w-[248px]" : "w-[180px]",
+        variant === "tenant" && "hidden md:flex shrink-0 bg-background",
       )}
     >
       {/* Header */}
-      <div className="flex h-12 shrink-0 items-center border-b border-sidebar-border px-5">
+      <div className={variant === "tenant" ? "flex min-h-20 shrink-0 items-center gap-1 px-4" : "flex h-12 shrink-0 items-center border-b border-sidebar-border px-5"}>
         <button
           type="button"
           onClick={onToggle}
-          className="flex items-center gap-2 transition-colors hover:opacity-80"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:opacity-80"
           title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
         >
           <div
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[10px] font-bold"
+            className={variant === "tenant" ? "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md text-base font-bold" : "flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-[10px] font-bold"}
             style={{
               background: tenantPrimaryColor || "var(--sidebar-primary)",
               color: "var(--sidebar-primary-foreground)",
             }}
           >
-            {tenantInitial}
+            {tenantLogoUrl ? <img src={tenantLogoUrl} alt="" className="h-full w-full object-contain" /> : tenantInitial}
           </div>
           {!collapsed && (
-            <span className="truncate text-[12px] font-medium text-sidebar-foreground">
+            <span className={variant === "tenant" ? "min-w-0 break-words text-sm font-bold leading-snug text-sidebar-foreground" : "truncate text-[12px] font-medium text-sidebar-foreground"}>
               {tenantName}
             </span>
           )}
@@ -166,7 +171,7 @@ export function AppSidebar({
           type="button"
           onClick={onToggle}
           className={cn(
-            "ml-auto shrink-0 flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/40 transition-all hover:text-sidebar-foreground",
+            "ml-auto shrink-0 flex h-7 w-5 items-center justify-center rounded text-sidebar-foreground/70 transition-all hover:text-sidebar-foreground", collapsed && "hidden",
           )}
           title={collapsed ? "Expandir" : "Recolher"}
         >
@@ -182,7 +187,7 @@ export function AppSidebar({
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
         {navItems.map((item) => {
           const actualHref = tenantSlug ? item.href.replace("/tenant", `/tenant/${tenantSlug}`) : item.href
-          const isActive = pathname === actualHref || pathname?.startsWith(actualHref + "/")
+          const isActive = pathname === actualHref || (item.href !== "/tenant" && pathname?.startsWith(actualHref + "/"))
           const badge = item.label === "Inbox" ? inboxUnreadCount : 0
 
           return (
@@ -190,23 +195,24 @@ export function AppSidebar({
               key={item.href}
               href={actualHref}
               title={collapsed ? item.label : undefined}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "group relative flex items-center gap-2.5 rounded px-2.5 py-2 transition-colors",
+                variant === "tenant" ? "group relative flex items-center gap-3 rounded-md px-3 py-3 transition-colors" : "group relative flex items-center gap-2.5 rounded px-2.5 py-2 transition-colors",
                 collapsed ? "justify-center" : "",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-primary"
-                  : "text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground dark:text-sidebar-foreground"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
               )}
             >
               {isActive && (
                 <span className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-r bg-primary" />
               )}
               <item.icon
-                className={cn("h-[17px] w-[17px] shrink-0", collapsed ? "" : "ml-0.5")}
+                className={cn(variant === "tenant" ? "h-5 w-5 shrink-0" : "h-[17px] w-[17px] shrink-0", collapsed ? "" : "ml-0.5")}
                 strokeWidth={isActive ? 2.2 : 1.8}
               />
               {!collapsed && (
-                <span className="truncate text-[12px] font-medium">{item.label}</span>
+                <span className={variant === "tenant" ? "truncate text-sm font-medium" : "truncate text-[12px] font-medium"}>{item.label}</span>
               )}
               {item.hot && !isActive && (
                 <span className="ml-auto mr-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
@@ -233,7 +239,7 @@ export function AppSidebar({
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           title={mounted ? (theme === "dark" ? "Modo claro" : "Modo escuro") : "Alternar tema"}
           className={cn(
-            "flex items-center gap-2.5 rounded px-2 py-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
+            "flex items-center gap-2.5 rounded px-2 py-2 text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
             collapsed ? "justify-center" : "",
           )}
         >
@@ -246,7 +252,7 @@ export function AppSidebar({
           ) : (
             <div className="h-[17px] w-[17px] shrink-0" />
           )}
-          {!collapsed && <span className="text-[12px] font-medium">Tema</span>}
+          {!collapsed && <span className={variant === "tenant" ? "text-sm font-medium" : "text-[12px] font-medium"}>Tema</span>}
         </button>
 
         <button
@@ -254,12 +260,12 @@ export function AppSidebar({
           onClick={() => signOut({ callbackUrl: "/" })}
           title="Sair"
           className={cn(
-            "flex items-center gap-2.5 rounded px-2 py-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-destructive",
+            "flex items-center gap-2.5 rounded px-2 py-2 text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-destructive",
             collapsed ? "justify-center" : "",
           )}
         >
           <LogOut className="h-[17px] w-[17px] shrink-0" strokeWidth={1.8} />
-          {!collapsed && <span className="text-[12px] font-medium">Sair</span>}
+          {!collapsed && <span className={variant === "tenant" ? "text-sm font-medium" : "text-[12px] font-medium"}>Sair</span>}
         </button>
 
         <div
