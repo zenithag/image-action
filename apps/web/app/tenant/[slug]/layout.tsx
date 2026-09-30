@@ -7,10 +7,11 @@ import { SocketProvider } from "@/lib/realtime/socket-provider"
 import { AppSidebar } from "@/components/app-sidebar"
 import { getTenantBrandingVariables, normalizeTenantBrandingSnapshot, type TenantBrandingSnapshot } from "@/lib/tenant-branding"
 import type { TenantSettings } from "@/lib/tenant-settings-types"
-import { BarChart3, GitBranch, Grid2X2, Image as ImageIcon, MessageSquare, Paintbrush, Settings, Smartphone, Users } from "lucide-react"
+import { House, BarChart3, GitBranch, Grid2X2, Image as ImageIcon, MessageSquare, Paintbrush, Settings, Smartphone, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const mobileNavItems = [
+  { href: "/tenant", label: "Início", icon: House },
   { href: "/tenant/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/tenant/compositions", label: "Compos.", icon: ImageIcon },
   { href: "/tenant/editor", label: "Estúdio", icon: Paintbrush },
@@ -50,7 +51,7 @@ export default function TenantLayout({
   const activeMobileNavRef = useRef<HTMLAnchorElement | null>(null)
   const [branding, setBranding] = useState<TenantBrandingSnapshot>(() =>
     normalizeTenantBrandingSnapshot({
-      companyName: slug,
+      companyName: slug.replace(/[-_]+/g, " "),
       primaryColor: "#31C48D",
       logoUrl: "",
     })
@@ -114,7 +115,7 @@ export default function TenantLayout({
           <div className="flex overflow-x-auto pb-[env(safe-area-inset-bottom)] scrollbar-hide">
             {mobileNavItems.map((item) => {
               const href = item.href.replace("/tenant", `/tenant/${slug}`)
-              const isActive = pathname === href || pathname?.startsWith(`${href}/`)
+              const isActive = pathname === href || (item.href !== "/tenant" && pathname?.startsWith(`${href}/`))
               return (
                 <Link
                   key={item.href}
