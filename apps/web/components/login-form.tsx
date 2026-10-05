@@ -8,6 +8,7 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getLoginRedirectPath } from "@/lib/auth-routing"
 
 type LoginFormProps = {
   callbackUrl?: string
@@ -45,7 +46,7 @@ export function LoginForm({
       return
     }
 
-    router.replace(result?.url ?? callbackUrl)
+    router.replace(getLoginRedirectPath(result?.url ?? callbackUrl))
     router.refresh()
   }
 

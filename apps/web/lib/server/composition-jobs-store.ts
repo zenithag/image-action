@@ -97,6 +97,7 @@ export async function createCompositionJob(tenantSlug: string, input: Compositio
     const prompt = normalizeText(input.prompt) || "Composicao visual solicitada pelo cliente."
     const job: CompositionJob = {
       id: crypto.randomUUID(),
+      purpose: input.purpose === "studio-preset" ? "studio-preset" : "composition",
       tenantSlug,
       conversationId: input.conversationId,
       channelInstanceId: input.channelInstanceId,

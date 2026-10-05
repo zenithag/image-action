@@ -76,3 +76,17 @@ export function getSafeCallbackUrl(
 
   return callbackUrl
 }
+
+// Auth may return an absolute canonical URL. Client navigation must stay on
+// the origin where the user signed in, including its host-only session cookie.
+export function getLoginRedirectPath(callbackUrl?: string) {
+  try {
+    const url = new URL(callbackUrl || POST_LOGIN_PATH, "https://comofica.local")
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return POST_LOGIN_PATH
+    }
+    return getSafeCallbackUrl(`${url.pathname}${url.search}${url.hash}`)
+  } catch {
+    return POST_LOGIN_PATH
+  }
+}

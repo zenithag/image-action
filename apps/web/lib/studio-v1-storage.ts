@@ -1,4 +1,4 @@
-import type { StudioImageArtifact, StudioCompositionStrategy } from "./studio-draft"
+import type { StudioImageArtifact, StudioCompositionStrategy, StudioScenario } from "./studio-draft"
 
 export type StudioSession = {
   base: StudioImageArtifact | null
@@ -7,6 +7,7 @@ export type StudioSession = {
   jobId?: string
   baseImages?: StudioImageArtifact[]
   generationStrategy?: StudioCompositionStrategy
+  scenarios?: StudioScenario[]
   targetOutputCount?: number
   strength?: number
   updatedAt?: string

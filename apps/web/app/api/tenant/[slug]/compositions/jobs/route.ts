@@ -1,4 +1,7 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { getToken } from "next-auth/jwt"
+import { findTenant } from "@/lib/server/tenants-store"
+import { checkStudioSurfaceAccess, checkStudioRequestOrigin } from "@/lib/server/studio-surface-access"
 import { z } from "zod"
 
 import type { CompositionJobInput } from "@/lib/composition-types"
@@ -16,6 +19,7 @@ type RouteContext = {
 
 const CompositionJobInputSchema = z.object({
   studioVersion: z.literal("v1").optional(),
+  purpose: z.enum(["composition", "studio-preset"]).optional(),
   conversationId: z.string().min(1).max(255),
   channelInstanceId: z.string().min(1).max(255),
   contactName: z.string().min(1).max(255),
@@ -43,6 +47,8 @@ const CompositionJobInputSchema = z.object({
   changeStrength: z.number().min(0).max(100).optional(),
   prompt: z.string().max(5000).optional(),
 }).superRefine((input, context) => {
+  if (input.prompt?.includes("PLANOS_ALVO_ESTUDIO:")) context.addIssue({ code: z.ZodIssueCode.custom, path: ["prompt"], message: "A seleção automática de superfícies foi desativada. Atualize o Estúdio e indique o local em texto." })
+  if (input.purpose === "studio-preset" && input.studioVersion !== "v1") context.addIssue({ code: z.ZodIssueCode.custom, path: ["studioVersion"], message: "Preset requer o fluxo do Estúdio." })
   if (input.studioVersion !== "v1") return
   if (!input.baseImageUrl?.trim() && !input.baseMessageId?.trim()) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["baseImageUrl"], message: "Adicione uma foto do ambiente." })
@@ -78,7 +84,7 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!slug || typeof slug !== "string" || slug.length > 100) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 })
   }
-  const jobs = await listCompositionJobs(slug)
+  const jobs = (await listCompositionJobs(slug)).filter(job => job.purpose !== "studio-preset")
 
   return NextResponse.json({
     jobs,
@@ -86,7 +92,7 @@ export async function GET(_request: Request, context: RouteContext) {
   })
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   const { slug } = await context.params
   if (!slug || typeof slug !== "string" || slug.length > 100) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 })
@@ -110,6 +116,15 @@ export async function POST(request: Request, context: RouteContext) {
       error: parsed.error.issues.map((issue) => issue.message).join(" "),
       details: parsed.error.flatten().fieldErrors,
     }, { status: 400 })
+  }
+
+  if (parsed.data.purpose === "studio-preset") {
+    const secureCookie = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https" || process.env.NEXTAUTH_URL?.startsWith("https://") === true
+    const token = await getToken({ req: request, secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET, secureCookie })
+    const access = checkStudioSurfaceAccess(token, slug, token ? await findTenant(slug) : null)
+    if (access) return NextResponse.json({ error: access === 401 ? "Entre novamente para aplicar o preset." : "Você não tem acesso a este tenant." }, { status: access })
+    const origin = request.headers.get("origin")
+    if (!checkStudioRequestOrigin(origin, request.headers.get("host"), request.url)) return NextResponse.json({ error: "Origem inválida." }, { status: 403 })
   }
 
   try {
