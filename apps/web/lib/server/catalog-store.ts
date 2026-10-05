@@ -1,5 +1,6 @@
 import type { CatalogItem, CatalogItemInput, CatalogItemStatus } from "@/lib/catalog-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { normalizeDataImageUrlForUpload } from "@/lib/server/image-normalization"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type CatalogData = {
@@ -74,7 +75,7 @@ function assertSkuAvailable(items: CatalogItem[], tenantSlug: string, sku: strin
   }
 }
 
-function buildCatalogItem(tenantSlug: string, input: CatalogItemInput): CatalogItem {
+async function buildCatalogItem(tenantSlug: string, input: CatalogItemInput): Promise<CatalogItem> {
   const name = normalizeText(input.name)
   const description = normalizeText(input.description)
   const category = normalizeText(input.category)
@@ -98,7 +99,7 @@ function buildCatalogItem(tenantSlug: string, input: CatalogItemInput): CatalogI
     sku: sku || undefined,
     status: normalizeStatus(input.status),
     tags: normalizeTags(input.tags),
-    imageUrl: normalizeText(input.imageUrl) || defaultImage,
+    imageUrl: await normalizeDataImageUrlForUpload(normalizeText(input.imageUrl) || defaultImage),
     createdAt: now,
     updatedAt: now,
   }
@@ -118,7 +119,7 @@ export async function createCatalogItem(tenantSlug: string, input: CatalogItemIn
     const data = await readCatalogData()
     const tenantItems = getTenantItems(data, tenantSlug)
     const otherTenantItems = data.items.filter((item) => item.tenantSlug !== tenantSlug)
-    const item = buildCatalogItem(tenantSlug, input)
+    const item = await buildCatalogItem(tenantSlug, input)
 
     assertSkuAvailable(tenantItems, tenantSlug, item.sku)
 
@@ -152,7 +153,7 @@ export async function updateCatalogItem(tenantSlug: string, itemId: string, inpu
       sku,
       status: input.status === undefined ? existing.status : normalizeStatus(input.status),
       tags: input.tags === undefined ? existing.tags : normalizeTags(input.tags),
-      imageUrl: input.imageUrl === undefined ? existing.imageUrl : normalizeText(input.imageUrl) || defaultImage,
+      imageUrl: input.imageUrl === undefined ? existing.imageUrl : await normalizeDataImageUrlForUpload(normalizeText(input.imageUrl) || defaultImage),
       updatedAt: new Date().toISOString(),
     }
 
@@ -225,7 +226,8 @@ export async function importCatalogItems(tenantSlug: string, inputs: CatalogItem
     const data = await readCatalogData()
     const tenantItems = getTenantItems(data, tenantSlug)
     const otherTenantItems = data.items.filter((item) => item.tenantSlug !== tenantSlug)
-    const importedItems = inputs.map((input) => buildCatalogItem(tenantSlug, input))
+    const importedItems: CatalogItem[] = []
+    for (const input of inputs) importedItems.push(await buildCatalogItem(tenantSlug, input))
 
     for (const item of importedItems) {
       assertSkuAvailable([...tenantItems, ...importedItems], tenantSlug, item.sku, item.id)
