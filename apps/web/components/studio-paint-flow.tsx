@@ -77,7 +77,7 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
       if (refreshing || controller.signal.aborted) return
       refreshing = true; clearTimeout(timer); setLoading(true); setCatalogError(null)
       try {
-        const response = await fetch(`/api/tenant/${encodeURIComponent(slug)}/catalog/items`, { cache: "no-store", signal: controller.signal })
+        const response = await fetch(`/api/tenant/${encodeURIComponent(slug)}/catalog/items?view=preview`, { cache: "no-store", signal: controller.signal })
         const payload = await response.json()
         if (!response.ok || !Array.isArray(payload)) throw new Error("Não foi possível carregar o catálogo.")
         if (controller.signal.aborted) return
@@ -180,7 +180,7 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
       </>}
       {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError} Tentaremos novamente automaticamente.</p> : visibleItems.length === 0 ? <p>Nenhum item ativo compatível com {presetLabel.toLowerCase()} neste catálogo. <Link href={`/tenant/${slug}/catalog`}>Abrir catálogo</Link></p> : <div className={styles.paintItems} tabIndex={0} role="group" aria-label={`Amostras de ${presetLabel}; role horizontalmente para ver mais opções`}>
         {visibleItems.map(item => <button key={item.id} type="button" aria-label={`${item.name}${item.sku ? ` · SKU ${item.sku}` : ""}`} title={`${item.name}${item.sku ? ` · SKU ${item.sku}` : ""}`} disabled={disabled || submitting || pending || (preset === "furnish" && furnitureMode === "automatic")} aria-pressed={preset === "furnish" && selectedFurniture.includes(item.id)} onClick={() => { if (preset === "furnish") setSelectedFurniture(current => current.includes(item.id) ? current.filter(id => id !== item.id) : current.length < 5 ? [...current, item.id] : current); else confirm(item) }}>
-          {getStudioPaintPreviewSource(item, slug) ? <SafeImage src={getStudioPaintPreviewSource(item, slug)} alt={item.name} className={styles.paintThumbnail} /> : getStudioPaintSwatch(item) ? <span className={styles.paintSwatch} style={{ backgroundColor: getStudioPaintSwatch(item) }} aria-label={`Amostra ${getStudioPaintSwatch(item)}`} /> : <Paintbrush size={24} aria-hidden="true" />}
+          {getStudioPaintPreviewSource(item, slug) ? <SafeImage src={getStudioPaintPreviewSource(item, slug)} alt={item.name} loading="lazy" decoding="async" className={styles.paintThumbnail} /> : getStudioPaintSwatch(item) ? <span className={styles.paintSwatch} style={{ backgroundColor: getStudioPaintSwatch(item) }} aria-label={`Amostra ${getStudioPaintSwatch(item)}`} /> : <Paintbrush size={24} aria-hidden="true" />}
         </button>)}
       </div>}
       {preset === "furnish" && <><p>{selectedFurniture.length} de 5 itens selecionados</p><button type="button" disabled={!selectedFurniture.length || loading || Boolean(catalogError) || disabled || submitting || pending} onClick={() => confirm(undefined, selectedFurniture.flatMap(id => { const item = items.find(candidate => candidate.id === id); return item ? [item] : [] }))}>Revisar aplicação</button></>}

@@ -133,9 +133,7 @@ export function getStudioPaintPreviewSource(item: CatalogItem, slug: string) {
   if (item.tenantSlug !== slug) return undefined
   const source = getCatalogReferenceImageUrl(item)
   if (!source) return undefined
-  // Use the persisted raster upload like CatalogBrowser; avoid an extra HTTP hop.
-  if (source.startsWith("data:")) return source
-  return `/api/tenant/${encodeURIComponent(slug)}/catalog/items/${encodeURIComponent(item.id)}/image`
+  return `/api/tenant/${encodeURIComponent(slug)}/catalog/items/${encodeURIComponent(item.id)}/image?width=160&v=${encodeURIComponent(item.updatedAt)}`
 }
 
 export function getStudioPaintSwatch(item: CatalogItem) {

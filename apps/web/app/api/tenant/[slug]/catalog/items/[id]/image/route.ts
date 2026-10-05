@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+import { normalizeImageForUpload } from "@/lib/server/image-normalization"
 import { NextResponse } from "next/server"
 
 import { getCatalogReferenceImageUrl } from "@/lib/server/catalog-reference-image"
@@ -9,7 +11,9 @@ type RouteContext = {
   params: Promise<{ slug: string; id: string }>
 }
 
-function responseFromDataUrl(dataUrl: string) {
+const thumbnailCache = new Map<string, Buffer>()
+
+async function responseFromDataUrl(dataUrl: string, width: number | null) {
   const match = dataUrl.match(/^data:([^;,]+)(;base64)?,(.*)$/)
 
   if (!match) {
@@ -21,16 +25,35 @@ function responseFromDataUrl(dataUrl: string) {
     ? Buffer.from(payload, "base64")
     : Buffer.from(decodeURIComponent(payload))
 
-  return new NextResponse(bytes, {
+  let output: Buffer = bytes
+  let mimeType = contentType
+  if (width && !contentType.includes("svg")) {
+    const key = createHash("sha256").update(dataUrl).update(String(width)).digest("hex")
+    const cached = thumbnailCache.get(key)
+    output = cached ?? (await normalizeImageForUpload(bytes, contentType, { maxDimension: width, quality: 75 })).bytes
+    if (!cached) {
+      if (thumbnailCache.size >= 128) thumbnailCache.delete(thumbnailCache.keys().next().value!)
+      thumbnailCache.set(key, output)
+    }
+    mimeType = "image/webp"
+  }
+
+  return new NextResponse(new Uint8Array(output), {
     headers: {
-      "Cache-Control": "public, max-age=3600",
-      "Content-Type": contentType || "application/octet-stream",
+      "Cache-Control": "private, max-age=3600",
+      "ETag": `"${createHash("sha256").update(output).digest("hex")}"`,
+      "Content-Type": mimeType || "application/octet-stream",
     },
   })
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { slug, id } = await context.params
+  const requestedWidth = new URL(request.url).searchParams.get("width")
+  const width = requestedWidth === null ? null : Number(requestedWidth)
+  if (width !== null && (!Number.isInteger(width) || width < 32 || width > 512)) {
+    return NextResponse.json({ error: "Tamanho de miniatura invalido." }, { status: 400 })
+  }
   const item = (await listCatalogItems(slug)).find((catalogItem) => catalogItem.id === id)
 
   if (!item?.imageUrl) {
@@ -44,7 +67,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const catalogReferenceImage = getCatalogReferenceImageUrl(item)
 
   if (catalogReferenceImage) {
-    const response = responseFromDataUrl(catalogReferenceImage)
+    const response = await responseFromDataUrl(catalogReferenceImage, width)
 
     if (response) {
       return response
@@ -52,7 +75,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (item.imageUrl.startsWith("data:")) {
-    const response = responseFromDataUrl(item.imageUrl)
+    const response = await responseFromDataUrl(item.imageUrl, width)
 
     if (response) {
       return response

@@ -9,9 +9,19 @@ type RouteContext = {
   params: Promise<{ slug: string }>
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { slug } = await context.params
   const items = await listCatalogItems(slug)
+
+  const url = new URL(request.url)
+  if (url.searchParams.get("view") === "preview") {
+    return NextResponse.json(items.map(item => ({
+      ...item,
+      imageUrl: item.imageUrl && !item.imageUrl.startsWith("data:image/svg")
+        ? `${url.origin}/api/tenant/${encodeURIComponent(slug)}/catalog/items/${encodeURIComponent(item.id)}/image`
+        : "",
+    })))
+  }
 
   return NextResponse.json(items)
 }

@@ -271,12 +271,13 @@ test("paint submission preserves API balance errors and rejects cross-tenant or 
   assert.equal(base.paintJobId, undefined)
 })
 
-test("paint thumbnails resolve persisted PNGs directly, reject placeholders, and render as native images", async () => {
+test("paint thumbnails use small cached previews, reject placeholders, and render as native images", async () => {
   const png = "data:image/png;base64,iVBORw0KGgo="
-  assert.equal(getStudioPaintPreviewSource({ ...paint, imageUrl: png }, "test"), png)
+  const previewUrl = `/api/tenant/test/catalog/items/paint-a/image?width=160&v=${encodeURIComponent(paint.updatedAt)}`
+  assert.equal(getStudioPaintPreviewSource({ ...paint, imageUrl: png }, "test"), previewUrl)
   assert.equal(getStudioPaintPreviewSource({ ...paint, imageUrl: png }, "other"), undefined)
   assert.equal(getStudioPaintPreviewSource({ ...paint, imageUrl: "data:image/svg+xml,placeholder" }, "test"), undefined)
-  assert.equal(getStudioPaintPreviewSource({ ...paint, imageUrl: "https://example.invalid/paint.png" }, "test"), "/api/tenant/test/catalog/items/paint-a/image")
+  assert.equal(getStudioPaintPreviewSource({ ...paint, imageUrl: "https://example.invalid/paint.png" }, "test"), previewUrl)
   const { runInNewContext } = await import("node:vm")
   const React = require("react")
   const { renderToStaticMarkup } = require("react-dom/server")
@@ -287,7 +288,7 @@ test("paint thumbnails resolve persisted PNGs directly, reject placeholders, and
   runInNewContext(outputText, context)
   const html = renderToStaticMarkup(React.createElement(exports.SafeImage, { src: getStudioPaintPreviewSource({ ...paint, imageUrl: png }, "test"), alt: paint.name, className: "paint-thumbnail" }))
   assert.match(html, /<img/)
-  assert.ok(html.includes(`src="${png}"`))
+  assert.ok(html.includes(`src="${previewUrl.replaceAll("&", "&amp;")}"`))
   assert.doesNotMatch(html, /Imagem indisponivel|_next\/image|localhost/)
 })
 
@@ -311,7 +312,7 @@ test("an already-open empty paint strip refreshes to eight paints and cleans up 
     open: true, slug: "test", preset: "fresh-paint", AbortController, getStudioPaints, getStudioMaterials, isStudioMaterialPreset,
     setItems: value => { state = value }, setCatalogError: value => { catalogError = value }, setLoading: value => { loading = value },
     fetch: async (url, options) => {
-      assert.equal(url, "/api/tenant/test/catalog/items")
+      assert.equal(url, "/api/tenant/test/catalog/items?view=preview")
       assert.equal(options.cache, "no-store")
       calls++
       if (failOnce) { failOnce = false; return { ok: false, json: async () => ({ error: "Temporary failure" }) } }
