@@ -14,6 +14,7 @@ export type CompositionJobReference = {
 }
 
 export type CompositionJob = {
+  purpose?: "composition" | "studio-preset"
   id: string
   tenantSlug: string
   conversationId: string
@@ -49,6 +50,7 @@ export type CompositionJob = {
 }
 
 export type CompositionJobInput = {
+  purpose?: "composition" | "studio-preset"
   studioVersion?: "v1"
   conversationId: string
   channelInstanceId: string

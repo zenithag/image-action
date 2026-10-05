@@ -2,6 +2,8 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import sharp from "sharp"
 
+import { hasStudioPresetInstruction } from "@/lib/studio-v1"
+
 import type { AiProvider } from "@/lib/ai-types"
 import type { CompositionJob, CompositionJobReference } from "@/lib/composition-types"
 import { getAiModelProfile } from "@/lib/server/ai-model-profiles-store"
@@ -324,6 +326,8 @@ async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
 }
 
 function getTargetSurfaceInstruction(job: CompositionJob) {
+  // Preset briefings contain preservation rules, not surface-target keywords.
+  if (hasStudioPresetInstruction(job.prompt)) return ""
   const prompt = normalizeText(job.prompt)
   const productName = normalizeText(job.catalogItemName || "")
   const asksWall = (
@@ -366,6 +370,8 @@ function getTargetSurfaceInstruction(job: CompositionJob) {
 }
 
 function getRequestedSurface(job: CompositionJob) {
+  // Combined presets require image editing, rather than a local color overlay.
+  if (hasStudioPresetInstruction(job.prompt)) return null
   const prompt = normalizeText(job.prompt)
   const productName = normalizeText(job.catalogItemName || "")
 

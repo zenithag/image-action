@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Preserve the selected loopback origin for local auth requests and redirects.
+  skipMiddlewareUrlNormalize: process.env.NODE_ENV === "development",
   output: "standalone",
   transpilePackages: ["@studio/contracts", "@studio/tenant-context"],
   serverExternalPackages: ["pg"],

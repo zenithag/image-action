@@ -1,8 +1,46 @@
+import type { SurfaceAnalysis } from "./studio-surfaces"
+
 export type StudioImageSlot = "base" | "reference"
 
 export type StudioCompositionStrategy = "matrix" | "bundle"
 
+export type StudioMaterialPresetId = "fresh-paint" | "wall-covering" | "flooring" | "ceiling"
+export type StudioPresetId = "remove-furniture" | "renovate" | "furnish" | StudioMaterialPresetId
+
+export type StudioPresetVersion = {
+  jobId: string
+  preset: StudioPresetId
+  label: string
+  parentVersionId?: string
+  selectedSurfaceIds?: string[]
+  scope?: "whole" | "selected"
+  manualTarget?: string
+  resultImageUrl?: string
+  status: "queued" | "processing" | "done" | "failed"
+  createdAt: string
+}
+
 export type StudioImageArtifact = {
+  presetVersions?: StudioPresetVersion[]
+  selectedPresetVersionId?: string
+  pendingPresetLabel?: string
+  pendingPresetId?: StudioPresetId
+  pendingParentVersionId?: string
+
+  surfaceAnalysis?: SurfaceAnalysis & { sourceKey: string; tenantSlug: string; sourceVersionId?: string }
+  selectedSurfaceSourceKey?: string
+  selectedSurfaceIds?: string[]
+  surfaceMaterialId?: string
+  roomType?: "auto" | "living-room" | "bedroom" | "kitchen" | "bathroom"
+  removeFixedFurniture?: boolean
+  furnishingLuxury?: boolean
+  materialReferences?: Partial<Record<StudioMaterialPresetId, StudioImageArtifact>>
+  materialJobPresetId?: StudioMaterialPresetId
+  catalogTenantSlug?: string
+  catalogProductType?: string
+  presetIds?: StudioPresetId[]
+  paintCatalogItemId?: string
+  paintJobId?: string
   selectedReferenceUrls?: string[]
   instruction?: string
   source: "inbox" | "catalog" | "upload"
@@ -21,6 +59,31 @@ export type StudioImageArtifact = {
   createdAt: string
 }
 
+export type StudioScenario = {
+  baseKey: string
+  selectedReferenceUrls?: string[]
+  instruction?: string
+}
+
+// Slots survive quantity reductions; changing a base never replaces a slot's inputs.
+export function ensureStudioScenarios(scenarios: StudioScenario[], bases: StudioImageArtifact[]): StudioScenario[] {
+  if (scenarios.length >= bases.length) return scenarios
+  return [...scenarios, ...bases.slice(scenarios.length).map(base => ({
+    baseKey: getStudioArtifactKey(base), selectedReferenceUrls: base.selectedReferenceUrls ? [...base.selectedReferenceUrls] : undefined,
+    instruction: base.instruction || "",
+  }))]
+}
+
+export function planStudioScenarios(scenarios: StudioScenario[], bases: StudioImageArtifact[], references: StudioImageArtifact[]) {
+  return ensureStudioScenarios(scenarios, bases).slice(0, bases.length).map((scenario, index) => {
+    const baseIndex = bases.findIndex(base => getStudioArtifactKey(base) === scenario.baseKey)
+    const source = bases[baseIndex]
+    const selected = scenario.selectedReferenceUrls === undefined ? references : references.filter(ref => scenario.selectedReferenceUrls!.includes(ref.mediaUrl))
+    return { id: `scenario:${index}`, baseIndex, base: source ? { ...source, instruction: scenario.instruction || "", selectedReferenceUrls: scenario.selectedReferenceUrls } : null,
+      references: selected, label: `Cenário ${index + 1} · ${source ? `Ambiente ${baseIndex + 1}` : "Escolha um ambiente"} + ${selected.length} referência(s) → 1 composição` }
+  })
+}
+
 export type StudioDraft = {
   baseImage?: StudioImageArtifact
   baseImages?: StudioImageArtifact[]
@@ -28,6 +91,7 @@ export type StudioDraft = {
   references?: StudioImageArtifact[]
   generationStrategy?: StudioCompositionStrategy
   targetOutputCount?: number
+  scenarios?: StudioScenario[]
   instruction?: string
   strength?: number
   updatedAt?: string

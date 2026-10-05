@@ -1,8 +1,9 @@
 "use client"
 
-import { use, useEffect, useMemo, useRef, useState } from "react"
+import { use, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { ChangeEvent } from "react"
 import Link from "next/link"
+import { Popover } from "radix-ui"
 import styles from "./studio-batch.module.css"
 import overviewStyles from "./tenant-overview.module.css"
 import { useRouter } from "next/navigation"
@@ -15,10 +16,17 @@ import {
   Eraser,
   Image as ImageIcon,
   Layers,
+  Info,
   Loader2,
   Minus,
   MousePointer2,
   Paintbrush,
+  Sofa,
+  BrickWall,
+  Grid2X2,
+  PanelsTopLeft,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Sparkles,
   Trash2,
@@ -26,20 +34,24 @@ import {
 } from "lucide-react"
 
 import { SafeImage } from "@/components/safe-image"
+import { StudioPaintFlow } from "@/components/studio-paint-flow"
 import { StudioResults } from "@/components/studio-results"
-import type { CatalogItem } from "@/lib/catalog-types"
 import type { CompositionJob, CompositionJobInput } from "@/lib/composition-types"
 import type {
   StudioCompositionStrategy,
   StudioDraft,
   StudioImageArtifact,
+  StudioPresetId,
+  StudioScenario,
 } from "@/lib/studio-draft"
 import {
   getStudioArtifactKey,
   getStudioDraftStorageKey,
+  ensureStudioScenarios,
+  planStudioScenarios,
 } from "@/lib/studio-draft"
 import { cn } from "@/lib/utils"
-import { buildStudioInput, getEnvironmentReferences, IMAGE_TYPES, MAX_REFERENCES, MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, validateStudioFiles } from "@/lib/studio-v1"
+import { buildStudioCompositionInput, STUDIO_PRESETS, getEnvironmentReferences, IMAGE_TYPES, MAX_REFERENCES, MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, validateStudioFiles } from "@/lib/studio-v1"
 import { loadStudioSession, saveStudioSession } from "@/lib/studio-v1-storage"
 
 function parseDraft(value: string | null): StudioDraft {
@@ -78,13 +90,6 @@ function formatSourceLabel(image: StudioImageArtifact | null) {
   ].join(" - ")
 }
 
-function normalizeSku(value: string | undefined) {
-  return (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "")
-}
 
 const uploadMaxDimension = 2000
 const uploadWebpQuality = 0.88
@@ -153,22 +158,43 @@ function UploadCollection({ title, count, description, reference = false, images
   title: string; count: string; description: string; reference?: boolean; images: StudioImageArtifact[]; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; onRemove: (index: number) => void; disabled: boolean; slug: string
 }) {
   const input = useRef<HTMLInputElement>(null)
+  const [expanded, setExpanded] = useState(true)
+  const contentId = useId()
   return <section className={styles.inputSection}>
-    <h3>{title}<span>{count}</span></h3><p>{description}</p>
+    <div className={styles.uploadHeading}>
+      <h3><button type="button" className={styles.sectionToggle} aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded(open => !open)}><ChevronRight size={14} aria-hidden="true" />{title}<span>{count}</span></button></h3>
+      <Popover.Root>
+        <Popover.Trigger asChild>
+          <button type="button" className={styles.uploadHelpTrigger} aria-label={`Informações sobre ${title.toLowerCase()}`}><Info size={16} aria-hidden="true" /></button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content className={cn(overviewStyles.surface, styles.uploadHelpContent)} side="left" align="start" sideOffset={8} collisionPadding={12} aria-label={`Informações sobre ${title.toLowerCase()}`}>
+            <Popover.Close asChild>
+              <button type="button" className={styles.uploadHelpClose} aria-label="Fechar informações"><X size={16} aria-hidden="true" /></button>
+            </Popover.Close>
+            <p>{description}</p>
+            <p>{reference ? "Adicionar referências. Selecione imagens do seu dispositivo." : "Adicione fotos do ambiente ou selecione arquivos do seu dispositivo."}</p>
+            <p>Use imagens JPG, PNG ou WebP de até 15 MB cada.</p>
+            {reference && <p>As referências selecionadas serão aplicadas juntas em cada ambiente.</p>}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </div>
+    <div id={contentId} hidden={!expanded}>
     <div className={styles.dropzone}>
-      <ImageIcon size={27} aria-hidden="true" /><strong>{reference ? "Adicionar referências" : "Adicione fotos do ambiente"}</strong><p>{reference ? "Selecione imagens do seu dispositivo." : "ou selecione arquivos do seu dispositivo."}</p>
+      <ImageIcon size={20} aria-hidden="true" />
       <button type="button" onClick={() => input.current?.click()} disabled={disabled}><FolderOpen size={16} />Selecionar arquivos</button>
       <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label={reference ? "Selecionar referências" : "Selecionar ambientes"} disabled={disabled} onChange={onUpload} />
     </div>
     {images.length > 0 && <div className={styles.uploaded}>{images.map((image, index) => <div key={`${getStudioArtifactKey(image)}:${index}`}><SafeImage src={image.mediaUrl} alt={image.caption || `${title} ${index + 1}`} className={styles.thumbnail} /><button type="button" aria-label={`Remover ${reference ? "referência" : "ambiente"} ${index + 1}`} disabled={disabled} onClick={() => onRemove(index)}><X size={14} /></button></div>)}</div>}
-    {reference && <p>As referências selecionadas serão aplicadas juntas em cada ambiente.</p>}
+    </div>
   </section>
 }
 
 type PlannedComposition = {
   id: string
   baseIndex: number
-  base: StudioImageArtifact
+  base: StudioImageArtifact | null
   references: StudioImageArtifact[]
   label: string
 }
@@ -194,6 +220,8 @@ export default function StudioBatchPage({
   // Multi-cenários e multi-referências
   const [baseImages, setBaseImages] = useState<StudioImageArtifact[]>([])
   const [activeBaseIndex, setActiveBaseIndex] = useState(0)
+  const [scenarios, setScenarios] = useState<StudioScenario[]>([])
+  const [activeScenarioIndex, setActiveScenarioIndex] = useState(0)
   const [references, setReferences] = useState<StudioImageArtifact[]>([])
 
   // Estratégia e controle de quantidade de montagens
@@ -205,12 +233,15 @@ export default function StudioBatchPage({
   const [prompt, setPrompt] = useState("")
   const [tool, setTool] = useState("cursor")
   const [leftOpen, setLeftOpen] = useState(true)
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [paintCatalogOpen, setPaintCatalogOpen] = useState(false)
+  const [paintCatalogPreset, setPaintCatalogPreset] = useState<StudioPresetId>("fresh-paint")
+  const paintCatalogId = useId()
+  const paintPresetTrigger = useRef<HTMLButtonElement>(null)
+  const [isPainting, setIsPainting] = useState(false)
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isBatchProgress, setIsBatchProgress] = useState<{ current: number; total: number } | null>(null)
-  const [isSearchingSku, setIsSearchingSku] = useState(false)
-  const [skuQuery, setSkuQuery] = useState("")
-  const [skuStatus, setSkuStatus] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [createdJobs, setCreatedJobs] = useState<CompositionJob[]>([])
@@ -308,17 +339,6 @@ export default function StudioBatchPage({
     }
   }
 
-  useEffect(() => {
-    const check = () => {
-      const w = window.innerWidth
-      if (w < 1000) {
-        setLeftOpen(false)
-      }
-    }
-    window.addEventListener("resize", check)
-    check()
-    return () => window.removeEventListener("resize", check)
-  }, [])
 
   // Carrega rascunho
   useEffect(() => {
@@ -334,6 +354,8 @@ export default function StudioBatchPage({
         if (cancelled) return
         setBaseImages(draft.baseImages ?? (draft.baseImage ? [draft.baseImage] : []))
         setActiveBaseIndex(0)
+        setActiveScenarioIndex(0)
+        setScenarios(ensureStudioScenarios(draft.scenarios || [], draft.baseImages ?? (draft.baseImage ? [draft.baseImage] : [])))
         setReferences(draft.references ?? (draft.referenceImage ? [draft.referenceImage] : []))
         if ((draft.references?.length ?? 0) > MAX_REFERENCES) setError("Este rascunho tem mais de 5 referências. Remova as excedentes para gerar.")
         // Legacy matrix drafts now produce one composition per environment.
@@ -359,6 +381,7 @@ export default function StudioBatchPage({
       references,
       generationStrategy: strategy,
       targetOutputCount: targetOutputCount ?? undefined,
+      scenarios,
       instruction: prompt,
       strength,
       updatedAt: new Date().toISOString(),
@@ -366,43 +389,39 @@ export default function StudioBatchPage({
     const timer = setTimeout(() => {
       void saveStudioSession(slug, {
         base: baseImages[0] ?? null, baseImages, references, instruction: prompt,
-        generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined,
+        generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined, scenarios,
         strength, updatedAt: nextDraft.updatedAt,
       }).then(() => setDraftSaveError(null)).catch(() => setDraftSaveError("O navegador não conseguiu salvar o rascunho. Mantenha a página aberta."))
     }, 300)
     return () => clearTimeout(timer)
-  }, [baseImages, draftLoaded, prompt, references, slug, strategy, strength, targetOutputCount])
+  }, [baseImages, draftLoaded, prompt, references, scenarios, slug, strategy, strength, targetOutputCount])
 
-  // Cálculo das combinações planejadas
-  const plannedCombinations: PlannedComposition[] = useMemo(() => {
-    if (baseImages.length === 0) return []
+  useEffect(() => {
+    if (draftLoaded) setScenarios(current => ensureStudioScenarios(current, baseImages))
+  }, [baseImages, draftLoaded])
 
-    // Caso 1: Modo pacote (todas as referências juntas em cada cenário) ou apenas 1 referência/nenhuma
-    {
-      return baseImages.map((base, bIdx) => ({
-        id: `bundle:${bIdx}`,
-        baseIndex: bIdx,
-        base,
-        references: getEnvironmentReferences(base, references),
-        label: `Cenário ${bIdx + 1} + ${getEnvironmentReferences(base, references).length} referência(s) → 1 composição`,
-      }))
-    }
-
-  }, [baseImages, references, strategy])
-
-  const maxAvailable = plannedCombinations.length
+  const plannedCombinations: PlannedComposition[] = useMemo(() => planStudioScenarios(scenarios, baseImages, references), [scenarios, baseImages, references])
+  const maxAvailable = baseImages.length
   const effectiveTargetCount = targetOutputCount !== null
     ? Math.max(1, Math.min(targetOutputCount, maxAvailable || 1))
     : maxAvailable
 
-  const canGenerate = Boolean(draftLoaded && !isUploading && !isSearchingSku && references.length <= MAX_REFERENCES && baseImages.length > 0 && plannedCombinations.slice(0, effectiveTargetCount).every(item => (item.base.instruction || prompt).trim()) && effectiveTargetCount > 0)
+  const canGenerate = Boolean(draftLoaded && !isUploading && !isPainting && references.length <= MAX_REFERENCES && baseImages.length > 0 && plannedCombinations.slice(0, effectiveTargetCount).every(item => item.base && (item.base.instruction || prompt).trim()) && effectiveTargetCount > 0)
 
   // Cenário atualmente selecionado para preview
   const activeBaseImage = baseImages[activeBaseIndex] ?? baseImages[0] ?? null
 
-  function updateActiveEnvironment(patch: Partial<StudioImageArtifact>) {
-    if (!activeBaseImage) return
-    setBaseImages(current => current.map(base => base === activeBaseImage ? { ...base, ...patch } : base))
+  const currentScenarioIndex = Math.min(activeScenarioIndex, Math.max(0, effectiveTargetCount - 1))
+  const currentScenario = ensureStudioScenarios(scenarios, baseImages)[currentScenarioIndex]
+  const currentPlan = plannedCombinations[currentScenarioIndex]
+  useEffect(() => {
+    if (activeScenarioIndex === currentScenarioIndex) return
+    setActiveScenarioIndex(currentScenarioIndex)
+    if (currentPlan && currentPlan.baseIndex >= 0) setActiveBaseIndex(currentPlan.baseIndex)
+  }, [activeScenarioIndex, currentScenarioIndex, currentPlan?.baseIndex])
+
+  function updateActiveScenario(patch: Partial<StudioScenario>) {
+    setScenarios(current => ensureStudioScenarios(current, baseImages).map((scenario, index) => index === currentScenarioIndex ? { ...scenario, ...patch } : scenario))
   }
 
   function clearDraft() {
@@ -410,6 +429,9 @@ export default function StudioBatchPage({
     try { window.localStorage.removeItem(`comofica:studio-jobs:${slug}`) } catch { /* History is independent of the browser cache. */ }
     setBaseImages([])
     setActiveBaseIndex(0)
+    setScenarios([])
+    setActiveScenarioIndex(0)
+    setPaintCatalogOpen(false)
     setReferences([])
     setPrompt("")
     setStrength(72)
@@ -417,61 +439,6 @@ export default function StudioBatchPage({
     setCreatedJobs([])
     setError(null)
     setStatusMessage("Rascunho limpo.")
-  }
-
-  async function searchReferenceBySku() {
-    const normalizedQuery = normalizeSku(skuQuery)
-    if (!normalizedQuery || isSearchingSku || operationLock.current) return
-    if (references.length >= MAX_REFERENCES) {
-      setSkuStatus("Você já tem 5 referências. Remova uma para adicionar outro produto.")
-      return
-    }
-    operationLock.current = true
-
-    setIsSearchingSku(true)
-    setSkuStatus(null)
-    setError(null)
-
-    try {
-      const response = await fetch(`/api/tenant/${slug}/catalog/items`, { cache: "no-store" })
-      const items = await response.json().catch(() => null) as CatalogItem[] | { error?: string } | null
-
-      if (!response.ok || !Array.isArray(items)) {
-        throw new Error("Nao foi possivel buscar o catalogo.")
-      }
-
-      const item = items.find((catalogItem) => normalizeSku(catalogItem.sku) === normalizedQuery)
-        ?? items.find((catalogItem) => normalizeSku(catalogItem.sku).includes(normalizedQuery))
-
-      if (!item) {
-        setSkuStatus("Nenhum produto encontrado com esse SKU.")
-        return
-      }
-
-      const reference: StudioImageArtifact = {
-        source: "catalog",
-        catalogItemId: item.id,
-        catalogItemName: item.name,
-        catalogSku: item.sku,
-        catalogCategory: item.category,
-        catalogDescription: item.description,
-        mediaUrl: `/api/tenant/${slug}/catalog/items/${encodeURIComponent(item.id)}/image`,
-        caption: item.sku ? `${item.name} - SKU ${item.sku}` : item.name,
-        createdAt: new Date().toISOString(),
-      }
-
-      setReferences((current) => {
-        const key = getStudioArtifactKey(reference)
-        if (current.some((ref) => getStudioArtifactKey(ref) === key)) return current
-        return [...current, reference]
-      })
-      setSkuStatus(`Referencia adicionada: ${item.name}${item.sku ? ` (${item.sku})` : ""}.`)
-    } catch (searchError) {
-      setSkuStatus(searchError instanceof Error ? searchError.message : "Erro ao buscar SKU.")
-    } finally {
-      operationLock.current = false
-      setIsSearchingSku(false)
-    }
   }
 
   // Disparo em lote das montagens planejadas
@@ -492,11 +459,12 @@ export default function StudioBatchPage({
     try {
       for (let i = 0; i < toGenerate.length; i++) {
         const item = toGenerate[i]
+        if (!item.base) throw new Error(`Escolha um ambiente para o cenário ${i + 1}.`)
         setIsBatchProgress({ current: i + 1, total: toGenerate.length })
         setStatusMessage(`Enviando montagem ${i + 1} de ${toGenerate.length}: ${item.label}...`)
 
         const body: CompositionJobInput = {
-          ...buildStudioInput(slug, item.base, item.references, item.base.instruction || prompt),
+          ...buildStudioCompositionInput(slug, item.base, item.references, item.base.instruction || prompt),
           changeStrength: strength,
         }
 
@@ -538,26 +506,22 @@ export default function StudioBatchPage({
   return (
     <div className={cn(overviewStyles.surface, styles.studio)}>
       <header className={styles.header}>
-        <div><div className={styles.title}><h1>Estúdio</h1><span>Rascunho</span></div><p>Prepare os ambientes e as referências da composição.</p></div>
+        <div className={styles.title}><h1>Estúdio</h1><span>Rascunho</span></div>
         <div className={styles.actions}>
-          <button type="button" disabled={isGenerating || isUploading || !draftLoaded} onClick={clearDraft}>Descartar</button>
-          <button type="button" disabled={isGenerating || isUploading || !draftLoaded} className={styles.save} onClick={() => void saveStudioSession(slug, { base: baseImages[0] ?? null, baseImages, references, instruction: prompt, generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined, strength, updatedAt: new Date().toISOString() }).then(() => { setDraftSaveError(null); setStatusMessage("Rascunho salvo neste navegador.") }).catch(() => setDraftSaveError("Não foi possível salvar o rascunho neste navegador."))}>Salvar rascunho</button>
+          <button type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={clearDraft}>Descartar</button>
+          <button type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} className={styles.save} onClick={() => void saveStudioSession(slug, { base: baseImages[0] ?? null, baseImages, references, instruction: prompt, generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined, scenarios, strength, updatedAt: new Date().toISOString() }).then(() => { setDraftSaveError(null); setStatusMessage("Rascunho salvo neste navegador.") }).catch(() => setDraftSaveError("Não foi possível salvar o rascunho neste navegador."))}>Salvar rascunho</button>
           <button type="button" className={styles.generate} disabled={!canGenerate || isGenerating} onClick={() => void createBatchCompositions()}>{isGenerating ? <Loader2 size={17} className="animate-spin" /> : <Sparkles size={17} />}{isGenerating ? `Gerando${isBatchProgress ? ` (${isBatchProgress.current}/${isBatchProgress.total})` : ""}...` : `Gerar ${effectiveTargetCount > 1 ? `${effectiveTargetCount} composições` : "composição"}`}</button>
         </div>
       </header>
       {(error || draftSaveError) && <p className={styles.error} role="alert">{error || draftSaveError}</p>}
-      <div className={styles.workspace}>
-        <aside className={styles.inputs}>
+      <div className={cn(styles.workspace, !leftOpen && styles.workspaceCollapsed)}>
+        <aside id="studio-tools" className={styles.inputs} hidden={!leftOpen}>
           <h2>Entradas da composição</h2>
-          <UploadCollection title="Ambientes base" count={String(baseImages.length)} description="Adicione um ou mais cômodos ou ângulos para transformar." images={baseImages} onUpload={(event) => void handleUpload(event, "base")} onRemove={(index) => { setBaseImages((current) => { const updated = current.filter((_, i) => i !== index); if (activeBaseIndex >= updated.length) setActiveBaseIndex(Math.max(0, updated.length - 1)); return updated }) }} disabled={isUploading || isGenerating || !draftLoaded} slug={slug} />
-          <UploadCollection title="Referências" count={`${references.length}/${MAX_REFERENCES}`} description="Combine até 5 referências em cada ambiente." reference images={references} onUpload={(event) => void handleUpload(event, "reference")} onRemove={(index) => setReferences((current) => current.filter((_, i) => i !== index))} disabled={isUploading || isGenerating || !draftLoaded} slug={slug} />
-          <section className={styles.sku}><h3>Buscar por SKU</h3><form onSubmit={(event) => { event.preventDefault(); void searchReferenceBySku() }}><input aria-label="SKU do produto" value={skuQuery} onChange={(event) => setSkuQuery(event.target.value)} placeholder="Digite o SKU do produto" /><button type="submit" aria-label="Buscar produto por SKU" disabled={!skuQuery.trim() || isSearchingSku || isGenerating}>{isSearchingSku ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}</button></form>{skuStatus && <p role="status">{skuStatus}</p>}</section>
-          <div className={styles.instructions}>
+          <UploadCollection title="Ambientes base" count={String(baseImages.length)} description="Adicione um ou mais cômodos ou ângulos para transformar." images={baseImages} onUpload={(event) => void handleUpload(event, "base")} onRemove={(index) => { setBaseImages((current) => { const updated = current.filter((_, i) => i !== index); if (activeBaseIndex >= updated.length) setActiveBaseIndex(Math.max(0, updated.length - 1)); return updated }) }} disabled={isUploading || isGenerating || isPainting || !draftLoaded} slug={slug} />
+          <UploadCollection title="Referências" count={`${references.length}/${MAX_REFERENCES}`} description="Combine até 5 referências em cada ambiente." reference images={references} onUpload={(event) => void handleUpload(event, "reference")} onRemove={(index) => setReferences((current) => current.filter((_, i) => i !== index))} disabled={isUploading || isGenerating || isPainting || !draftLoaded} slug={slug} />
+          <details className={cn(styles.instructions, styles.sectionAccordion)}><summary>Instruções</summary>
               {/* 4. Instrução */}
               <div>
-                <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  Instruções
-                </div>
                 <textarea
                   aria-label="Instrução da composição"
                   maxLength={4000}
@@ -582,7 +546,7 @@ export default function StudioBatchPage({
               </div>
 
 
-          </div>
+          </details>
           <details className={styles.advanced}><summary>Configurações da composição</summary><div>
               {/* Configuração do lote (Estratégia & Quantidade de Entradas) */}
               {(baseImages.length > 0 || references.length > 0) && (
@@ -699,29 +663,34 @@ export default function StudioBatchPage({
                 </div>
               )}
 
-              {activeBaseImage && (
+              {currentScenario && (
                 <fieldset className="space-y-3 rounded border border-border p-3">
-                  <legend className="px-1 text-sm font-medium">Configurar cenário {activeBaseIndex + 1}</legend>
+                  <legend className="px-1 text-sm font-medium">Configurar cenário {currentScenarioIndex + 1}</legend>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Cenários da composição">
+                    {plannedCombinations.slice(0, effectiveTargetCount).map((item, index) => <button key={item.id} type="button" aria-pressed={currentScenarioIndex === index} onClick={() => { setActiveScenarioIndex(index); if (item.baseIndex >= 0) setActiveBaseIndex(item.baseIndex) }} className="rounded border border-border px-2 py-1 text-xs aria-pressed:bg-primary/10">Cenário {index + 1}</button>)}
+                  </div>
                   <label className="block text-xs text-muted-foreground">
-                    Ambiente
-                    <select aria-label="Ambiente para configurar" value={activeBaseIndex} onChange={event => setActiveBaseIndex(Number(event.target.value))} className="mt-1 w-full rounded border border-border bg-background p-2 text-sm">
-                      {baseImages.map((base, index) => <option key={index} value={index}>Cenário {index + 1} · {base.caption || "Ambiente"}</option>)}
+                    Ambiente desta montagem
+                    <select aria-label="Ambiente para configurar" value={currentScenario.baseKey} onChange={event => { updateActiveScenario({ baseKey: event.target.value }); const index = baseImages.findIndex(base => getStudioArtifactKey(base) === event.target.value); if (index >= 0) setActiveBaseIndex(index) }} className="mt-1 w-full rounded border border-border bg-background p-2 text-sm">
+                      <option value="" disabled>Escolha um ambiente</option>
+                      {!currentPlan?.base && currentScenario.baseKey && <option value={currentScenario.baseKey} disabled>Ambiente removido — escolha outro</option>}
+                      {baseImages.map((base, index) => <option key={getStudioArtifactKey(base)} value={getStudioArtifactKey(base)}>Ambiente {index + 1} · {base.caption || "Imagem carregada"}</option>)}
                     </select>
                   </label>
-                  <p className="text-xs text-muted-foreground">Escolha os produtos desta foto. Todos os marcados entram em uma única composição.</p>
+                  <p className="text-xs text-muted-foreground">Escolha as referências desta montagem. As escolhas dos outros cenários são preservadas.</p>
                   {references.map((reference, index) => (
                     <label key={getStudioArtifactKey(reference)} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={getEnvironmentReferences(activeBaseImage, references).includes(reference)} onChange={event => {
-                        const selected = getEnvironmentReferences(activeBaseImage, references).map(item => item.mediaUrl)
-                        updateActiveEnvironment({ selectedReferenceUrls: event.target.checked ? [...selected, reference.mediaUrl] : selected.filter(url => url !== reference.mediaUrl) })
+                      <input type="checkbox" checked={Boolean(currentPlan?.references.includes(reference))} onChange={event => {
+                        const selected = currentPlan?.references.map(item => item.mediaUrl) || []
+                        updateActiveScenario({ selectedReferenceUrls: event.target.checked ? [...new Set([...selected, reference.mediaUrl])] : selected.filter(url => url !== reference.mediaUrl) })
                       }} />
                       <span className="min-w-0 break-words">Ref. {index + 1} · {formatSourceLabel(reference)}</span>
                     </label>
                   ))}
                   {references.length === 0 && <p className="text-xs text-muted-foreground">Sem produtos. Você pode transformar o ambiente apenas com instruções.</p>}
                   <label className="block text-xs text-muted-foreground">
-                    Instrução específica desta foto (opcional)
-                    <textarea maxLength={4000} value={activeBaseImage.instruction || ""} onChange={event => updateActiveEnvironment({ instruction: event.target.value })} placeholder="Deixe vazio para usar a instrução geral." className="mt-1 min-h-24 w-full rounded border border-border bg-background p-2 text-sm" />
+                    Instrução específica desta montagem (opcional)
+                    <textarea maxLength={4000} value={currentScenario.instruction || ""} onChange={event => updateActiveScenario({ instruction: event.target.value })} placeholder="Deixe vazio para usar a instrução geral." className="mt-1 min-h-24 w-full rounded border border-border bg-background p-2 text-sm" />
                   </label>
                 </fieldset>
               )}
@@ -750,16 +719,29 @@ export default function StudioBatchPage({
           </div></details>
         </aside>
         <section className={styles.preview} aria-label="Área de prévia">
-          <div className={styles.tabs} role="group" aria-label="Visualização do ambiente"><button type="button" aria-pressed={previewTab === "base"} onClick={() => setPreviewTab("base")}>Ambiente base</button><button type="button" aria-pressed={previewTab === "preview"} onClick={() => setPreviewTab("preview")}>Prévia da composição</button><span>{baseImages.length} ambientes · {references.length} referências</span></div>
+          <div className={styles.tabs} role="group" aria-label="Visualização do ambiente">
+            <button type="button" aria-pressed={previewTab === "base"} onClick={() => setPreviewTab("base")}>Ambiente base</button><button type="button" aria-pressed={previewTab === "preview"} onClick={() => setPreviewTab("preview")}>Prévia da composição</button><div className={styles.previewControls}><span>{baseImages.length} ambientes · {references.length} referências</span>
+            <button type="button" className={styles.toolsToggle} aria-controls="studio-tools" aria-expanded={leftOpen} aria-label={leftOpen ? "Recolher painel de ferramentas" : "Abrir painel de ferramentas"} onClick={() => setLeftOpen(open => !open)}>
+              {leftOpen ? <PanelRightClose size={16} aria-hidden="true" /> : <PanelRightOpen size={16} aria-hidden="true" />}
+              {leftOpen ? "Recolher ferramentas" : "Abrir ferramentas"}
+            </button>
+          </div></div>
           <div className={styles.canvas}>
             {previewTab === "preview" && createdJobs.length > 0 && showResults ? <div className={styles.results}><button type="button" className={styles.backToPreparation} onClick={() => setShowResults(false)}>Ver preparação</button><StudioResults slug={slug} jobs={createdJobs} onCreated={(job) => setCreatedJobs((current) => current.some((item) => item.id === job.id) ? current : [...current, job])} /></div> : activeBaseImage ? <>
               <SafeImage src={activeBaseImage.mediaUrl} alt={activeBaseImage.caption || "Ambiente base"} className={styles.baseImage} fallbackLabel="Ambiente indisponível" />
               <span className={styles.canvasLabel}>{previewTab === "base" ? `Ambiente ${activeBaseIndex + 1}` : "Preparação · imagem original, ainda sem alterações"}</span>
-              {previewTab === "preview" && references.length > 0 && <div className={styles.previewReferences}>{getEnvironmentReferences(activeBaseImage, references).map((image, index) => <SafeImage key={index} src={image.mediaUrl} alt={`Referência ${index + 1}`} className={styles.referenceThumb} />)}</div>}
+              <StudioPaintFlow slug={slug} base={activeBaseImage} manual={prompt} strength={strength} preset={paintCatalogPreset} catalogId={paintCatalogId} open={paintCatalogOpen} onClose={() => { setPaintCatalogOpen(false); paintPresetTrigger.current?.focus() }} disabled={isGenerating || isUploading || !draftLoaded} operationLock={operationLock} onBusy={setIsPainting} onUpdate={(key, patch) => setBaseImages(current => current.map(base => getStudioArtifactKey(base) === key ? { ...base, ...patch } : base))} />
+              <div className={styles.presetBar} role="group" aria-label={`Presets do ambiente ${activeBaseIndex + 1}`}>
+                {STUDIO_PRESETS.map(preset => <button key={preset.id} type="button" aria-label={preset.label} title={preset.label} aria-expanded={paintCatalogOpen && paintCatalogPreset === preset.id} aria-controls={paintCatalogId} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setPaintCatalogOpen(false) } }} aria-pressed={paintCatalogOpen && paintCatalogPreset === preset.id} disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={event => {
+                  paintPresetTrigger.current = event.currentTarget
+                  setPaintCatalogOpen(!(paintCatalogOpen && paintCatalogPreset === preset.id)); setPaintCatalogPreset(preset.id)
+                }}>{preset.id === "fresh-paint" ? <Paintbrush size={18} aria-hidden="true" /> : preset.id === "renovate" ? <Sparkles size={18} aria-hidden="true" /> : preset.id === "furnish" ? <Sofa size={18} aria-hidden="true" /> : preset.id === "wall-covering" ? <BrickWall size={18} aria-hidden="true" /> : preset.id === "flooring" ? <Grid2X2 size={18} aria-hidden="true" /> : preset.id === "ceiling" ? <PanelsTopLeft size={18} aria-hidden="true" /> : <span className={styles.removeFurnitureIcon}><Sofa size={18} aria-hidden="true" /><X size={10} aria-hidden="true" /></span>}</button>)}
+              </div>
+              {previewTab === "preview" && references.length > 0 && <div className={styles.previewReferences}>{(currentPlan?.baseIndex === activeBaseIndex ? currentPlan.references : getEnvironmentReferences(activeBaseImage, references)).map((image, index) => <SafeImage key={index} src={image.mediaUrl} alt={`Referência ${index + 1}`} className={styles.referenceThumb} />)}</div>}
               {previewTab === "preview" && createdJobs.length > 0 && <button type="button" className={styles.resultToggle} onClick={() => setShowResults(true)}>Ver resultados</button>}
-            </> : <div className={styles.empty}><ImageIcon size={36} /><h2>Comece adicionando um ambiente</h2><p>Envie uma foto do cômodo para preparar sua composição.</p><button type="button" disabled={isUploading || isGenerating || !draftLoaded} onClick={() => baseInput.current?.click()}><FolderOpen size={20} />Adicionar ambiente</button><p>Depois, adicione referências e descreva o resultado desejado.</p></div>}
+            </> : <div className={styles.empty}><ImageIcon size={36} /><h2>Comece adicionando um ambiente</h2><p>Envie uma foto do cômodo para preparar sua composição.</p><button type="button" disabled={isUploading || isGenerating || isPainting || !draftLoaded} onClick={() => baseInput.current?.click()}><FolderOpen size={20} />Adicionar ambiente</button><p>Depois, adicione referências e descreva o resultado desejado.</p></div>}
           </div>
-          <div className={styles.batch}><h3>Ambientes do lote <span>{baseImages.length}</span></h3><div className={styles.batchImages}>{baseImages.map((image, index) => <button key={`${getStudioArtifactKey(image)}:${index}`} type="button" aria-label={`Selecionar ambiente ${index + 1}`} aria-pressed={activeBaseIndex === index} onClick={() => { setActiveBaseIndex(index); setPreviewTab("base") }}><SafeImage src={image.mediaUrl} alt={`Ambiente ${index + 1}`} className={styles.thumbnail} /><span>Ambiente {index + 1}</span></button>)}<button type="button" className={styles.addEnvironment} disabled={isUploading || isGenerating || !draftLoaded} onClick={() => baseInput.current?.click()}><Plus size={24} /><span>Adicionar</span></button></div></div>
+          <div className={styles.batch}><h3><button type="button" className={styles.sectionToggle} aria-expanded={batchOpen} aria-controls="studio-batch-images" onClick={() => setBatchOpen(open => !open)}><ChevronRight size={14} aria-hidden="true" />Ambientes do lote <span>{baseImages.length}</span></button></h3><div id="studio-batch-images" hidden={!batchOpen} className={styles.batchImages}>{baseImages.map((image, index) => <button key={`${getStudioArtifactKey(image)}:${index}`} type="button" aria-label={`Selecionar ambiente ${index + 1}`} aria-pressed={activeBaseIndex === index} onClick={() => { setActiveBaseIndex(index); setPreviewTab("base") }}><SafeImage src={image.mediaUrl} alt={`Ambiente ${index + 1}`} className={styles.thumbnail} /><span>Ambiente {index + 1}</span></button>)}<button type="button" className={styles.addEnvironment} disabled={isUploading || isGenerating || isPainting || !draftLoaded} onClick={() => baseInput.current?.click()}><Plus size={24} /><span>Adicionar</span></button></div></div>
           <input ref={baseInput} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label="Adicionar ambientes ao lote" onChange={(event) => void handleUpload(event, "base")} />
         </section>
       </div>
