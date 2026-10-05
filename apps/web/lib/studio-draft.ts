@@ -62,15 +62,18 @@ export type StudioImageArtifact = {
 }
 
 export type StudioScenario = {
+  variationCount?: number
   baseKey: string
   selectedReferenceUrls?: string[]
   instruction?: string
 }
 
 // Slots survive quantity reductions; changing a base never replaces a slot's inputs.
-export function ensureStudioScenarios(scenarios: StudioScenario[], bases: StudioImageArtifact[]): StudioScenario[] {
-  if (scenarios.length >= bases.length) return scenarios
-  return [...scenarios, ...bases.slice(scenarios.length).map(base => ({
+export function ensureStudioScenarios(scenarios: StudioScenario[], bases: StudioImageArtifact[], legacyTargetCount?: number): StudioScenario[] {
+  const retained = legacyTargetCount === undefined ? scenarios : scenarios.map((scenario, index) => ({ ...scenario, variationCount: scenario.variationCount ?? (index < legacyTargetCount ? 1 : 0) }))
+  if (retained.length >= bases.length) return retained
+  return [...retained, ...bases.slice(retained.length).map((base, offset) => ({
+    variationCount: legacyTargetCount === undefined || retained.length + offset < legacyTargetCount ? 1 : 0,
     baseKey: getStudioArtifactKey(base), selectedReferenceUrls: base.selectedReferenceUrls ? [...base.selectedReferenceUrls] : undefined,
     instruction: base.instruction || "",
   }))]
@@ -81,9 +84,15 @@ export function planStudioScenarios(scenarios: StudioScenario[], bases: StudioIm
     const baseIndex = bases.findIndex(base => getStudioArtifactKey(base) === scenario.baseKey)
     const source = bases[baseIndex]
     const selected = scenario.selectedReferenceUrls === undefined ? references : references.filter(ref => scenario.selectedReferenceUrls!.includes(ref.mediaUrl))
-    return { id: `scenario:${index}`, baseIndex, base: source ? { ...source, instruction: scenario.instruction || "", selectedReferenceUrls: scenario.selectedReferenceUrls } : null,
+    return { id: `scenario:${index}`, variationCount: Number.isSafeInteger(scenario.variationCount) && scenario.variationCount! >= 0 ? scenario.variationCount! : 1, baseIndex, base: source ? { ...source, instruction: scenario.instruction || "", selectedReferenceUrls: scenario.selectedReferenceUrls } : null,
       references: selected, label: `Cenário ${index + 1} · ${source ? `Ambiente ${baseIndex + 1}` : "Escolha um ambiente"} + ${selected.length} referência(s) → 1 composição` }
   })
+}
+
+export function expandStudioScenarioVariations(plans: ReturnType<typeof planStudioScenarios>) {
+  return plans.flatMap(plan => Array.from({ length: plan.variationCount }, (_, index) => ({
+    ...plan, id: `${plan.id}:variation:${index}`, label: `C${Number(plan.id.split(":")[1]) + 1} · Variação ${index + 1} · ${plan.label.split(" · ").slice(1).join(" · ")}`,
+  })))
 }
 
 export type StudioDraft = {

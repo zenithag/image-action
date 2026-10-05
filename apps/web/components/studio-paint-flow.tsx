@@ -61,6 +61,7 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
   const pending = Boolean(base.paintJobId && (!job || job.status === "queued" || job.status === "processing"))
   const working = getStudioWorkingBase(base)
   const selectedVersion = base.presetVersions?.find(version => version.jobId === base.selectedPresetVersionId)
+  const pendingVersion = base.presetVersions?.find(version => version.jobId === base.paintJobId && (version.status === "queued" || version.status === "processing"))
 
   useEffect(() => { onBusy(pending || submitting); return () => onBusy(false) }, [pending, submitting, onBusy])
   useEffect(() => { if (open) catalogRef.current?.focus() }, [open, preset])
@@ -196,6 +197,12 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
       {job?.status === "failed" && <span>{job.errorMessage || "A aplicação falhou. Abra o preset para tentar novamente; suas versões foram preservadas."}</span>}
       <div className={styles.presetVersions} role="group" aria-label="Versões deste ambiente; a selecionada será a base da composição">
         <button type="button" aria-label="Usar imagem original como principal" aria-pressed={!base.selectedPresetVersionId} onClick={() => onUpdate(key, { selectedPresetVersionId: undefined })}><SafeImage src={base.mediaUrl} alt="Original" /></button>
+        {pendingVersion && <div className={styles.presetVersion} data-glass="">
+          <div className={styles.presetVersionPending} role="img" aria-label={`${pendingVersion.label} — imagem em geração`} aria-busy="true">
+            <SafeImage src={job?.baseImageUrl || base.presetVersions?.find(version => version.jobId === pendingVersion.parentVersionId)?.resultImageUrl || base.mediaUrl} alt="" />
+            <span className={styles.presetThumbnailLoader} aria-hidden="true"><span className={styles.presetThumbnailSpinner} /></span>
+          </div>
+        </div>}
         {base.presetVersions?.filter(version => version.status === "done" && version.resultImageUrl).map(version => <div key={version.jobId} className={styles.presetVersion} data-glass="">
           <button type="button" title={version.label} aria-label={`Usar ${version.label} como principal`} aria-pressed={base.selectedPresetVersionId === version.jobId} onClick={() => onUpdate(key, { selectedPresetVersionId: version.jobId })}><SafeImage src={version.resultImageUrl} alt={version.label} /></button>
           <div className={styles.presetVersionActions}>

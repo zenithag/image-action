@@ -181,3 +181,9 @@
 .presetVersions .presetVersionSave { position:absolute; right:-4px; bottom:-4px; display:flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0; }
 .presetVersions .presetVersionDelete { position:absolute; top:-2px; right:-2px; display:flex; align-items:center; justify-content:center; width:22px; height:22px; border:1px solid var(--border); border-radius:50%; color:var(--foreground); background:var(--card); box-shadow:0 1px 4px rgb(0 0 0 / .2); }
 .presetVersionDelete:disabled { opacity:.5; cursor:not-allowed; }
+
+.presetVersionPending { position:relative; flex:none; width:64px; height:52px; border:2px solid var(--border); border-radius:7px; overflow:hidden; }
+.presetThumbnailLoader { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgb(0 0 0 / .4); }
+.presetThumbnailSpinner { display:block; box-sizing:border-box; width:18px; height:18px; border:2px solid rgb(255 255 255 / .45); border-top-color:#fff; border-radius:50%; animation:studioThumbnailSpin .8s linear infinite; }
+@keyframes studioThumbnailSpin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .presetThumbnailSpinner { animation:none; } }

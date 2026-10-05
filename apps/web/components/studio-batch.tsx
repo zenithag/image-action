@@ -31,6 +31,7 @@ import {
   getStudioDraftStorageKey,
   ensureStudioScenarios,
   planStudioScenarios,
+  expandStudioScenarioVariations,
 } from "@/lib/studio-draft"
 import { cn } from "@/lib/utils"
 import { buildStudioCompositionInput, STUDIO_PRESETS, getEnvironmentReferences, IMAGE_TYPES, MAX_REFERENCES, MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, validateStudioFiles } from "@/lib/studio-v1"
@@ -173,13 +174,6 @@ function UploadCollection({ title, count, description, reference = false, images
   </section>
 }
 
-type PlannedComposition = {
-  id: string
-  baseIndex: number
-  base: StudioImageArtifact | null
-  references: StudioImageArtifact[]
-  label: string
-}
 
 const QUICK_TAGS = [
   "manter moveis",
@@ -208,7 +202,6 @@ export default function StudioBatchPage({
 
   // Estratégia e controle de quantidade de montagens
   const strategy: StudioCompositionStrategy = "bundle"
-  const [targetOutputCount, setTargetOutputCount] = useState<number | null>(null)
 
   // Configurações gerais
   const [strength, setStrength] = useState(72)
@@ -337,11 +330,9 @@ export default function StudioBatchPage({
         setBaseImages(draft.baseImages ?? (draft.baseImage ? [draft.baseImage] : []))
         setActiveBaseIndex(0)
         setActiveScenarioIndex(0)
-        setScenarios(ensureStudioScenarios(draft.scenarios || [], draft.baseImages ?? (draft.baseImage ? [draft.baseImage] : [])))
+        setScenarios(ensureStudioScenarios(draft.scenarios || [], draft.baseImages ?? (draft.baseImage ? [draft.baseImage] : []), draft.targetOutputCount))
         setReferences(draft.references ?? (draft.referenceImage ? [draft.referenceImage] : []))
         if ((draft.references?.length ?? 0) > MAX_REFERENCES) setError("Este rascunho tem mais de 5 referências. Remova as excedentes para gerar.")
-        // Legacy matrix drafts now produce one composition per environment.
-        setTargetOutputCount(typeof draft.targetOutputCount === "number" ? draft.targetOutputCount : null)
         setPrompt(draft.instruction ?? "")
         setStrength(typeof draft.strength === "number" ? draft.strength : 72)
       } catch {
@@ -362,7 +353,6 @@ export default function StudioBatchPage({
       referenceImage: references.at(-1),
       references,
       generationStrategy: strategy,
-      targetOutputCount: targetOutputCount ?? undefined,
       scenarios,
       instruction: prompt,
       strength,
@@ -371,29 +361,25 @@ export default function StudioBatchPage({
     const timer = setTimeout(() => {
       void saveStudioSession(slug, {
         base: baseImages[0] ?? null, baseImages, references, instruction: prompt,
-        generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined, scenarios,
+        generationStrategy: strategy, scenarios,
         strength, updatedAt: nextDraft.updatedAt,
       }).then(() => setDraftSaveError(null)).catch(() => setDraftSaveError("O navegador não conseguiu salvar o rascunho. Mantenha a página aberta."))
     }, 300)
     return () => clearTimeout(timer)
-  }, [baseImages, draftLoaded, prompt, references, scenarios, slug, strategy, strength, targetOutputCount])
+  }, [baseImages, draftLoaded, prompt, references, scenarios, slug, strategy, strength])
 
   useEffect(() => {
     if (draftLoaded) setScenarios(current => ensureStudioScenarios(current, baseImages))
   }, [baseImages, draftLoaded])
 
-  const plannedCombinations: PlannedComposition[] = useMemo(() => planStudioScenarios(scenarios, baseImages, references), [scenarios, baseImages, references])
-  const maxAvailable = baseImages.length
-  const effectiveTargetCount = targetOutputCount !== null
-    ? Math.max(1, Math.min(targetOutputCount, maxAvailable || 1))
-    : maxAvailable
-
-  const canGenerate = Boolean(draftLoaded && !isUploading && !isPainting && references.length <= MAX_REFERENCES && baseImages.length > 0 && plannedCombinations.slice(0, effectiveTargetCount).every(item => item.base && (item.base.instruction || prompt).trim()) && effectiveTargetCount > 0)
+  const plannedCombinations = useMemo(() => planStudioScenarios(scenarios, baseImages, references), [scenarios, baseImages, references])
+  const totalVariations = plannedCombinations.reduce((total, plan) => total + plan.variationCount, 0)
+  const canGenerate = Boolean(draftLoaded && !isUploading && !isPainting && references.length <= MAX_REFERENCES && baseImages.length > 0 && plannedCombinations.filter(item => item.variationCount > 0).every(item => item.base && (item.base.instruction || prompt).trim()) && totalVariations > 0)
 
   // Cenário atualmente selecionado para preview
   const activeBaseImage = baseImages[activeBaseIndex] ?? baseImages[0] ?? null
 
-  const currentScenarioIndex = Math.min(activeScenarioIndex, Math.max(0, effectiveTargetCount - 1))
+  const currentScenarioIndex = Math.min(activeScenarioIndex, Math.max(0, plannedCombinations.length - 1))
   const currentScenario = ensureStudioScenarios(scenarios, baseImages)[currentScenarioIndex]
   const currentPlan = plannedCombinations[currentScenarioIndex]
   useEffect(() => {
@@ -417,7 +403,6 @@ export default function StudioBatchPage({
     setReferences([])
     setPrompt("")
     setStrength(72)
-    setTargetOutputCount(null)
     setCreatedJobs([])
     setError(null)
     setStatusMessage("Rascunho limpo.")
@@ -425,7 +410,7 @@ export default function StudioBatchPage({
 
   // Disparo em lote das montagens planejadas
   async function createBatchCompositions() {
-    const toGenerate = plannedCombinations.slice(0, effectiveTargetCount)
+    const toGenerate = expandStudioScenarioVariations(plannedCombinations)
     if (!canGenerate || isGenerating || operationLock.current) return
     operationLock.current = true
 
@@ -450,7 +435,7 @@ export default function StudioBatchPage({
           changeStrength: strength,
         }
 
-        const signature = JSON.stringify(body)
+        const signature = JSON.stringify({ variation: item.id, body })
         if (!batchRequests.current.has(signature)) batchRequests.current.set(signature, `studio:${crypto.randomUUID()}`)
         const serialized = JSON.stringify({ ...body, sourceMessageId: batchRequests.current.get(signature) })
         if (new Blob([serialized]).size > MAX_REQUEST_BYTES) {
@@ -491,8 +476,8 @@ export default function StudioBatchPage({
         <div className={styles.title}><h1>Estúdio</h1><span>Rascunho</span></div>
         <div className={styles.actions}>
           <Button variant="ghost" type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={clearDraft}>Descartar</Button>
-          <Button variant="outline" type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={() => void saveStudioSession(slug, { base: baseImages[0] ?? null, baseImages, references, instruction: prompt, generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined, scenarios, strength, updatedAt: new Date().toISOString() }).then(() => { setDraftSaveError(null); setStatusMessage("Rascunho salvo neste navegador.") }).catch(() => setDraftSaveError("Não foi possível salvar o rascunho neste navegador."))}>Salvar rascunho</Button>
-          <Button variant="default" type="button" disabled={!canGenerate || isGenerating} onClick={() => void createBatchCompositions()}>{isGenerating ? <Loader2 size={17} className="animate-spin" /> : <Sparkles size={17} />}{isGenerating ? `Gerando${isBatchProgress ? ` (${isBatchProgress.current}/${isBatchProgress.total})` : ""}...` : `Gerar ${effectiveTargetCount > 1 ? `${effectiveTargetCount} composições` : "composição"}`}</Button>
+          <Button variant="outline" type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={() => void saveStudioSession(slug, { base: baseImages[0] ?? null, baseImages, references, instruction: prompt, generationStrategy: strategy, scenarios, strength, updatedAt: new Date().toISOString() }).then(() => { setDraftSaveError(null); setStatusMessage("Rascunho salvo neste navegador.") }).catch(() => setDraftSaveError("Não foi possível salvar o rascunho neste navegador."))}>Salvar rascunho</Button>
+          <Button variant="default" type="button" disabled={!canGenerate || isGenerating} onClick={() => void createBatchCompositions()}>{isGenerating ? <Loader2 size={17} className="animate-spin" /> : <Sparkles size={17} />}{isGenerating ? `Gerando${isBatchProgress ? ` (${isBatchProgress.current}/${isBatchProgress.total})` : ""}...` : `Gerar ${totalVariations > 1 ? `${totalVariations} composições` : "composição"}`}</Button>
           <UserMenu />
         </div>
       </header>
@@ -526,110 +511,11 @@ export default function StudioBatchPage({
 
           </details>
           <details className={styles.advanced}><summary>Configurações da composição</summary><div>
-              {/* Configuração do lote (Estratégia & Quantidade de Entradas) */}
-              {(baseImages.length > 0 || references.length > 0) && (
-                <div className="rounded-md border border-border bg-card p-2.5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">
-                      Configuração do lote
-                    </span>
-                    <span className="rounded-md bg-accent px-1.5 py-0.5 text-xs font-bold text-foreground">
-                      {maxAvailable} {maxAvailable === 1 ? "combinação" : "combinações"}
-                    </span>
-                  </div>
-
-                  {/* Modo de Combinação */}
-                  <div>
-                    <div className="mb-1.5 text-xs font-medium text-muted-foreground">
-                      Uma composição por foto
-                    </div>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      Os produtos escolhidos para cada foto são aplicados juntos na mesma imagem. Tentar novamente reprocessa apenas a composição escolhida.
-                    </p>
-                  </div>
-
-                  {/* Seletor de Quantidade de Composições a Gerar */}
-                  <div>
-                    <div className="mb-1.5 flex items-center justify-between text-xs">
-                      <span className="font-medium text-muted-foreground">
-                        Quantidade a gerar:
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        {effectiveTargetCount} de {maxAvailable}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" type="button" className="w-8" 
-                        onClick={() => setTargetOutputCount((prev) => Math.max(1, (prev ?? maxAvailable) - 1))}
-                        disabled={effectiveTargetCount <= 1}
-                        title="Diminuir quantidade">
-                        <Minus className="h-3.5 w-3.5" />
-                      </Button>
-
-                      <Input
-                        type="number"
-                        min={1}
-                        max={maxAvailable || 1}
-                        value={effectiveTargetCount}
-                        onChange={(event) => {
-                          const val = parseInt(event.target.value, 10)
-                          if (!isNaN(val)) {
-                            setTargetOutputCount(Math.max(1, Math.min(val, maxAvailable || 1)))
-                          }
-                        }}
-                        className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-center text-xs font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-                      />
-
-                      <Button variant="ghost" size="icon" type="button" className="w-8" 
-                        onClick={() => setTargetOutputCount((prev) => Math.min(maxAvailable, (prev ?? maxAvailable) + 1))}
-                        disabled={effectiveTargetCount >= maxAvailable}
-                        title="Aumentar quantidade">
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-
-                    {/* Presets rápidos */}
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {[1, 2, 4, maxAvailable]
-                        .filter((val, idx, arr) => val > 0 && val <= maxAvailable && arr.indexOf(val) === idx)
-                        .map((val) => (
-                          <ToggleButton selected={effectiveTargetCount === val} key={val} onClick={() => setTargetOutputCount(val === maxAvailable ? null : val)}>
-                            {val === maxAvailable ? `Todas (${maxAvailable})` : `${val} ${val === 1 ? "montagem" : "montagens"}`}
-                          </ToggleButton>
-                        ))}
-                    </div>
-                  </div>
-
-                  {/* Prévia da lista planejada */}
-                  <div className="rounded-md border border-border/70 bg-muted/30 p-2">
-                    <div className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      Resumo da fila:
-                    </div>
-                    <ul className="space-y-1 text-xs text-muted-foreground">
-                      {plannedCombinations.slice(0, effectiveTargetCount).map((item, idx) => (
-                        <li key={item.id} className="flex items-center gap-1.5 truncate">
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
-                            {idx + 1}
-                          </span>
-                          <span className="truncate">{item.label}</span>
-                        </li>
-                      ))}
-                      {effectiveTargetCount < maxAvailable && (
-                        <li className="text-xs italic text-muted-foreground">
-                          + {maxAvailable - effectiveTargetCount} combinação(ões) ignoradas pelo limite
-                        </li>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              )}
-
               {currentScenario && (
                 <fieldset className="space-y-3 rounded-md border border-border p-3">
-                  <legend className="px-1 text-sm font-medium">Configurar cenário {currentScenarioIndex + 1}</legend>
-                  <div className="flex flex-wrap gap-2" role="group" aria-label="Cenários da composição">
-                    {plannedCombinations.slice(0, effectiveTargetCount).map((item, index) => <ToggleButton selected={currentScenarioIndex === index} key={item.id} onClick={() => { setActiveScenarioIndex(index); if (item.baseIndex >= 0) setActiveBaseIndex(item.baseIndex) }}>Cenário {index + 1}</ToggleButton>)}
+                  <legend className="px-1 text-xs font-medium">Cenários</legend>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Cenários">
+                    {plannedCombinations.map((item, index) => <ToggleButton key={item.id} selected={currentScenarioIndex === index} aria-label={`Configurar cenário ${index + 1}`} onClick={() => { setActiveScenarioIndex(index); if (item.baseIndex >= 0) setActiveBaseIndex(item.baseIndex) }}>{index + 1}</ToggleButton>)}
                   </div>
                   <label className="block text-xs text-muted-foreground">
                     Ambiente desta montagem
@@ -639,14 +525,25 @@ export default function StudioBatchPage({
                       {baseImages.map((base, index) => <option key={getStudioArtifactKey(base)} value={getStudioArtifactKey(base)}>Ambiente {index + 1} · {base.caption || "Imagem carregada"}</option>)}
                     </NativeSelect>
                   </label>
-                  <p className="text-xs text-muted-foreground">Escolha as referências desta montagem. As escolhas dos outros cenários são preservadas.</p>
-                  {references.map((reference, index) => (
-                    <Input type="checkbox" checked={Boolean(currentPlan?.references.includes(reference))} onChange={event => {
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">Referências</p>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Referências deste cenário; selecione uma ou mais">
+                      {references.map((reference, index) => <Input key={getStudioArtifactKey(reference)} type="checkbox" title={formatSourceLabel(reference)} aria-label={`Referência ${index + 1}: ${formatSourceLabel(reference)}`} checked={Boolean(currentPlan?.references.includes(reference))} onChange={event => {
                         const selected = currentPlan?.references.map(item => item.mediaUrl) || []
                         updateActiveScenario({ selectedReferenceUrls: event.target.checked ? [...new Set([...selected, reference.mediaUrl])] : selected.filter(url => url !== reference.mediaUrl) })
-                      }}>Ref. {index + 1} · {formatSourceLabel(reference)}</Input>
-                  ))}
+                      }}>R{index + 1}</Input>)}
+                    </div>
+                  </div>
                   {references.length === 0 && <p className="text-xs text-muted-foreground">Sem produtos. Você pode transformar o ambiente apenas com instruções.</p>}
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">Variações no cenário {currentScenarioIndex + 1}</p>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" type="button" aria-label="Diminuir variações deste cenário" disabled={!currentPlan?.variationCount || isGenerating} onClick={() => updateActiveScenario({ variationCount: Math.max(0, (currentPlan?.variationCount ?? 1) - 1) })}><Minus size={14} /></Button>
+                      <Input type="number" aria-label="Quantidade de variações deste cenário" min={0} step={1} value={currentPlan?.variationCount ?? 1} disabled={isGenerating} onChange={event => { const value = Number(event.target.value); if (Number.isSafeInteger(value) && value >= 0) updateActiveScenario({ variationCount: value }) }} />
+                      <Button variant="ghost" size="icon" type="button" aria-label="Aumentar variações deste cenário" disabled={isGenerating} onClick={() => updateActiveScenario({ variationCount: (currentPlan?.variationCount ?? 1) + 1 })}><Plus size={14} /></Button>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">0 deixa este cenário fora da geração. Total: {totalVariations} variações. Cada variação usa os créditos do fluxo de geração.</p>
+                  </div>
                   <label className="block text-xs text-muted-foreground">
                     Instrução específica desta montagem (opcional)
                     <Textarea maxLength={4000} value={currentScenario.instruction || ""} onChange={event => updateActiveScenario({ instruction: event.target.value })} placeholder="Deixe vazio para usar a instrução geral." className="mt-1 min-h-24 w-full rounded-md border border-border bg-background p-2 text-sm" />

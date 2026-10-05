@@ -24,7 +24,7 @@ async function load(relative) {
   return import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`)
 }
 const { validateStudioFiles, buildStudioInput, getEnvironmentReferences, toggleStudioPreset, getStudioInstruction, buildStudioPresetInput, buildStudioCompositionInput, getStudioWorkingBase, recordStudioPresetResult, removeStudioPresetVersion, getStudioFurniture, chooseStudioFurniture, isStudioMaterialPreset, hasStudioPresetInstruction, getStudioMaterials, getStudioPaints, getStudioPaintSwatch, getStudioPaintPreviewSource, buildStudioMaterialInput, selectStudioMaterial, buildStudioPaintInput, submitStudioPaintJob, readStudioPaintJob, MAX_UPLOAD_BYTES, MAX_REQUEST_BYTES } = await load("../lib/studio-v1.ts")
-const { getStudioArtifactKey, ensureStudioScenarios, planStudioScenarios } = await load("../lib/studio-draft.ts")
+const { getStudioArtifactKey, ensureStudioScenarios, planStudioScenarios, expandStudioScenarioVariations } = await load("../lib/studio-draft.ts")
 const file = { type: "image/png", size: 100 }
 const base = { source: "upload", mediaUrl: "data:image/webp;base64,base", createdAt: "2026-09-28" }
 
@@ -128,7 +128,7 @@ test("presets combine independently per room and survive the existing draft save
     assert.equal(room.presetIds, undefined)
     assert.equal(other.presetIds, undefined)
     assert.equal(combined.instruction, room.instruction)
-    const scenarios = [{ baseKey: getStudioArtifactKey(other), instruction: "Cenário independente", selectedReferenceUrls: [] }]
+    const scenarios = [{ baseKey: getStudioArtifactKey(other), instruction: "Cenário independente", selectedReferenceUrls: [], variationCount: 3 }]
     await saveStudioSession("test-presets", { base: combined, baseImages: [combined, other], scenarios, references: [], instruction: "Instrução geral" })
     const restored = await loadStudioSession("test-presets")
     assert.deepEqual(restored.scenarios, scenarios)
@@ -698,14 +698,86 @@ test("real batch caller sends scenario-specific base, references and instruction
   const slots=[{baseKey:getStudioArtifactKey(rooms[1]),selectedReferenceUrls:["ref-1"],instruction:"Primeira direção"},{baseKey:getStudioArtifactKey(rooms[0]),selectedReferenceUrls:["ref-2"],instruction:"Segunda direção"}]
   const plans=planStudioScenarios(slots,rooms,refs)
   let bodies=[],error=null,active=1,preview=0
-  const state={plannedCombinations:plans,effectiveTargetCount:1,canGenerate:true,isGenerating:false,operationLock:{current:false},setIsGenerating:()=>{},setError:e=>{error=e},setStatusMessage:()=>{},setCreatedJobs:()=>{},setIsBatchProgress:()=>{},setShowResults:()=>{},buildStudioCompositionInput,slug:"test",prompt:"General",strength:72,crypto:globalThis.crypto,batchRequests:{current:new Map()},Blob,MAX_REQUEST_BYTES,fetch:async(_url,request)=>{bodies.push(JSON.parse(request.body));return new Response(JSON.stringify({job:{id:`mock-${bodies.length}`,status:"queued"}}))},activeScenarioIndex:1,currentScenarioIndex:0,currentPlan:plans[0],setActiveScenarioIndex:v=>{active=v},setActiveBaseIndex:v=>{preview=v}}
+  plans[1].variationCount=0
+  const state={plannedCombinations:plans,expandStudioScenarioVariations,canGenerate:true,isGenerating:false,operationLock:{current:false},setIsGenerating:()=>{},setError:e=>{error=e},setStatusMessage:()=>{},setCreatedJobs:()=>{},setIsBatchProgress:()=>{},setShowResults:()=>{},buildStudioCompositionInput,slug:"test",prompt:"General",strength:72,crypto:globalThis.crypto,batchRequests:{current:new Map()},Blob,MAX_REQUEST_BYTES,fetch:async(_url,request)=>{bodies.push(JSON.parse(request.body));return new Response(JSON.stringify({job:{id:`mock-${bodies.length}`,status:"queued"}}))},activeScenarioIndex:1,currentScenarioIndex:0,currentPlan:plans[0],setActiveScenarioIndex:v=>{active=v},setActiveBaseIndex:v=>{preview=v}}
   runInNewContext(ts.transpileModule(batch,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,state)
   await state.createBatchCompositions()
   assert.equal(error,null);assert.equal(bodies.length,1);assert.equal(bodies[0].baseImageUrl,"principal-image");assert.match(bodies[0].prompt,/Primeira direção/)
-  state.effectiveTargetCount=2;bodies=[];await state.createBatchCompositions()
+  plans[1].variationCount=1;bodies=[];await state.createBatchCompositions()
   assert.equal(bodies.length,2);assert.deepEqual(bodies.map(body=>body.references[0].imageUrl),["ref-1","ref-2"])
   assert.match(bodies[1].prompt,/Segunda direção/);assert.doesNotMatch(bodies[1].prompt,/Primeira direção/)
+  plans[0].variationCount=2;bodies=[];await state.createBatchCompositions()
+  assert.equal(bodies.length,3)
+  assert.equal(new Set(bodies.map(body=>body.sourceMessageId)).size,3)
+  assert.deepEqual(bodies.map(body=>body.references[0].imageUrl),["ref-1","ref-1","ref-2"])
+  assert.deepEqual(bodies.map(body=>body.baseImageUrl),["principal-image","principal-image","room-1"])
   const snapshot=JSON.stringify(slots)
   runInNewContext(ts.transpileModule(`(${clamp})()`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,state)
   assert.equal(active,0);assert.equal(preview,1);assert.equal(JSON.stringify(slots),snapshot)
+})
+
+
+test("thumbnail loader follows only the current image job and stops on completion or failure", async () => {
+  const { runInNewContext } = await import("node:vm")
+  const source = await readFile(new URL("../components/studio-paint-flow.tsx", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("batch.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let expression
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "pendingVersion") expression = node.initializer.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(expression)
+  const code = ts.transpileModule(`result = ${expression}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  function visiblePreset(base) {
+    const state = { base, result: null }
+    runInNewContext(code, state)
+    return state.result?.preset
+  }
+  const room = { ...base, paintJobId: "running", presetVersions: [{ jobId: "old", preset: "renovate", status: "processing" }, { jobId: "running", preset: "fresh-paint", status: "queued" }] }
+  assert.equal(visiblePreset(room), "fresh-paint")
+  const processing = { ...room, ...recordStudioPresetResult(room, { id: "running", status: "processing", createdAt: "now" }) }
+  assert.equal(visiblePreset(processing), "fresh-paint")
+  const done = { ...processing, ...recordStudioPresetResult(processing, { id: "running", status: "done", resultImageUrl: "result", createdAt: "now" }) }
+  const failed = { ...processing, ...recordStudioPresetResult(processing, { id: "running", status: "failed", createdAt: "now" }) }
+  assert.equal(visiblePreset(done), undefined)
+  assert.equal(visiblePreset(failed), undefined)
+  assert.equal(visiblePreset({ ...room, paintJobId: undefined }), undefined)
+  assert.equal(visiblePreset({ ...base, paintJobId: "other", presetVersions: room.presetVersions }), undefined)
+  assert.match(source, /pendingVersion && <div/)
+  assert.match(source, /role="img" aria-label=\{`\$\{pendingVersion.label\} — imagem em geração`\} aria-busy="true"/)
+  assert.match(source, /styles.presetThumbnailSpinner/)
+  const batch = await readFile(new URL("../components/studio-batch.tsx", import.meta.url), "utf8")
+  assert.doesNotMatch(batch, /activePresetJob|gerando imagem/)
+  const css = await readFile(new URL("../components/studio-batch.module.css", import.meta.url), "utf8")
+  assert.match(css, /animation:studioThumbnailSpin \.8s linear infinite/)
+  assert.match(css, /prefers-reduced-motion:reduce.*presetThumbnailSpinner.*animation:none/)
+})
+
+
+test("scenario variations persist independently, preserve legacy disabled slots and produce separate jobs", async () => {
+  const rooms=[{...base,mediaUrl:"room-a"},{...base,mediaUrl:"room-b"}]
+  const refs=[{...base,mediaUrl:"ref-a"},{...base,mediaUrl:"ref-b"}]
+  const legacy=ensureStudioScenarios([],rooms,1)
+  assert.deepEqual(legacy.map(slot=>slot.variationCount),[1,0])
+  const slots=legacy.map((slot,index)=>({...slot,variationCount:index?3:2,selectedReferenceUrls:[refs[index].mediaUrl],instruction:`Direction ${index}`}))
+  const restored=JSON.parse(JSON.stringify(slots))
+  const plan=planStudioScenarios(restored,rooms,refs)
+  const jobs=expandStudioScenarioVariations(plan)
+  assert.equal(jobs.length,5)
+  assert.equal(new Set(jobs.map(job=>job.id)).size,5)
+  assert.deepEqual(jobs.map(job=>job.references[0].mediaUrl),["ref-a","ref-a","ref-b","ref-b","ref-b"])
+  assert.deepEqual(jobs.map(job=>job.base.instruction),["Direction 0","Direction 0","Direction 1","Direction 1","Direction 1"])
+  const reduced=restored.map((slot,index)=>index?slot:{...slot,variationCount:0})
+  assert.equal(expandStudioScenarioVariations(planStudioScenarios(reduced,rooms,refs)).length,3)
+  assert.deepEqual(reduced[1],restored[1])
+  const previous=ensureStudioScenarios(slots,rooms,1)
+  assert.deepEqual(previous.map(slot=>slot.variationCount),[2,3])
+  const source=await readFile(new URL("../components/studio-batch.tsx",import.meta.url),"utf8")
+  assert.doesNotMatch(source,/Configuração do lote|setTargetOutputCount/)
+  assert.match(source,/role="group" aria-label="Cenários"/)
+  assert.doesNotMatch(source,/<NativeSelect aria-label="Cenário para configurar"/)
+  assert.match(source,/Variações no cenário \{currentScenarioIndex \+ 1\}/)
+  assert.match(source,/aria-label="Quantidade de variações deste cenário"/)
+  assert.match(source,/R\{index \+ 1\}/)
 })
