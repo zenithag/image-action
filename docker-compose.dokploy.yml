@@ -1,13 +1,6 @@
 services:
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_APP_URL: ${APP_URL}
-        NEXT_PUBLIC_API_URL: ${APP_URL}
-        NEXT_PUBLIC_WS_URL: ${APP_URL}
-        NEXT_PUBLIC_ENABLE_WS: "false"
+    image: ${COMOFICA_IMAGE:-ghcr.io/zenithag/image-action:develop}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -49,14 +42,7 @@ services:
       - "3000"
 
   app-job-worker:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_APP_URL: ${APP_URL}
-        NEXT_PUBLIC_API_URL: ${APP_URL}
-        NEXT_PUBLIC_WS_URL: ${APP_URL}
-        NEXT_PUBLIC_ENABLE_WS: "false"
+    image: ${COMOFICA_IMAGE:-ghcr.io/zenithag/image-action:develop}
     restart: unless-stopped
     command: >
       sh -c "node apps/web/server.js &
