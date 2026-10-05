@@ -232,15 +232,16 @@ async function readWatermarkLogo(logoUrl: string) {
   }
 }
 
-async function createLogoWatermarkOverlay(logoUrl: string, width: number, height: number) {
+async function createLogoWatermarkOverlay(logoUrl: string, width: number, height: number, scale = 1) {
   const logo = await readWatermarkLogo(logoUrl)
 
   if (!logo) {
     return null
   }
 
-  const maxWidth = Math.max(1, Math.round(width * 0.28))
-  const maxHeight = Math.max(1, Math.round(height * 0.18))
+  // Largest box the logo may occupy, scaled by the tenant's watermark size (kept inside the image).
+  const maxWidth = Math.max(1, Math.min(width, Math.round(width * 0.28 * scale)))
+  const maxHeight = Math.max(1, Math.min(height, Math.round(height * 0.18 * scale)))
   const resizedLogo = await sharp(logo.bytes)
     .resize({ width: maxWidth, height: maxHeight, fit: "inside" })
     .png()
@@ -277,7 +278,8 @@ async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
   const metadata = await sharp(imageBytes).metadata()
   const width = metadata.width ?? 1280
   const height = metadata.height ?? 720
-  const logoOverlay = await createLogoWatermarkOverlay(branding.logoUrl, width, height).catch(() => null)
+  const sizeScale = (branding.watermarkSize ?? 100) / 100
+  const logoOverlay = await createLogoWatermarkOverlay(branding.logoUrl, width, height, sizeScale).catch(() => null)
 
   if (logoOverlay) {
     return sharp(imageBytes)
@@ -291,7 +293,7 @@ async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
     return imageBytes
   }
 
-  const fontSize = Math.max(20, Math.round(Math.min(width, height) * (branding.watermarkPosition === "center" ? 0.045 : 0.028)))
+  const fontSize = Math.max(14, Math.round(Math.min(width, height) * (branding.watermarkPosition === "center" ? 0.045 : 0.028) * sizeScale))
   const padding = Math.max(24, Math.round(Math.min(width, height) * 0.03))
   const escapedText = escapeSvgText(text)
 

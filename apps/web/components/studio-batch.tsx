@@ -1,5 +1,11 @@
 "use client"
 
+import { UserMenu } from "@/components/molecules/user-menu"
+import { getThemeContainer } from "@/components/spectrum/theme-container"
+import { PresetIcon } from "@/components/spectrum/preset-icons"
+import { ToggleButton } from "@/components/spectrum/toggle-button"
+import { Button } from "@/components/ui/button"
+import { Input, NativeSelect, Textarea } from "@/components/spectrum/fields"
 import { use, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { ChangeEvent } from "react"
 import Link from "next/link"
@@ -7,31 +13,7 @@ import { Popover } from "radix-ui"
 import styles from "./studio-batch.module.css"
 import overviewStyles from "./tenant-overview.module.css"
 import { useRouter } from "next/navigation"
-import {
-  FolderOpen, Search, Circle,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  Copy,
-  Eraser,
-  Image as ImageIcon,
-  Layers,
-  Info,
-  Loader2,
-  Minus,
-  MousePointer2,
-  Paintbrush,
-  Sofa,
-  BrickWall,
-  Grid2X2,
-  PanelsTopLeft,
-  PanelRightClose,
-  PanelRightOpen,
-  Plus,
-  Sparkles,
-  Trash2,
-  X,
-} from "lucide-react"
+import { FolderOpen, Circle, ArrowRight, Check, ChevronRight, Info, Loader2, Minus, PanelRightClose, PanelRightOpen, Plus, Sparkles, X, Image as ImageIcon } from "@/components/spectrum/icons"
 
 import { SafeImage } from "@/components/safe-image"
 import { StudioPaintFlow } from "@/components/studio-paint-flow"
@@ -165,12 +147,12 @@ function UploadCollection({ title, count, description, reference = false, images
       <h3><button type="button" className={styles.sectionToggle} aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded(open => !open)}><ChevronRight size={14} aria-hidden="true" />{title}<span>{count}</span></button></h3>
       <Popover.Root>
         <Popover.Trigger asChild>
-          <button type="button" className={styles.uploadHelpTrigger} aria-label={`Informações sobre ${title.toLowerCase()}`}><Info size={16} aria-hidden="true" /></button>
+          <Button variant="ghost" size="icon" type="button" aria-label={`Informações sobre ${title.toLowerCase()}`}><Info size={16} aria-hidden="true" /></Button>
         </Popover.Trigger>
-        <Popover.Portal>
+        <Popover.Portal container={getThemeContainer()}>
           <Popover.Content className={cn(overviewStyles.surface, styles.uploadHelpContent)} side="left" align="start" sideOffset={8} collisionPadding={12} aria-label={`Informações sobre ${title.toLowerCase()}`}>
             <Popover.Close asChild>
-              <button type="button" className={styles.uploadHelpClose} aria-label="Fechar informações"><X size={16} aria-hidden="true" /></button>
+              <Button variant="ghost" size="icon" type="button" aria-label="Fechar informações" style={{ position: "absolute", top: 6, right: 6, width: 28, height: 28, minWidth: 0, padding: 0 }}><X size={14} aria-hidden="true" /></Button>
             </Popover.Close>
             <p>{description}</p>
             <p>{reference ? "Adicionar referências. Selecione imagens do seu dispositivo." : "Adicione fotos do ambiente ou selecione arquivos do seu dispositivo."}</p>
@@ -183,10 +165,10 @@ function UploadCollection({ title, count, description, reference = false, images
     <div id={contentId} hidden={!expanded}>
     <div className={styles.dropzone}>
       <ImageIcon size={20} aria-hidden="true" />
-      <button type="button" onClick={() => input.current?.click()} disabled={disabled}><FolderOpen size={16} />Selecionar arquivos</button>
-      <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label={reference ? "Selecionar referências" : "Selecionar ambientes"} disabled={disabled} onChange={onUpload} />
+      <Button variant="outline" type="button" onClick={() => input.current?.click()} disabled={disabled}><FolderOpen size={16} />Selecionar arquivos</Button>
+      <Input ref={input} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label={reference ? "Selecionar referências" : "Selecionar ambientes"} disabled={disabled} onChange={onUpload} />
     </div>
-    {images.length > 0 && <div className={styles.uploaded}>{images.map((image, index) => <div key={`${getStudioArtifactKey(image)}:${index}`}><SafeImage src={image.mediaUrl} alt={image.caption || `${title} ${index + 1}`} className={styles.thumbnail} /><button type="button" aria-label={`Remover ${reference ? "referência" : "ambiente"} ${index + 1}`} disabled={disabled} onClick={() => onRemove(index)}><X size={14} /></button></div>)}</div>}
+    {images.length > 0 && <div className={styles.uploaded}>{images.map((image, index) => <div key={`${getStudioArtifactKey(image)}:${index}`}><SafeImage src={image.mediaUrl} alt={image.caption || `${title} ${index + 1}`} className={styles.thumbnail} /><Button variant="ghost" size="icon" type="button" aria-label={`Remover ${reference ? "referência" : "ambiente"} ${index + 1}`} disabled={disabled} onClick={() => onRemove(index)}><X size={14} /></Button></div>)}</div>}
     </div>
   </section>
 }
@@ -508,9 +490,10 @@ export default function StudioBatchPage({
       <header className={styles.header}>
         <div className={styles.title}><h1>Estúdio</h1><span>Rascunho</span></div>
         <div className={styles.actions}>
-          <button type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={clearDraft}>Descartar</button>
-          <button type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} className={styles.save} onClick={() => void saveStudioSession(slug, { base: baseImages[0] ?? null, baseImages, references, instruction: prompt, generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined, scenarios, strength, updatedAt: new Date().toISOString() }).then(() => { setDraftSaveError(null); setStatusMessage("Rascunho salvo neste navegador.") }).catch(() => setDraftSaveError("Não foi possível salvar o rascunho neste navegador."))}>Salvar rascunho</button>
-          <button type="button" className={styles.generate} disabled={!canGenerate || isGenerating} onClick={() => void createBatchCompositions()}>{isGenerating ? <Loader2 size={17} className="animate-spin" /> : <Sparkles size={17} />}{isGenerating ? `Gerando${isBatchProgress ? ` (${isBatchProgress.current}/${isBatchProgress.total})` : ""}...` : `Gerar ${effectiveTargetCount > 1 ? `${effectiveTargetCount} composições` : "composição"}`}</button>
+          <Button variant="ghost" type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={clearDraft}>Descartar</Button>
+          <Button variant="outline" type="button" disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={() => void saveStudioSession(slug, { base: baseImages[0] ?? null, baseImages, references, instruction: prompt, generationStrategy: strategy, targetOutputCount: targetOutputCount ?? undefined, scenarios, strength, updatedAt: new Date().toISOString() }).then(() => { setDraftSaveError(null); setStatusMessage("Rascunho salvo neste navegador.") }).catch(() => setDraftSaveError("Não foi possível salvar o rascunho neste navegador."))}>Salvar rascunho</Button>
+          <Button variant="default" type="button" disabled={!canGenerate || isGenerating} onClick={() => void createBatchCompositions()}>{isGenerating ? <Loader2 size={17} className="animate-spin" /> : <Sparkles size={17} />}{isGenerating ? `Gerando${isBatchProgress ? ` (${isBatchProgress.current}/${isBatchProgress.total})` : ""}...` : `Gerar ${effectiveTargetCount > 1 ? `${effectiveTargetCount} composições` : "composição"}`}</Button>
+          <UserMenu />
         </div>
       </header>
       {(error || draftSaveError) && <p className={styles.error} role="alert">{error || draftSaveError}</p>}
@@ -522,10 +505,10 @@ export default function StudioBatchPage({
           <details className={cn(styles.instructions, styles.sectionAccordion)}><summary>Instruções</summary>
               {/* 4. Instrução */}
               <div>
-                <textarea
+                <Textarea
                   aria-label="Instrução da composição"
                   maxLength={4000}
-                  className="w-full resize-y rounded border border-border bg-card p-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                  className="w-full resize-y rounded-md border border-border bg-card p-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                   style={{ minHeight: 95 }}
                   placeholder="Descreva o que deseja aplicar nos ambientes..."
                   value={prompt}
@@ -533,14 +516,9 @@ export default function StudioBatchPage({
                 />
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {QUICK_TAGS.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setPrompt((current) => current ? `${current}, ${tag}` : tag)}
-                      className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
-                    >
+                    <Button variant="outline" type="button" key={tag} onClick={() => setPrompt((current) => current ? `${current}, ${tag}` : tag)}>
                       + {tag}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -550,19 +528,19 @@ export default function StudioBatchPage({
           <details className={styles.advanced}><summary>Configurações da composição</summary><div>
               {/* Configuração do lote (Estratégia & Quantidade de Entradas) */}
               {(baseImages.length > 0 || references.length > 0) && (
-                <div className="rounded border border-border bg-card p-2.5 space-y-3">
+                <div className="rounded-md border border-border bg-card p-2.5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] font-semibold text-foreground">
+                    <span className="text-xs font-semibold text-foreground">
                       Configuração do lote
                     </span>
-                    <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-foreground">
+                    <span className="rounded-md bg-accent px-1.5 py-0.5 text-xs font-bold text-foreground">
                       {maxAvailable} {maxAvailable === 1 ? "combinação" : "combinações"}
                     </span>
                   </div>
 
                   {/* Modo de Combinação */}
                   <div>
-                    <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                    <div className="mb-1.5 text-xs font-medium text-muted-foreground">
                       Uma composição por foto
                     </div>
                     <p className="text-xs leading-relaxed text-muted-foreground">
@@ -572,7 +550,7 @@ export default function StudioBatchPage({
 
                   {/* Seletor de Quantidade de Composições a Gerar */}
                   <div>
-                    <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
                       <span className="font-medium text-muted-foreground">
                         Quantidade a gerar:
                       </span>
@@ -582,17 +560,14 @@ export default function StudioBatchPage({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <Button variant="ghost" size="icon" type="button" className="w-8" 
                         onClick={() => setTargetOutputCount((prev) => Math.max(1, (prev ?? maxAvailable) - 1))}
                         disabled={effectiveTargetCount <= 1}
-                        className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted disabled:opacity-40"
-                        title="Diminuir quantidade"
-                      >
+                        title="Diminuir quantidade">
                         <Minus className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
 
-                      <input
+                      <Input
                         type="number"
                         min={1}
                         max={maxAvailable || 1}
@@ -606,15 +581,12 @@ export default function StudioBatchPage({
                         className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-center text-xs font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                       />
 
-                      <button
-                        type="button"
+                      <Button variant="ghost" size="icon" type="button" className="w-8" 
                         onClick={() => setTargetOutputCount((prev) => Math.min(maxAvailable, (prev ?? maxAvailable) + 1))}
                         disabled={effectiveTargetCount >= maxAvailable}
-                        className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted disabled:opacity-40"
-                        title="Aumentar quantidade"
-                      >
+                        title="Aumentar quantidade">
                         <Plus className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     </div>
 
                     {/* Presets rápidos */}
@@ -622,39 +594,29 @@ export default function StudioBatchPage({
                       {[1, 2, 4, maxAvailable]
                         .filter((val, idx, arr) => val > 0 && val <= maxAvailable && arr.indexOf(val) === idx)
                         .map((val) => (
-                          <button
-                            key={val}
-                            type="button"
-                            onClick={() => setTargetOutputCount(val === maxAvailable ? null : val)}
-                            className={cn(
-                              "rounded border px-2 py-0.5 text-[10.5px] font-medium transition-colors",
-                              effectiveTargetCount === val
-                                ? "border-primary bg-primary/10 text-primary font-semibold"
-                                : "border-border bg-background text-muted-foreground hover:bg-muted"
-                            )}
-                          >
+                          <ToggleButton selected={effectiveTargetCount === val} key={val} onClick={() => setTargetOutputCount(val === maxAvailable ? null : val)}>
                             {val === maxAvailable ? `Todas (${maxAvailable})` : `${val} ${val === 1 ? "montagem" : "montagens"}`}
-                          </button>
+                          </ToggleButton>
                         ))}
                     </div>
                   </div>
 
                   {/* Prévia da lista planejada */}
-                  <div className="rounded border border-border/70 bg-muted/30 p-2">
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  <div className="rounded-md border border-border/70 bg-muted/30 p-2">
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Resumo da fila:
                     </div>
-                    <ul className="space-y-1 text-[10.5px] text-muted-foreground">
+                    <ul className="space-y-1 text-xs text-muted-foreground">
                       {plannedCombinations.slice(0, effectiveTargetCount).map((item, idx) => (
                         <li key={item.id} className="flex items-center gap-1.5 truncate">
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-foreground">
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
                             {idx + 1}
                           </span>
                           <span className="truncate">{item.label}</span>
                         </li>
                       ))}
                       {effectiveTargetCount < maxAvailable && (
-                        <li className="text-[10px] italic text-muted-foreground">
+                        <li className="text-xs italic text-muted-foreground">
                           + {maxAvailable - effectiveTargetCount} combinação(ões) ignoradas pelo limite
                         </li>
                       )}
@@ -664,33 +626,30 @@ export default function StudioBatchPage({
               )}
 
               {currentScenario && (
-                <fieldset className="space-y-3 rounded border border-border p-3">
+                <fieldset className="space-y-3 rounded-md border border-border p-3">
                   <legend className="px-1 text-sm font-medium">Configurar cenário {currentScenarioIndex + 1}</legend>
                   <div className="flex flex-wrap gap-2" role="group" aria-label="Cenários da composição">
-                    {plannedCombinations.slice(0, effectiveTargetCount).map((item, index) => <button key={item.id} type="button" aria-pressed={currentScenarioIndex === index} onClick={() => { setActiveScenarioIndex(index); if (item.baseIndex >= 0) setActiveBaseIndex(item.baseIndex) }} className="rounded border border-border px-2 py-1 text-xs aria-pressed:bg-primary/10">Cenário {index + 1}</button>)}
+                    {plannedCombinations.slice(0, effectiveTargetCount).map((item, index) => <ToggleButton selected={currentScenarioIndex === index} key={item.id} onClick={() => { setActiveScenarioIndex(index); if (item.baseIndex >= 0) setActiveBaseIndex(item.baseIndex) }}>Cenário {index + 1}</ToggleButton>)}
                   </div>
                   <label className="block text-xs text-muted-foreground">
                     Ambiente desta montagem
-                    <select aria-label="Ambiente para configurar" value={currentScenario.baseKey} onChange={event => { updateActiveScenario({ baseKey: event.target.value }); const index = baseImages.findIndex(base => getStudioArtifactKey(base) === event.target.value); if (index >= 0) setActiveBaseIndex(index) }} className="mt-1 w-full rounded border border-border bg-background p-2 text-sm">
+                    <NativeSelect aria-label="Ambiente para configurar" value={currentScenario.baseKey} onChange={event => { updateActiveScenario({ baseKey: event.target.value }); const index = baseImages.findIndex(base => getStudioArtifactKey(base) === event.target.value); if (index >= 0) setActiveBaseIndex(index) }} className="mt-1 w-full rounded-md border border-border bg-background p-2 text-sm">
                       <option value="" disabled>Escolha um ambiente</option>
                       {!currentPlan?.base && currentScenario.baseKey && <option value={currentScenario.baseKey} disabled>Ambiente removido — escolha outro</option>}
                       {baseImages.map((base, index) => <option key={getStudioArtifactKey(base)} value={getStudioArtifactKey(base)}>Ambiente {index + 1} · {base.caption || "Imagem carregada"}</option>)}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <p className="text-xs text-muted-foreground">Escolha as referências desta montagem. As escolhas dos outros cenários são preservadas.</p>
                   {references.map((reference, index) => (
-                    <label key={getStudioArtifactKey(reference)} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={Boolean(currentPlan?.references.includes(reference))} onChange={event => {
+                    <Input type="checkbox" checked={Boolean(currentPlan?.references.includes(reference))} onChange={event => {
                         const selected = currentPlan?.references.map(item => item.mediaUrl) || []
                         updateActiveScenario({ selectedReferenceUrls: event.target.checked ? [...new Set([...selected, reference.mediaUrl])] : selected.filter(url => url !== reference.mediaUrl) })
-                      }} />
-                      <span className="min-w-0 break-words">Ref. {index + 1} · {formatSourceLabel(reference)}</span>
-                    </label>
+                      }}>Ref. {index + 1} · {formatSourceLabel(reference)}</Input>
                   ))}
                   {references.length === 0 && <p className="text-xs text-muted-foreground">Sem produtos. Você pode transformar o ambiente apenas com instruções.</p>}
                   <label className="block text-xs text-muted-foreground">
                     Instrução específica desta montagem (opcional)
-                    <textarea maxLength={4000} value={currentScenario.instruction || ""} onChange={event => updateActiveScenario({ instruction: event.target.value })} placeholder="Deixe vazio para usar a instrução geral." className="mt-1 min-h-24 w-full rounded border border-border bg-background p-2 text-sm" />
+                    <Textarea maxLength={4000} value={currentScenario.instruction || ""} onChange={event => updateActiveScenario({ instruction: event.target.value })} placeholder="Deixe vazio para usar a instrução geral." className="mt-1 min-h-24 w-full rounded-md border border-border bg-background p-2 text-sm" />
                   </label>
                 </fieldset>
               )}
@@ -698,12 +657,12 @@ export default function StudioBatchPage({
               {/* 5. Intensidade da mudança */}
               <div>
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                     Intensidade da mudança
                   </span>
-                  <span className="font-mono text-xs">{strength}%</span>
+                  <span className="text-xs">{strength}%</span>
                 </div>
-                <input
+                <Input
                   type="range"
                   min="0"
                   max="100"
@@ -711,7 +670,7 @@ export default function StudioBatchPage({
                   onChange={(event) => setStrength(+event.target.value)}
                   className="w-full accent-primary"
                 />
-                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">
                   Baixa intensidade deixa a alteração mais discreta. Alta intensidade deixa a mudança mais evidente, mantendo escala e perspectiva.
                 </p>
               </div>
@@ -720,14 +679,14 @@ export default function StudioBatchPage({
         </aside>
         <section className={styles.preview} aria-label="Área de prévia">
           <div className={styles.tabs} role="group" aria-label="Visualização do ambiente">
-            <button type="button" aria-pressed={previewTab === "base"} onClick={() => setPreviewTab("base")}>Ambiente base</button><button type="button" aria-pressed={previewTab === "preview"} onClick={() => setPreviewTab("preview")}>Prévia da composição</button><div className={styles.previewControls}><span>{baseImages.length} ambientes · {references.length} referências</span>
+            <ToggleButton selected={previewTab === "base"} onClick={() => setPreviewTab("base")}>Ambiente base</ToggleButton><div className={styles.previewControls}><span>{baseImages.length} ambientes · {references.length} referências</span>
             <button type="button" className={styles.toolsToggle} aria-controls="studio-tools" aria-expanded={leftOpen} aria-label={leftOpen ? "Recolher painel de ferramentas" : "Abrir painel de ferramentas"} onClick={() => setLeftOpen(open => !open)}>
               {leftOpen ? <PanelRightClose size={16} aria-hidden="true" /> : <PanelRightOpen size={16} aria-hidden="true" />}
               {leftOpen ? "Recolher ferramentas" : "Abrir ferramentas"}
             </button>
           </div></div>
           <div className={styles.canvas}>
-            {previewTab === "preview" && createdJobs.length > 0 && showResults ? <div className={styles.results}><button type="button" className={styles.backToPreparation} onClick={() => setShowResults(false)}>Ver preparação</button><StudioResults slug={slug} jobs={createdJobs} onCreated={(job) => setCreatedJobs((current) => current.some((item) => item.id === job.id) ? current : [...current, job])} /></div> : activeBaseImage ? <>
+            {previewTab === "preview" && createdJobs.length > 0 && showResults ? <div className={styles.results}><Button variant="outline" type="button" onClick={() => setShowResults(false)}>Ver preparação</Button><StudioResults slug={slug} jobs={createdJobs} onCreated={(job) => setCreatedJobs((current) => current.some((item) => item.id === job.id) ? current : [...current, job])} /></div> : activeBaseImage ? <>
               <SafeImage src={activeBaseImage.mediaUrl} alt={activeBaseImage.caption || "Ambiente base"} className={styles.baseImage} fallbackLabel="Ambiente indisponível" />
               <span className={styles.canvasLabel}>{previewTab === "base" ? `Ambiente ${activeBaseIndex + 1}` : "Preparação · imagem original, ainda sem alterações"}</span>
               <StudioPaintFlow slug={slug} base={activeBaseImage} manual={prompt} strength={strength} preset={paintCatalogPreset} catalogId={paintCatalogId} open={paintCatalogOpen} onClose={() => { setPaintCatalogOpen(false); paintPresetTrigger.current?.focus() }} disabled={isGenerating || isUploading || !draftLoaded} operationLock={operationLock} onBusy={setIsPainting} onUpdate={(key, patch) => setBaseImages(current => current.map(base => getStudioArtifactKey(base) === key ? { ...base, ...patch } : base))} />
@@ -735,14 +694,14 @@ export default function StudioBatchPage({
                 {STUDIO_PRESETS.map(preset => <button key={preset.id} type="button" aria-label={preset.label} title={preset.label} aria-expanded={paintCatalogOpen && paintCatalogPreset === preset.id} aria-controls={paintCatalogId} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setPaintCatalogOpen(false) } }} aria-pressed={paintCatalogOpen && paintCatalogPreset === preset.id} disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={event => {
                   paintPresetTrigger.current = event.currentTarget
                   setPaintCatalogOpen(!(paintCatalogOpen && paintCatalogPreset === preset.id)); setPaintCatalogPreset(preset.id)
-                }}>{preset.id === "fresh-paint" ? <Paintbrush size={18} aria-hidden="true" /> : preset.id === "renovate" ? <Sparkles size={18} aria-hidden="true" /> : preset.id === "furnish" ? <Sofa size={18} aria-hidden="true" /> : preset.id === "wall-covering" ? <BrickWall size={18} aria-hidden="true" /> : preset.id === "flooring" ? <Grid2X2 size={18} aria-hidden="true" /> : preset.id === "ceiling" ? <PanelsTopLeft size={18} aria-hidden="true" /> : <span className={styles.removeFurnitureIcon}><Sofa size={18} aria-hidden="true" /><X size={10} aria-hidden="true" /></span>}</button>)}
+                }}><PresetIcon preset={preset.id} /></button>)}
               </div>
               {previewTab === "preview" && references.length > 0 && <div className={styles.previewReferences}>{(currentPlan?.baseIndex === activeBaseIndex ? currentPlan.references : getEnvironmentReferences(activeBaseImage, references)).map((image, index) => <SafeImage key={index} src={image.mediaUrl} alt={`Referência ${index + 1}`} className={styles.referenceThumb} />)}</div>}
-              {previewTab === "preview" && createdJobs.length > 0 && <button type="button" className={styles.resultToggle} onClick={() => setShowResults(true)}>Ver resultados</button>}
-            </> : <div className={styles.empty}><ImageIcon size={36} /><h2>Comece adicionando um ambiente</h2><p>Envie uma foto do cômodo para preparar sua composição.</p><button type="button" disabled={isUploading || isGenerating || isPainting || !draftLoaded} onClick={() => baseInput.current?.click()}><FolderOpen size={20} />Adicionar ambiente</button><p>Depois, adicione referências e descreva o resultado desejado.</p></div>}
+              {previewTab === "preview" && createdJobs.length > 0 && <Button variant="outline" type="button" onClick={() => setShowResults(true)}>Ver resultados</Button>}
+            </> : <div className={styles.empty}><ImageIcon size={36} /><h2>Comece adicionando um ambiente</h2><p>Envie uma foto do cômodo para preparar sua composição.</p><Button variant="outline" type="button" disabled={isUploading || isGenerating || isPainting || !draftLoaded} onClick={() => baseInput.current?.click()}><FolderOpen size={20} />Adicionar ambiente</Button><p>Depois, adicione referências e descreva o resultado desejado.</p></div>}
           </div>
           <div className={styles.batch}><h3><button type="button" className={styles.sectionToggle} aria-expanded={batchOpen} aria-controls="studio-batch-images" onClick={() => setBatchOpen(open => !open)}><ChevronRight size={14} aria-hidden="true" />Ambientes do lote <span>{baseImages.length}</span></button></h3><div id="studio-batch-images" hidden={!batchOpen} className={styles.batchImages}>{baseImages.map((image, index) => <button key={`${getStudioArtifactKey(image)}:${index}`} type="button" aria-label={`Selecionar ambiente ${index + 1}`} aria-pressed={activeBaseIndex === index} onClick={() => { setActiveBaseIndex(index); setPreviewTab("base") }}><SafeImage src={image.mediaUrl} alt={`Ambiente ${index + 1}`} className={styles.thumbnail} /><span>Ambiente {index + 1}</span></button>)}<button type="button" className={styles.addEnvironment} disabled={isUploading || isGenerating || isPainting || !draftLoaded} onClick={() => baseInput.current?.click()}><Plus size={24} /><span>Adicionar</span></button></div></div>
-          <input ref={baseInput} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label="Adicionar ambientes ao lote" onChange={(event) => void handleUpload(event, "base")} />
+          <Input ref={baseInput} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label="Adicionar ambientes ao lote" onChange={(event) => void handleUpload(event, "base")} />
         </section>
       </div>
       <footer className={styles.footer} role="status">{isUploading || isGenerating ? <Loader2 size={20} className="animate-spin" /> : canGenerate ? <Check size={20} /> : <Circle size={20} />}<strong>{isUploading ? "Carregando imagens" : isGenerating ? "Gerando composição" : canGenerate ? "Pronto para gerar" : baseImages.length ? "Preparando composição" : "Aguardando arquivos"}</strong><span>{statusMessage || (baseImages.length ? "Descreva as alterações desejadas para continuar." : "Adicione pelo menos um ambiente base para continuar.")}</span>{createdJobs.length > 0 && <Link href={`/tenant/${slug}/compositions`}>Ver composições <ArrowRight size={14} /></Link>}</footer>

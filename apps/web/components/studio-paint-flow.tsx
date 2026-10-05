@@ -1,9 +1,12 @@
 "use client"
 
+import { getThemeContainer } from "@/components/spectrum/theme-container"
+import { Button } from "@/components/ui/button"
+import { Input, NativeSelect } from "@/components/spectrum/fields"
 import { useEffect, useRef, useState } from "react"
 import type { CSSProperties, MutableRefObject } from "react"
 import { Dialog } from "radix-ui"
-import { Paintbrush, X } from "lucide-react"
+import { Check, Loader2, Paintbrush, Save, X } from "@/components/spectrum/icons"
 import Link from "next/link"
 import { SafeImage } from "@/components/safe-image"
 import type { CatalogItem } from "@/lib/catalog-types"
@@ -18,6 +21,8 @@ import overviewStyles from "./tenant-overview.module.css"
 type Selection = { item?: CatalogItem; furniture?: CatalogItem[]; base: StudioImageArtifact; key: string; strength: number; preset: StudioPresetId }
 const jobLabels = { queued: "Na fila", processing: "Aplicando alteração", done: "Alteração aplicada", failed: "A aplicação falhou" }
 
+const SIDE_BUTTON: CSSProperties = { width: 22, height: 22, minWidth: 0, padding: 0 }
+
 export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open, onClose, onUpdate, operationLock, onBusy, disabled }: {
   slug: string; base: StudioImageArtifact; manual: string; strength: number; preset: StudioPresetId; catalogId: string; open: boolean
   onClose: () => void; onUpdate: (key: string, patch: Partial<StudioImageArtifact>) => void
@@ -31,6 +36,8 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
   const [applyError, setApplyError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<Record<string, CompositionJob>>({})
   const [pollErrors, setPollErrors] = useState<Record<string, string>>({})
+  const [savingVersionId, setSavingVersionId] = useState<string | null>(null)
+  const [saveNote, setSaveNote] = useState<string | null>(null)
   const [removeFixedFurniture, setRemoveFixedFurniture] = useState(false)
   const [includeCeiling, setIncludeCeiling] = useState(false)
   const [aggregate, setAggregate] = useState(true)
@@ -154,28 +161,56 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
     finally { operationLock.current = false; submittingLock.current = false; setSubmitting(false) }
   }
 
+  // Saves a preset result into Compositions (preset images are hidden from that list until saved).
+  async function saveVersionAsComposition(versionId: string) {
+    if (savingVersionId) return
+
+    setSavingVersionId(versionId)
+    setSaveNote(null)
+
+    try {
+      const response = await fetch(`/api/tenant/${encodeURIComponent(slug)}/compositions/jobs/${encodeURIComponent(versionId)}/save`, { method: "POST" })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || "Não foi possível salvar em Composições.")
+
+      const current = baseRef.current
+      updateRef.current(key, {
+        presetVersions: (current.presetVersions || []).map(version => version.jobId === versionId ? { ...version, savedAsComposition: true } : version),
+      })
+      setSaveNote("Imagem salva em Composições.")
+    } catch (error) {
+      setSaveNote(error instanceof Error ? error.message : "Não foi possível salvar em Composições.")
+    } finally {
+      setSavingVersionId(null)
+    }
+  }
+
   return <>
     {selectedVersion?.status === "done" && <SafeImage src={working.mediaUrl} alt={`Versão selecionada: ${selectedVersion.label}`} className={styles.paintResult} />}
     <div className={styles.paintStatus} role="status" aria-live="polite">
       <strong>{pending ? job ? jobLabels[job.status] : "Consultando aplicação" : selectedVersion?.label || "Imagem original"}</strong>
       {pending && <progress aria-label="Processamento do preset" />}
+      {saveNote && <span>{saveNote}</span>}
       {base.paintJobId && pollErrors[base.paintJobId] && <span>{pollErrors[base.paintJobId]}</span>}
       {job?.status === "done" && !job.resultImageUrl && <span>O processamento terminou sem uma imagem disponível.</span>}
       {job?.status === "failed" && <span>{job.errorMessage || "A aplicação falhou. Abra o preset para tentar novamente; suas versões foram preservadas."}</span>}
       <div className={styles.presetVersions} role="group" aria-label="Versões deste ambiente; a selecionada será a base da composição">
         <button type="button" aria-label="Usar imagem original como principal" aria-pressed={!base.selectedPresetVersionId} onClick={() => onUpdate(key, { selectedPresetVersionId: undefined })}><SafeImage src={base.mediaUrl} alt="Original" /></button>
-        {base.presetVersions?.filter(version => version.status === "done" && version.resultImageUrl).map(version => <div key={version.jobId} className={styles.presetVersion}>
+        {base.presetVersions?.filter(version => version.status === "done" && version.resultImageUrl).map(version => <div key={version.jobId} className={styles.presetVersion} data-glass="">
           <button type="button" title={version.label} aria-label={`Usar ${version.label} como principal`} aria-pressed={base.selectedPresetVersionId === version.jobId} onClick={() => onUpdate(key, { selectedPresetVersionId: version.jobId })}><SafeImage src={version.resultImageUrl} alt={version.label} /></button>
-          <button type="button" className={styles.presetVersionDelete} title="Excluir variação do Estúdio" aria-label={`Excluir variação ${version.label}`} disabled={pending || submitting || Boolean(selection)} onClick={() => { const patch = removeStudioPresetVersion(baseRef.current, version.jobId); if (patch) onUpdate(key, patch) }}><X size={12} aria-hidden="true" /></button>
+          <div className={styles.presetVersionActions}>
+          <Button variant="ghost" size="icon" type="button" style={SIDE_BUTTON} title="Excluir variação do Estúdio" aria-label={`Excluir variação ${version.label}`} disabled={pending || submitting || Boolean(selection)} onClick={() => { const patch = removeStudioPresetVersion(baseRef.current, version.jobId); if (patch) onUpdate(key, patch) }}><X size={11} aria-hidden="true" /></Button>
+          <Button variant="ghost" size="icon" type="button" style={SIDE_BUTTON} title={version.savedAsComposition ? "Salva em Composições" : "Salvar em Composições"} aria-label={version.savedAsComposition ? `${version.label} já está salva em Composições` : `Salvar ${version.label} em Composições`} disabled={version.savedAsComposition === true || savingVersionId !== null || pending} onClick={() => void saveVersionAsComposition(version.jobId)}>{savingVersionId === version.jobId ? <Loader2 size={11} aria-hidden="true" /> : version.savedAsComposition ? <Check size={11} aria-hidden="true" /> : <Save size={11} aria-hidden="true" />}</Button>
+          </div>
         </div>)}
       </div>
     </div>
     <section ref={catalogRef} id={catalogId} tabIndex={-1} inert={!open} aria-hidden={!open} data-state={open && preset !== "renovate" && preset !== "remove-furniture" ? "open" : "closed"} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose() } }} className={cn(styles.paintCatalog, preset === "furnish" && styles.furnishOptions)} style={{ "--paint-visible-count": Math.min(6, Math.max(1, visibleItems.length)) } as CSSProperties} aria-label={`${presetLabel} do catálogo`}>
       {preset === "furnish" && <>
-        <label>Modo<select value={furnitureMode} onChange={event => { setFurnitureMode(event.target.value as typeof furnitureMode); setSelectedFurniture([]) }}><option value="manual">Selecionar itens</option><option value="automatic">Mobiliar automaticamente</option></select></label>
-        <label>Cômodo<select value={room} onChange={event => { setRoom(event.target.value as typeof room); setSelectedFurniture([]) }}><option value="living-room">Sala</option><option value="kitchen">Cozinha</option><option value="bedroom">Quarto</option><option value="bathroom">Banheiro</option></select></label>
-        <label className={styles.paintCheckbox}><input type="checkbox" checked={luxury} onChange={event => setLuxury(event.target.checked)} /><span>Alto padrão visual</span></label>
-        {furnitureMode === "manual" && <label>Buscar produto por SKU ou nome<input value={sku} onChange={event => setSku(event.target.value)} /></label>}
+        <label>Modo<NativeSelect value={furnitureMode} onChange={event => { setFurnitureMode(event.target.value as typeof furnitureMode); setSelectedFurniture([]) }}><option value="manual">Selecionar itens</option><option value="automatic">Mobiliar automaticamente</option></NativeSelect></label>
+        <label>Cômodo<NativeSelect value={room} onChange={event => { setRoom(event.target.value as typeof room); setSelectedFurniture([]) }}><option value="living-room">Sala</option><option value="kitchen">Cozinha</option><option value="bedroom">Quarto</option><option value="bathroom">Banheiro</option></NativeSelect></label>
+        <Input type="checkbox" checked={luxury} onChange={event => setLuxury(event.target.checked)} style={{ alignItems:"flex-start" }}>Alto padrão visual</Input>
+        {furnitureMode === "manual" && <label>Buscar produto por SKU ou nome<Input value={sku} onChange={event => setSku(event.target.value)} /></label>}
         {furnitureMode === "automatic" && <p>Até 5 itens compatíveis com o cômodo são sorteados automaticamente. Revise a seleção antes de aplicar.</p>}
       </>}
       {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError} Tentaremos novamente automaticamente.</p> : visibleItems.length === 0 ? <p>Nenhum item ativo compatível com {presetLabel.toLowerCase()} neste catálogo. <Link href={`/tenant/${slug}/catalog`}>Abrir catálogo</Link></p> : <div className={styles.paintItems} tabIndex={0} role="group" aria-label={`Amostras de ${presetLabel}; role horizontalmente para ver mais opções`}>
@@ -183,24 +218,24 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
           {getStudioPaintPreviewSource(item, slug) ? <SafeImage src={getStudioPaintPreviewSource(item, slug)} alt={item.name} loading="lazy" decoding="async" className={styles.paintThumbnail} /> : getStudioPaintSwatch(item) ? <span className={styles.paintSwatch} style={{ backgroundColor: getStudioPaintSwatch(item) }} aria-label={`Amostra ${getStudioPaintSwatch(item)}`} /> : <Paintbrush size={24} aria-hidden="true" />}
         </button>)}
       </div>}
-      {preset === "furnish" && <><p>{selectedFurniture.length} de 5 itens selecionados</p><button type="button" disabled={!selectedFurniture.length || loading || Boolean(catalogError) || disabled || submitting || pending} onClick={() => confirm(undefined, selectedFurniture.flatMap(id => { const item = items.find(candidate => candidate.id === id); return item ? [item] : [] }))}>Revisar aplicação</button></>}
+      {preset === "furnish" && <><p>{selectedFurniture.length} de 5 itens selecionados</p><Button variant="outline" type="button" disabled={!selectedFurniture.length || loading || Boolean(catalogError) || disabled || submitting || pending} onClick={() => confirm(undefined, selectedFurniture.flatMap(id => { const item = items.find(candidate => candidate.id === id); return item ? [item] : [] }))}>Revisar aplicação</Button></>}
       {applyError && !selection && <p role="alert">{applyError}</p>}
     </section>
     <Dialog.Root open={Boolean(selection)} onOpenChange={opened => { if (!opened && !submitting) { setSelection(null); onClose() } }}>
-      <Dialog.Portal><Dialog.Overlay className={styles.paintModalOverlay} /><Dialog.Content className={cn(overviewStyles.surface, styles.paintModal)}>
+      <Dialog.Portal container={getThemeContainer()}><Dialog.Overlay className={styles.paintModalOverlay} /><Dialog.Content className={cn(overviewStyles.surface, styles.paintModal)}>
         <Dialog.Title>{selection?.preset === "remove-furniture" ? "Remover os móveis deste ambiente?" : `Aplicar ${STUDIO_PRESETS.find(p => p.id === selection?.preset)?.label.toLowerCase() || "preset"}?`}</Dialog.Title>
         <Dialog.Description>Ambiente: {selection?.base.caption || "Ambiente selecionado"}. {selection?.item?.name || selection?.furniture?.map(item => item.name).join(", ")}</Dialog.Description>
-        {selection?.preset === "remove-furniture" && <label className={styles.paintCheckbox}><input type="checkbox" checked={removeFixedFurniture} onChange={event => setRemoveFixedFurniture(event.target.checked)} /><span>Remover também móveis e instalações fixas (pias, armários e vasos sanitários), deixando paredes, piso e teto. Preservar portas, janelas e estrutura.</span></label>}
+        {selection?.preset === "remove-furniture" && <Input type="checkbox" checked={removeFixedFurniture} onChange={event => setRemoveFixedFurniture(event.target.checked)} style={{ alignItems:"flex-start" }}>Remover também móveis e instalações fixas (pias, armários e vasos sanitários), deixando paredes, piso e teto. Preservar portas, janelas e estrutura.</Input>}
         {selection?.preset === "renovate" && <p>Restaurar a aparência de desgaste, trincas, sujeira e manchas, preservando os mesmos materiais, cores, móveis e estrutura.</p>}
-        {selection?.preset === "fresh-paint" && <label className={styles.paintCheckbox}><input type="checkbox" checked={includeCeiling} onChange={event => setIncludeCeiling(event.target.checked)} /><span>Pintar o teto também</span></label>}
-        {selection && isStudioMaterialPreset(selection.preset) && <label className={styles.paintField}><span>Onde aplicar (opcional)</span><input maxLength={500} value={placement} onChange={event => setPlacement(event.target.value)} placeholder="Ex.: somente a parede à esquerda" /><p>Descreva o local em texto. Sem indicação, a aplicação segue o padrão deste preset.</p></label>}
+        {selection?.preset === "fresh-paint" && <Input type="checkbox" checked={includeCeiling} onChange={event => setIncludeCeiling(event.target.checked)} style={{ alignItems:"flex-start" }}>Pintar o teto também</Input>}
+        {selection && isStudioMaterialPreset(selection.preset) && <label className={styles.paintField}><span>Onde aplicar (opcional)</span><Input maxLength={500} value={placement} onChange={event => setPlacement(event.target.value)} placeholder="Ex.: somente a parede à esquerda" /><p>Descreva o local em texto. Sem indicação, a aplicação segue o padrão deste preset.</p></label>}
         {selection?.preset === "flooring" && !placement.trim() && <p>Aplicar em todo o piso visível.</p>}{selection?.preset === "ceiling" && !placement.trim() && <p>Aplicar em todo o teto / forro, preservando luminárias.</p>}
-        {selection?.preset === "furnish" && <><label className={styles.paintCheckbox}><input type="checkbox" checked={aggregate} onChange={event => setAggregate(event.target.checked)} /><span>Agregar à versão principal, preservando as edições anteriores</span></label><label className={styles.paintField}><span>Onde colocar os itens</span><input maxLength={500} value={placement} onChange={event => setPlacement(event.target.value)} placeholder="Ex.: mesa junto à parede esquerda" /></label><p>A posição é uma instrução descritiva; não há editor de posicionamento preciso nesta etapa.</p></>}
+        {selection?.preset === "furnish" && <><Input type="checkbox" checked={aggregate} onChange={event => setAggregate(event.target.checked)} style={{ alignItems:"flex-start" }}>Agregar à versão principal, preservando as edições anteriores</Input><label className={styles.paintField}><span>Onde colocar os itens</span><Input maxLength={500} value={placement} onChange={event => setPlacement(event.target.value)} placeholder="Ex.: mesa junto à parede esquerda" /></label><p>A posição é uma instrução descritiva; não há editor de posicionamento preciso nesta etapa.</p></>}
         <p>A aplicação gera uma versão neste Estúdio e usa créditos do plano. A imagem original é preservada. A composição geral usa a versão principal escolhida.</p>
         <p>Preservação orientada por instruções, sem garantia de isolamento de pixels.</p>
         {applyError && <p role="alert">{applyError}</p>}
-        <div className={styles.paintModalActions}><Dialog.Close disabled={submitting}>Cancelar</Dialog.Close><button type="button" onClick={() => void apply()} disabled={submitting || disabled || pending}>{submitting ? "Enviando…" : "Aplicar"}</button></div>
-        <Dialog.Close className={styles.paintModalClose} disabled={submitting} aria-label="Fechar confirmação"><X size={18} /></Dialog.Close>
+        <div className={styles.paintModalActions}><Dialog.Close asChild><Button variant="outline" type="button" disabled={submitting}>Cancelar</Button></Dialog.Close><Button variant="default" type="button" onClick={() => void apply()} disabled={submitting || disabled || pending}>{submitting ? "Enviando…" : "Aplicar"}</Button></div>
+        <Dialog.Close asChild><Button variant="ghost" size="icon" type="button" disabled={submitting} aria-label="Fechar confirmação" style={{ position:"absolute", top:8, right:8 }}><X size={18} /></Button></Dialog.Close>
       </Dialog.Content></Dialog.Portal>
     </Dialog.Root>
   </>

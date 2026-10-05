@@ -10,12 +10,17 @@ type RouteContext = {
   params: Promise<{ slug: string }>
 }
 
+// Mirrors TenantContactInput (lib/contact-types.ts), which is what the console form and
+// contacts-store use. `name` is the only required field; the form sends "" for empty optionals.
 const TenantContactInputSchema = z.object({
-  externalContactId: z.string().min(1).max(255),
-  displayName: z.string().min(1).max(255).optional(),
+  name: z.string().trim().min(1, "Informe o nome do contato.").max(255),
   phone: z.string().max(50).optional(),
-  email: z.string().email().max(255).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  email: z.union([z.literal(""), z.string().email("E-mail invalido.").max(255)]).optional(),
+  company: z.string().max(255).optional(),
+  status: z.enum(["active", "archived"]).optional(),
+  tags: z.union([z.array(z.string().max(80)).max(50), z.string().max(2000)]).optional(),
+  notes: z.string().max(5000).optional(),
+  externalContactId: z.string().max(255).optional(),
 })
 
 const MAX_BODY_SIZE = 50_000
@@ -50,9 +55,12 @@ export async function POST(request: Request, context: RouteContext) {
 
   const parsed = TenantContactInputSchema.safeParse(rawPayload)
   if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors
+    const firstMessage = Object.values(fieldErrors).flat().find(Boolean)
+
     return NextResponse.json({
-      error: "Payload invalido.",
-      details: parsed.error.flatten().fieldErrors,
+      error: firstMessage ?? "Payload invalido.",
+      details: fieldErrors,
     }, { status: 400 })
   }
 

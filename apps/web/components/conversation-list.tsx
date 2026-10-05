@@ -1,15 +1,17 @@
 "use client"
 
+import { ToggleButton } from "@/components/spectrum/toggle-button"
+import { Button } from "@/components/ui/button"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { InboxConversationSummary, InboxHandledBy } from "@/lib/inbox-types"
 import { useInboxRealtime } from "@/lib/inbox-realtime-client"
-import { Bot, Clock, MessageSquare, RefreshCw, Trash2, User } from "lucide-react"
+import { Bot, Clock, MessageSquare, RefreshCw, Trash2, User } from "@/components/spectrum/icons"
 
 const statusColors = {
   open: "bg-primary",
-  waiting_customer: "bg-emerald-400",
-  waiting_operator: "bg-teal-500",
+  waiting_customer: "bg-success",
+  waiting_operator: "bg-success",
   closed: "bg-muted-foreground",
 }
 
@@ -102,7 +104,7 @@ const ConversationItem = memo(function ConversationItem({
         className="flex w-full items-start gap-2.5 border-b border-border/50 p-3 text-left transition-colors hover:bg-accent/50"
       >
         <div className="relative shrink-0">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted text-[11px] font-bold text-muted-foreground">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-bold text-muted-foreground">
             {getInitials(conversation.contact.name)}
           </div>
           <div
@@ -116,17 +118,17 @@ const ConversationItem = memo(function ConversationItem({
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-1.5">
             <span className={cn(
-              "truncate text-[12px] font-medium",
+              "truncate text-xs font-medium",
               selectedId === conversation.id ? "text-primary" : "text-foreground"
             )}>
               {conversation.contact.name}
             </span>
-            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+            <span className="shrink-0 text-xs text-muted-foreground">
               {formatRelativeTime(conversation.lastMessageAt)}
             </span>
           </div>
 
-          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
             {conversation.lastMessage}
           </p>
 
@@ -135,15 +137,15 @@ const ConversationItem = memo(function ConversationItem({
               {conversation.handledBy === "ai" ? (
                 <Bot className="h-2.5 w-2.5 text-primary" />
               ) : (
-                <User className="h-2.5 w-2.5 text-blue-500" />
+                <User className="h-2.5 w-2.5 text-info" />
               )}
-              <span className="font-mono text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {stateLabels[conversation.state] || conversation.state}
               </span>
             </div>
 
             {conversation.unreadCount > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium text-primary-foreground">
                 {conversation.unreadCount}
               </span>
             )}
@@ -151,21 +153,14 @@ const ConversationItem = memo(function ConversationItem({
         </div>
       </button>
 
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={deletingConversationId === conversation.id}
-        className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
-        title="Excluir conversa"
-        aria-label={`Excluir conversa com ${conversation.contact.name}`}
-      >
+      <Button variant="ghost" size="icon" type="button" className="absolute bottom-3 right-3 w-8" onClick={handleDelete} disabled={deletingConversationId === conversation.id} title="Excluir conversa" aria-label={`Excluir conversa com ${conversation.contact.name}`}>
         <Trash2
           className={cn(
             "h-4 w-4",
             deletingConversationId === conversation.id && "animate-pulse"
           )}
         />
-      </button>
+      </Button>
     </div>
   )
 })
@@ -347,21 +342,18 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           conversas
         </h2>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {conversations.length} total
           </span>
-          <button
-            type="button"
+          <Button variant="ghost" size="icon" type="button" 
             onClick={() => loadConversations({ sync: true, waitForSync: true })}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label="Atualizar conversas"
-          >
+            aria-label="Atualizar conversas">
             <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -372,19 +364,9 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
           { id: "operator", label: "op" },
           { id: "unread", label: "unread" },
         ].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setFilter(item.id as "all" | InboxHandledBy | "unread")}
-            className={cn(
-              "min-w-fit rounded px-2 py-1 text-[10px] font-medium transition-colors",
-              filter === item.id
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground"
-            )}
-          >
+          <ToggleButton selected={filter === item.id} key={item.id} onClick={() => setFilter(item.id as "all" | InboxHandledBy | "unread")}>
             {item.label}
-          </button>
+          </ToggleButton>
         ))}
       </div>
 
@@ -417,7 +399,7 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
           ))
         ) : (
           <div className="flex min-h-full flex-col items-center justify-center p-6 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded border border-border bg-muted">
+            <div className="flex h-12 w-12 items-center justify-center rounded-md border border-border bg-muted">
               <MessageSquare className="h-6 w-6 text-muted-foreground" />
             </div>
             <h3 className="mt-4 text-sm font-bold text-foreground font-display">Nenhuma conversa real ainda</h3>

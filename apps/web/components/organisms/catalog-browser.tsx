@@ -75,7 +75,7 @@ export function CatalogBrowser({ tenantId }: { tenantId?: string }) {
             <CardContent>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(item.tags || {}).map(([k, v]) => (
-                  <Badge key={k} variant="secondary" className="text-[10px]">
+                  <Badge key={k} variant="secondary" className="text-xs">
                     {k}: {v}
                   </Badge>
                 ))}

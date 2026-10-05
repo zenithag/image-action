@@ -1,5 +1,6 @@
 "use client"
 
+import { ToggleButton } from "@/components/spectrum/toggle-button"
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useConversationStore } from "@/lib/stores/conversation-store"
@@ -56,18 +57,9 @@ export function ConversationList() {
         <h2 className="mb-3 font-display text-lg font-semibold">Conversas</h2>
         <div className="flex gap-1">
           {(["all", "ai", "operator"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                "rounded-lg px-3 py-1 text-xs font-medium transition-colors",
-                filter === f
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted"
-              )}
-            >
+            <ToggleButton selected={filter === f} key={f} onClick={() => setFilter(f)}>
               {f === "all" ? "Todas" : handledByLabels[f]}
-            </button>
+            </ToggleButton>
           ))}
         </div>
       </div>
@@ -85,7 +77,7 @@ export function ConversationList() {
               <span className="text-sm font-medium text-foreground truncate">
                 {conv.contact_id.slice(0, 12)}...
               </span>
-              <Badge variant={conv.handled_by === "operator" ? "default" : "secondary"} className="text-[10px]">
+              <Badge variant={conv.handled_by === "operator" ? "default" : "secondary"} className="text-xs">
                 {handledByLabels[conv.handled_by]}
               </Badge>
             </div>

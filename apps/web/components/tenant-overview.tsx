@@ -2,109 +2,161 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowRight, CheckCircle2, Clock3, Cpu, FileText, GitBranch, Layers, MessageSquare, Search, UserRound } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+
+import { Empty, Metric, MetricStrip, Section } from "@/components/molecules/flat-blocks"
+import { Pill, SearchField } from "@/components/spectrum"
+import { ArrowRight, CheckCircle2, Clock3, Cpu, UserRound } from "@/components/spectrum/icons"
 import type { AnalyticsPayload } from "@/components/tenant-analytics-view"
-import styles from "./tenant-overview.module.css"
 
 const number = new Intl.NumberFormat("pt-BR")
-const date = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+const dateTime = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
 
+const axis = { fill: "var(--muted-foreground)", fontSize: 12 }
+const tooltipStyle = { background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--foreground)" }
+
+/**
+ * Visão geral, flat: the same building blocks as Analytics (indicator strip, sections on the page
+ * background separated by rules), so the two screens read as one system.
+ */
 export function TenantOverview({ data, tenantSlug }: { data: AnalyticsPayload; tenantSlug: string }) {
   const [search, setSearch] = useState("")
+  const term = search.trim().toLocaleLowerCase("pt-BR")
   const conversations = data.recentConversations.filter((item) =>
-    `${item.contactName} ${item.lastMessage}`.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))
+    `${item.contactName} ${item.lastMessage}`.toLocaleLowerCase("pt-BR").includes(term)
   )
   const base = `/tenant/${tenantSlug}`
-  const metrics = [
-    { label: "Conversas", value: data.stats.conversations, icon: MessageSquare },
-    { label: "Mensagens", value: data.stats.messages, icon: FileText },
-    { label: "Composições", value: data.stats.compositions, icon: Layers },
-    { label: "Pipeline", value: data.stats.compositions, icon: GitBranch },
+  const hasTimeline = data.conversationData.some((item) => item.conversas > 0 || item.composicoes > 0)
+  const operational = [
+    { icon: Cpu, label: "Latência da IA", value: data.responseTimes.aiLabel ?? "n/d" },
+    { icon: UserRound, label: "Resposta do operador", value: data.responseTimes.operatorLabel ?? "n/d" },
+    { icon: Clock3, label: "Respostas da IA em até 5 s", value: data.responseTimes.aiFastRate == null ? "n/d" : `${data.responseTimes.aiFastRate}%` },
   ]
 
   return (
-    <div className={styles.overview}>
-      <section className={styles.metrics} aria-label="Resumo da operação">
-        {metrics.map(({ label, value, icon: Icon }, index) => (
-          <div className={styles.metric} key={label}>
-            <span className={styles.metricIcon}><Icon size={22} aria-hidden="true" /></span>
-            <div>
-              <h2>{label}</h2>
-              <p className={styles.metricValue}>{number.format(value)}</p>
-              {index === 0 && <p className={data.deltas.conversations < 0 ? styles.negative : styles.delta}>{data.deltas.conversations >= 0 ? "+" : ""}{data.deltas.conversations}% <span>vs. período anterior</span></p>}
-              {index === 3 && <p className={styles.pipeline}>{number.format(data.stats.completedCompositions)} concluídas<br />{number.format(data.stats.failedCompositions)} falhas</p>}
+    <div className="space-y-8 px-8 py-6">
+      <MetricStrip columns={4}>
+        <Metric label="Conversas" value={number.format(data.stats.conversations)} delta={data.deltas.conversations} />
+        <Metric label="Mensagens" value={number.format(data.stats.messages)} delta={data.deltas.messages} />
+        <Metric label="Composições" value={number.format(data.stats.compositions)} delta={data.deltas.compositions} />
+        <Metric
+          label="Pipeline"
+          value={number.format(data.stats.compositions)}
+          hint={`${number.format(data.stats.completedCompositions)} concluídas · ${number.format(data.stats.failedCompositions)} falhas`}
+        />
+      </MetricStrip>
+
+      <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <Section
+          title="Volume por dia"
+          aside={
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--cf-chart-2)" }} />Conversas</span>
+              <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--cf-chart-1)" }} />Composições</span>
+              <span>{data.meta.label}</span>
             </div>
-          </div>
-        ))}
-      </section>
-
-      <div className={styles.middle}>
-        <section className={styles.panel} aria-labelledby="volume-title">
-          <div className={styles.sectionHeader}><h2 id="volume-title">Volume por dia</h2><span className={styles.period}>{data.meta.label}</span></div>
-          <div className={styles.chart} role="img" aria-label={`Volume de conversas e composições: ${data.meta.label}`}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <LineChart data={data.conversationData} margin={{ top: 16, right: 12, bottom: 8, left: -22 }}>
-                <CartesianGrid strokeDasharray="3 4" stroke="var(--border)" vertical />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} tickMargin={12} />
-                <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
-                <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--foreground)" }} />
-                <Line type="monotone" name="Conversas" dataKey="conversas" stroke="var(--overview-green)" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} isAnimationActive={false} />
-                <Line type="monotone" name="Composições" dataKey="composicoes" stroke="var(--overview-blue)" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className={styles.legend}><span><i />Conversas</span><span><i />Composições</span></div>
-        </section>
-
-        <div className={styles.operations}>
-          <section className={styles.panel} aria-labelledby="review-title">
-            <div className={styles.sectionHeader}><h2 id="review-title">Fila de revisão</h2><span>{data.reviewQueue.length} {data.reviewQueue.length === 1 ? "item" : "itens"}</span></div>
-            {data.reviewQueue.length === 0 ? (
-              <div className={styles.clearQueue}><CheckCircle2 size={32} aria-hidden="true" /><strong>Tudo em dia</strong><p>Nenhuma composição aguardando revisão.</p></div>
+          }
+        >
+          <div className="h-64" role="img" aria-label={`Volume de conversas e composições: ${data.meta.label}`}>
+            {hasTimeline ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <LineChart data={data.conversationData} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+                  <CartesianGrid strokeDasharray="3 4" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={axis} tickMargin={10} />
+                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={axis} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Line type="monotone" name="Composições" dataKey="composicoes" stroke="var(--cf-chart-1)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" name="Conversas" dataKey="conversas" stroke="var(--cf-chart-2)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
             ) : (
-              <div className={styles.queue}>{data.reviewQueue.map((job) => (
-                <Link href={`${base}/compositions`} key={job.id} className={styles.queueItem}>
-                  <div><strong>{job.contactName}</strong><p>{job.catalogItemName || job.prompt}</p></div>
-                  <span className={job.status === "failed" ? styles.failed : styles.status}>{job.status === "failed" ? "Falhou" : job.status === "processing" ? "Processando" : "Na fila"}</span>
-                </Link>
-              ))}</div>
+              <Empty>Sem atividade em {data.meta.label.toLowerCase()}.</Empty>
             )}
-          </section>
-          <section className={styles.panel} aria-labelledby="operations-title">
-            <div className={styles.sectionHeader}><h2 id="operations-title">Informações operacionais</h2></div>
-            <dl className={styles.details}>
-              <div><dt><Cpu size={19} />Latência IA</dt><dd>{data.responseTimes.aiLabel ?? "n/d"}</dd></div>
-              <div><dt><UserRound size={19} />Operador</dt><dd>{data.responseTimes.operatorLabel ?? "n/d"}</dd></div>
-              <div><dt><Clock3 size={19} />Respostas da IA em até 5 s</dt><dd>{data.responseTimes.aiFastRate == null ? "n/d" : `${data.responseTimes.aiFastRate}%`}</dd></div>
+          </div>
+        </Section>
+
+        <div className="space-y-8">
+          <Section title="Fila de revisão" aside={<span className="text-xs text-muted-foreground">{data.reviewQueue.length} {data.reviewQueue.length === 1 ? "item" : "itens"}</span>}>
+            {data.reviewQueue.length === 0 ? (
+              <div className="flex items-center gap-3 py-2 text-sm">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+                <span>
+                  <b className="text-foreground">Tudo em dia.</b>{" "}
+                  <span className="text-muted-foreground">Nenhuma composição aguardando revisão.</span>
+                </span>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {data.reviewQueue.map((job) => (
+                  <li key={job.id}>
+                    <Link href={`${base}/compositions`} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-foreground">{job.contactName}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{job.catalogItemName || job.prompt}</span>
+                      </span>
+                      <Pill tone={job.status === "failed" ? "danger" : job.status === "processing" ? "ai" : "neutral"}>
+                        {job.status === "failed" ? "Falhou" : job.status === "processing" ? "Processando" : "Na fila"}
+                      </Pill>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          <Section title="Informações operacionais">
+            <dl className="divide-y divide-border">
+              {operational.map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex items-center justify-between gap-3 py-2.5">
+                  <dt className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    {label}
+                  </dt>
+                  <dd className="text-sm font-extrabold tabular-nums text-foreground">{value}</dd>
+                </div>
+              ))}
             </dl>
-          </section>
+          </Section>
         </div>
       </div>
 
-      <section className={styles.panel} aria-labelledby="conversations-title">
-        <div className={styles.sectionHeader}>
-          <h2 id="conversations-title">Últimas conversas</h2>
-          <div className={styles.conversationActions}>
-            <label className={styles.search}><Search size={17} aria-hidden="true" /><input aria-label="Buscar nas últimas conversas" placeholder="Buscar conversa..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-            <Link className={styles.viewAll} href={`${base}/inbox`}>Ver todas <ArrowRight size={16} /></Link>
+      <Section
+        title="Últimas conversas"
+        className="border-t border-border pt-8"
+        aside={
+          <div className="flex items-center gap-4">
+            <SearchField label="Buscar nas últimas conversas" placeholder="Buscar conversa..." value={search} onValueChange={setSearch} width={260} />
+            <Link href={`${base}/inbox`} className="flex items-center gap-1 text-sm font-bold text-[var(--cf-accent-ink,var(--primary))] hover:underline">
+              Ver todas <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
-        </div>
-        <div className={styles.tableScroll}>
-          <table className={styles.table}>
-            <thead><tr><th>Contato</th><th>Última mensagem</th><th>Não lidas</th><th>Atualizado em</th></tr></thead>
-            <tbody>{conversations.map((conversation) => (
-              <tr key={conversation.id}>
-                <td><div className={styles.contact}><span className={styles.avatar}>{conversation.contactName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("")}</span><strong>{conversation.contactName}</strong><span className={styles.status}>{conversation.handledBy === "ai" ? "IA" : "OP"}</span></div></td>
-                <td><p className={styles.message}>{conversation.lastMessage || "Sem mensagem"}</p></td>
-                <td><span className={styles.count}>{conversation.unreadCount}</span></td>
-                <td className={styles.date}>{Number.isNaN(Date.parse(conversation.lastMessageAt)) ? "—" : date.format(new Date(conversation.lastMessageAt))}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-          {conversations.length === 0 && <div className={styles.empty}><MessageSquare size={24} aria-hidden="true" /><strong>{search ? "Nenhuma conversa encontrada" : "Suas conversas aparecerão aqui"}</strong><p>{search ? "Tente buscar por outro nome ou mensagem." : "Acompanhe os atendimentos e as últimas mensagens da sua equipe."}</p></div>}
-        </div>
-      </section>
+        }
+      >
+        {conversations.length > 0 ? (
+          <ul className="divide-y divide-border">
+            {conversations.map((conversation) => (
+              <li key={conversation.id} className="flex items-center gap-3 py-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--cf-accent-soft,var(--muted))] text-xs font-bold text-[var(--cf-accent-ink,var(--foreground))]">
+                  {conversation.contactName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-foreground">{conversation.contactName}</span>
+                    <Pill tone={conversation.handledBy === "ai" ? "ai" : "human"}>{conversation.handledBy === "ai" ? "IA" : "OP"}</Pill>
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">{conversation.lastMessage || "Sem mensagem"}</span>
+                </span>
+                {conversation.unreadCount > 0 && <Pill tone="brand">{conversation.unreadCount}</Pill>}
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {Number.isNaN(Date.parse(conversation.lastMessageAt)) ? "—" : dateTime.format(new Date(conversation.lastMessageAt))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Empty>{search ? "Nenhuma conversa encontrada. Tente outro nome ou mensagem." : "Suas conversas aparecerão aqui."}</Empty>
+        )}
+      </Section>
     </div>
   )
 }

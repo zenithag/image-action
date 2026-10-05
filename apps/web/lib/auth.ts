@@ -2,7 +2,7 @@ import NextAuth from "next-auth"
 import type { NextAuthConfig } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 
-import { authenticateStoredUser } from "@/lib/server/auth-users-store"
+import { authenticateStoredUser, getStoredAuthUserById } from "@/lib/server/auth-users-store"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 
 const hasZitadelConfig = Boolean(
@@ -55,7 +55,16 @@ if (hasZitadelConfig) {
 export const authConfig: NextAuthConfig = {
   providers,
   callbacks: {
-    async jwt({ token, account, profile, user }) {
+    async jwt({ token, account, profile, user, trigger }) {
+      if (trigger === "update" && token.sub) {
+        const stored = await getStoredAuthUserById(token.sub)
+
+        if (stored) {
+          token.name = stored.name
+          token.email = stored.email
+        }
+      }
+
       if (user) {
         token.sub = user.id
         token.email = user.email

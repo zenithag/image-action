@@ -18,6 +18,8 @@ export type StudioPresetVersion = {
   resultImageUrl?: string
   status: "queued" | "processing" | "done" | "failed"
   createdAt: string
+  /** True once the image was saved into Compositions. */
+  savedAsComposition?: boolean
 }
 
 export type StudioImageArtifact = {

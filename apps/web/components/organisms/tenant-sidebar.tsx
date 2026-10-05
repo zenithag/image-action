@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Inbox, LayoutGrid, ShoppingBag, LogOut } from "lucide-react"
+import { Inbox, LayoutGrid, ShoppingBag, LogOut } from "@/components/spectrum/icons"
 import { signOut } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"

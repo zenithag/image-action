@@ -137,7 +137,7 @@ export async function updateCompositionJob(
   jobId: string,
   updates: Partial<Pick<
     CompositionJob,
-    "status" | "baseImageUrl" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "archivedAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
+    "purpose" | "status" | "baseImageUrl" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "archivedAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
   >>
 ): Promise<CompositionJob | null> {
   return withCompositionJobsMutation(async () => {
@@ -220,6 +220,22 @@ export async function retryCompositionJob(tenantSlug: string, jobId: string) {
     startedAt: undefined,
     completedAt: undefined,
   })
+}
+
+/**
+ * Studio preset results are hidden from the Compositions list (purpose "studio-preset"). Saving one
+ * promotes it to a regular composition. Only finished jobs that have an image can be saved.
+ */
+export async function saveStudioPresetJobAsComposition(tenantSlug: string, jobId: string) {
+  const job = await findCompositionJob(tenantSlug, jobId)
+
+  if (!job) return { ok: false as const, reason: "not-found" as const }
+  if (job.purpose !== "studio-preset") return { ok: true as const, job, alreadySaved: true }
+  if (job.status !== "done" || !job.resultImageUrl) return { ok: false as const, reason: "not-ready" as const }
+
+  const saved = await updateCompositionJob(tenantSlug, jobId, { purpose: "composition" })
+
+  return saved ? { ok: true as const, job: saved, alreadySaved: false } : { ok: false as const, reason: "not-found" as const }
 }
 
 export async function archiveCompositionJob(tenantSlug: string, jobId: string) {

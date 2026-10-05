@@ -1,7 +1,10 @@
 "use client"
 
+import { UserMenu } from "@/components/molecules/user-menu"
+import { Modal } from "@/components/spectrum/modal"
+import { Input, NativeSelect } from "@/components/spectrum/fields"
 import { useEffect, useMemo, useState } from "react"
-import { Globe, Loader2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react"
+import { Globe, Loader2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "@/components/spectrum/icons"
 
 import { Button } from "@/components/ui/button"
 import type { SuperadminDomainRecord } from "@/lib/domain-types"
@@ -22,10 +25,10 @@ const emptyForm: DomainFormState = {
 }
 
 const statusStyle: Record<SuperadminDomainRecord["status"], string> = {
-  active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  active: "bg-success/10 text-success dark:text-success",
+  pending: "bg-warning/10 text-warning dark:text-warning",
   default: "bg-secondary text-muted-foreground",
-  error: "bg-red-500/10 text-red-600 dark:text-red-400",
+  error: "bg-danger/10 text-danger dark:text-danger",
 }
 
 const statusLabel: Record<SuperadminDomainRecord["status"], string> = {
@@ -208,9 +211,9 @@ export default function DomainsPage() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-border bg-background px-7 py-4">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Infra</p>
+      <div className="flex items-center gap-3 border-b border-border bg-background px-7 py-4">
+        <div className="mr-auto">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Infra</p>
           <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">Domínios</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -223,17 +226,18 @@ export default function DomainsPage() {
             Atribuir domínio
           </Button>
         </div>
+        <UserMenu />
       </div>
 
       <div className="flex items-center gap-4 border-b border-border px-7 py-3">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Buscar domínio ou tenant..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
         <div className="text-xs text-muted-foreground">
@@ -242,29 +246,29 @@ export default function DomainsPage() {
       </div>
 
       {error && (
-        <div className="border-b border-red-200 bg-red-50 px-7 py-3 text-sm font-medium text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+        <div className="border-b border-danger bg-danger-soft px-7 py-3 text-sm font-medium text-danger-ink dark:border-danger/40 dark:bg-danger/30 dark:text-danger">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="border-b border-emerald-200 bg-emerald-50 px-7 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+        <div className="border-b border-success bg-success-soft px-7 py-3 text-sm font-medium text-success-ink dark:border-success/40 dark:bg-success/30 dark:text-success">
           {success}
         </div>
       )}
 
       <div className="flex-1 overflow-auto p-7">
-        <div className="overflow-hidden rounded border border-border bg-card">
+        <div className="overflow-hidden rounded-md border border-border bg-card">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-border bg-secondary">
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Tenant</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Domínio</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">SSL</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Expira</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Última checagem</th>
-                <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground" />
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Tenant</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Domínio</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">SSL</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Expira</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Última checagem</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground" />
               </tr>
             </thead>
             <tbody>
@@ -284,15 +288,15 @@ export default function DomainsPage() {
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       <Globe className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-mono text-[13px] text-foreground">{row.domain}</span>
+                      <span className="text-sm text-foreground">{row.domain}</span>
                       {row.isPrimary && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-primary">
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium uppercase tracking-[0.08em] text-primary">
                           principal
                         </span>
                       )}
                     </div>
                     {row.lastError && (
-                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">{row.lastError}</p>
+                      <p className="mt-1 text-xs text-danger dark:text-danger">{row.lastError}</p>
                     )}
                   </td>
                   <td className="px-4 py-3.5">
@@ -300,14 +304,14 @@ export default function DomainsPage() {
                       {statusLabel[row.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3.5 text-[13px] text-foreground">
+                  <td className="px-4 py-3.5 text-sm text-foreground">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                       {sslLabel[row.sslStatus]}
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-[13px] text-muted-foreground">{formatSslExpires(row.sslExpiresAt)}</td>
-                  <td className="px-4 py-3.5 text-[13px] text-muted-foreground">{formatCheckedAt(row.lastCheckedAt)}</td>
+                  <td className="px-4 py-3.5 text-sm text-muted-foreground">{formatSslExpires(row.sslExpiresAt)}</td>
+                  <td className="px-4 py-3.5 text-sm text-muted-foreground">{formatCheckedAt(row.lastCheckedAt)}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center justify-end gap-2">
                       <Button
@@ -349,29 +353,25 @@ export default function DomainsPage() {
       </div>
 
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-xl rounded border border-border bg-card">
+        <Modal className="w-full max-w-xl">
             <div className="flex items-center justify-between border-b border-border p-5">
               <div>
                 <h2 className="font-display text-xl font-bold text-foreground">Novo domínio</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Vincule um domínio real a um tenant existente.</p>
               </div>
-              <button
-                type="button"
+              <Button variant="ghost" size="icon" type="button" 
                 onClick={() => {
                   setForm(emptyForm)
                   setIsCreateOpen(false)
-                }}
-                className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
+                }}>
                 <X className="h-5 w-5" />
-              </button>
+              </Button>
             </div>
 
             <div className="grid gap-4 p-5">
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tenant</span>
-                <select
+                <NativeSelect
                   value={form.tenantId}
                   onChange={(event) => setForm((current) => ({ ...current, tenantId: event.target.value }))}
                   className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
@@ -382,12 +382,12 @@ export default function DomainsPage() {
                       {tenant.name} ({tenant.slug})
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
 
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Domínio</span>
-                <input
+                <Input
                   value={form.domain}
                   onChange={(event) => setForm((current) => ({ ...current, domain: event.target.value }))}
                   placeholder="atendimento.exemplo.com.br"
@@ -395,12 +395,12 @@ export default function DomainsPage() {
                 />
               </label>
 
-              <label className="flex items-center gap-3 rounded border border-border bg-background px-4 py-3">
-                <input
+              <label className="flex items-center gap-3 rounded-md border border-border bg-background px-4 py-3">
+                <Input
                   type="checkbox"
                   checked={form.isPrimary}
                   onChange={(event) => setForm((current) => ({ ...current, isPrimary: event.target.checked }))}
-                  className="rounded border-border"
+                  className="rounded-md border-border"
                 />
                 <div>
                   <p className="text-sm font-medium text-foreground">Definir como domínio principal</p>
@@ -424,8 +424,8 @@ export default function DomainsPage() {
                 Criar domínio
               </Button>
             </div>
-          </div>
-        </div>
+          
+        </Modal>
       )}
     </div>
   )

@@ -1,5 +1,9 @@
 "use client"
 
+import { UserMenu } from "@/components/molecules/user-menu"
+import { Modal } from "@/components/spectrum/modal"
+import { ToggleButton } from "@/components/spectrum/toggle-button"
+import { Input, NativeSelect, Textarea } from "@/components/spectrum/fields"
 import { useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
@@ -18,7 +22,7 @@ import {
   Trash2,
   Wrench,
   Zap,
-} from "lucide-react"
+} from "@/components/spectrum/icons"
 import { Button } from "@/components/ui/button"
 import type { ChannelPlanLimit } from "@/lib/channel-plan-types"
 import { defaultChannelPlanLimits } from "@/lib/channel-plan-types"
@@ -82,9 +86,9 @@ type ProviderTestResult = {
 }
 
 const channelConfig: Record<ChannelKind, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-  whatsapp: { label: "WhatsApp", icon: Smartphone, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  whatsapp: { label: "WhatsApp", icon: Smartphone, color: "text-success", bg: "bg-success/10" },
   instagram: { label: "Instagram", icon: MessageCircle, color: "text-pink-500", bg: "bg-pink-500/10" },
-  telegram: { label: "Telegram", icon: Send, color: "text-sky-500", bg: "bg-sky-500/10" },
+  telegram: { label: "Telegram", icon: Send, color: "text-info", bg: "bg-info/10" },
 }
 
 const statusLabel: Record<ProviderStatus, string> = {
@@ -398,9 +402,9 @@ export default function ChannelsPage() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-7">
-        <div className="flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Canais</p>
+      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-7">
+        <div className="mr-auto flex flex-col">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Canais</p>
           <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Instâncias WhatsApp</h1>
         </div>
         <div className="flex gap-2">
@@ -413,22 +417,23 @@ export default function ChannelsPage() {
             Novo Provider
           </Button>
         </div>
+        <UserMenu />
       </div>
 
       <section className="grid grid-cols-4 gap-3 px-7 py-4">
         {[
           { label: "UAZAPI contratadas", value: totalContracted, icon: Server, tone: "text-foreground" },
           { label: "Instancias em uso", value: totalUsed, icon: Smartphone, tone: "text-primary" },
-          { label: "Reserva operacional", value: totalReserved, icon: ShieldCheck, tone: "text-amber-500" },
+          { label: "Reserva operacional", value: totalReserved, icon: ShieldCheck, tone: "text-warning" },
           { label: "Disponiveis", value: totalAvailable, icon: Zap, tone: totalAvailable > 10 ? "text-primary" : "text-destructive" },
         ].map((metric) => (
-          <div key={metric.label} className="flex items-center gap-3 rounded border border-border bg-card p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-primary/10">
+          <div key={metric.label} className="flex items-center gap-3 rounded-md border border-border bg-card p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
               <metric.icon className={cn("h-4 w-4", metric.tone)} />
             </div>
             <div>
-              <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{metric.label}</p>
-              <p className="font-mono text-lg font-medium leading-tight text-foreground">{metric.value}</p>
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{metric.label}</p>
+              <p className="text-lg font-medium leading-tight text-foreground">{metric.value}</p>
             </div>
           </div>
         ))}
@@ -441,30 +446,20 @@ export default function ChannelsPage() {
             { id: "instances", label: "Instancias dos tenants" },
             { id: "plans", label: "Limites por plano" },
           ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={cn(
-                "rounded px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
-              )}
-            >
+            <ToggleButton selected={activeTab === tab.id} key={tab.id} onClick={() => setActiveTab(tab.id as typeof activeTab)}>
               {tab.label}
-            </button>
+            </ToggleButton>
           ))}
         </div>
 
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Buscar canal, provider ou tenant..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -507,7 +502,7 @@ export default function ChannelsPage() {
             </div>
 
             <aside className="space-y-4">
-              <div className="rounded border border-border bg-card p-5">
+              <div className="rounded-md border border-border bg-card p-5">
                 <h2 className="font-bold text-foreground font-display">Como alocar WhatsApp</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   O Superadmin cadastra os UAZAPIs e informa manualmente a capacidade contratada. O tenant cria as instancias WhatsApp dentro do proprio ambiente, respeitando o plano. A plataforma escolhe um UAZAPI ativo com capacidade disponivel.
@@ -520,7 +515,7 @@ export default function ChannelsPage() {
                 </div>
               </div>
 
-              <div className="rounded border border-border bg-card p-5">
+              <div className="rounded-md border border-border bg-card p-5">
                 <h2 className="font-bold text-foreground font-display">Instagram e Telegram</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   O Superadmin controla o conector global. A autorizacao final fica no tenant, porque a conta Instagram Business/Page e o bot Telegram pertencem ao cliente.
@@ -531,7 +526,7 @@ export default function ChannelsPage() {
         )}
 
         {activeTab === "instances" && (
-          <div className="overflow-hidden rounded border border-border bg-card">
+          <div className="overflow-hidden rounded-md border border-border bg-card">
             {isLoadingInstances ? (
               <EmptyState
                 title="Carregando instâncias..."
@@ -541,14 +536,14 @@ export default function ChannelsPage() {
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-secondary">
-                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Tenant</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Canal</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Instancia</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Telefone</th>
-                    <th className="px-5 py-3.5 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Criada</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Tenant</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Canal</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Instancia</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                    <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Telefone</th>
+                    <th className="px-5 py-3.5 text-right text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Criada</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -563,7 +558,7 @@ export default function ChannelsPage() {
                         </td>
                         <td className="px-5 py-4">
                           <span className="flex items-center gap-2 text-sm">
-                            <span className={cn("flex h-8 w-8 items-center justify-center rounded", config.bg)}>
+                            <span className={cn("flex h-8 w-8 items-center justify-center rounded-md", config.bg)}>
                               <Icon className={cn("h-4 w-4", config.color)} />
                             </span>
                             {config.label}
@@ -572,7 +567,7 @@ export default function ChannelsPage() {
                         <td className="px-5 py-4 text-sm font-medium text-foreground">{instance.label}</td>
                         <td className="px-5 py-4 text-sm text-muted-foreground">{instance.providerAccount}</td>
                         <td className="px-5 py-4">
-                          <span className="rounded-[4px] bg-muted px-2.5 py-1 text-[11px] font-medium uppercase text-muted-foreground">
+                          <span className="rounded-[4px] bg-muted px-2.5 py-1 text-xs font-medium uppercase text-muted-foreground">
                             {instance.plan}
                           </span>
                         </td>
@@ -597,7 +592,7 @@ export default function ChannelsPage() {
 
         {activeTab === "plans" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between rounded border border-border bg-card p-4">
+            <div className="flex items-center justify-between rounded-md border border-border bg-card p-4">
               <div>
                 <h2 className="font-display text-lg font-bold text-foreground">Limites por plano</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -618,7 +613,7 @@ export default function ChannelsPage() {
             ) : (
               <div className="grid gap-4 lg:grid-cols-3">
                 {planLimits.map((plan) => (
-                  <div key={plan.planCode} className="rounded border border-border bg-card p-6">
+                  <div key={plan.planCode} className="rounded-md border border-border bg-card p-6">
                     <h2 className="text-lg font-bold text-foreground font-display">{plan.label}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">Capacidade inicial concedida ao tenant neste plano.</p>
                     <div className="mt-6 space-y-4">
@@ -648,12 +643,12 @@ export default function ChannelsPage() {
                       />
                     </div>
                     <div className="mt-6 space-y-2">
-                      <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Observação operacional</span>
-                      <textarea
+                      <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Observação operacional</span>
+                      <Textarea
                         value={plan.extra}
                         onChange={(event) => updatePlanLimit(plan.planCode, "extra", event.target.value)}
                         rows={3}
-                        className="w-full rounded border border-input bg-secondary px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        className="w-full rounded-md border border-input bg-secondary px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       />
                       <p className="text-xs text-muted-foreground">
                         Atualizado em {plan.updatedAt ? new Date(plan.updatedAt).toLocaleString("pt-BR") : "agora"}
@@ -703,10 +698,10 @@ function ProviderCard({
     : null
 
   return (
-    <article className="rounded border border-border bg-card p-6 transition-all hover:border-primary/30">
+    <article className="rounded-md border border-border bg-card p-6 transition-all hover:border-primary/30">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded", config.bg)}>
+          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-md", config.bg)}>
             <Icon className={cn("h-6 w-6", config.color)} />
           </div>
           <div>
@@ -737,7 +732,7 @@ function ProviderCard({
           <Button
             variant="outline"
             size="sm"
-            className="rounded"
+            className="rounded-md"
             onClick={onTest}
             disabled={isTesting}
           >
@@ -747,7 +742,7 @@ function ProviderCard({
           <Button
             variant="outline"
             size="sm"
-            className="rounded text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="rounded-md text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
             disabled={isDeleting}
           >
@@ -762,7 +757,7 @@ function ProviderCard({
       {testResult && (
         <div
           className={cn(
-            "mt-5 rounded border p-4 text-sm",
+            "mt-5 rounded-md border p-4 text-sm",
             testResult.ok
               ? "border-primary/20 bg-primary/5 text-primary"
               : "border-destructive/20 bg-destructive/10 text-destructive"
@@ -841,20 +836,16 @@ function NewProviderModal({
   )
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
-      <div
-        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded border border-border bg-card p-4"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Modal onClose={onClose} className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto p-4">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-primary">Superadmin</p>
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-primary">Superadmin</p>
             <h2 className="mt-1 text-xl font-bold text-foreground font-display">Novo provider de canal</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Cadastre infraestrutura global. As instancias finais continuam vinculadas aos tenants.
             </p>
           </div>
-          <div className={cn("flex h-12 w-12 items-center justify-center rounded", config.bg)}>
+          <div className={cn("flex h-12 w-12 items-center justify-center rounded-md", config.bg)}>
             <Icon className={cn("h-6 w-6", config.color)} />
           </div>
         </div>
@@ -875,13 +866,13 @@ function NewProviderModal({
                   type="button"
                   onClick={() => onChange("kind", option.kind)}
                   className={cn(
-                    "rounded border p-4 text-left transition-all",
+                    "rounded-md border p-4 text-left transition-all",
                     form.kind === option.kind
                       ? "border-primary bg-primary/5"
                       : "border-border bg-muted/20 hover:border-primary/30"
                   )}
                 >
-                  <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded", optionConfig.bg)}>
+                  <span className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-md", optionConfig.bg)}>
                     <OptionIcon className={cn("h-4 w-4", optionConfig.color)} />
                   </span>
                   <span className="block text-sm font-bold text-foreground">{option.label}</span>
@@ -893,74 +884,74 @@ function NewProviderModal({
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
-              <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Nome interno</span>
-              <input
+              <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Nome interno</span>
+              <Input
                 value={form.name}
                 onChange={(event) => onChange("name", event.target.value)}
                 placeholder={isUazapi ? "UAZAPI Sao Paulo 01" : form.kind === "instagram" ? "Meta App Principal" : "Telegram Adapter Principal"}
-                className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
               />
             </label>
 
             <label className="space-y-2">
-              <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider tecnico</span>
-              <select
+              <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider tecnico</span>
+              <NativeSelect
                 value={form.provider}
                 onChange={(event) => onChange("provider", event.target.value as ProviderAccount["provider"])}
-                className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="uazapi">uazapi</option>
                 <option value="meta">meta</option>
                 <option value="telegram-bot-api">telegram-bot-api</option>
-              </select>
+              </NativeSelect>
             </label>
           </div>
 
           <label className="block space-y-2">
-            <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
               {isUazapi ? "Base URL do UAZAPI" : "URL / identificador do conector"}
             </span>
-            <input
+            <Input
               value={form.baseUrl}
               onChange={(event) => onChange("baseUrl", event.target.value)}
               placeholder={isUazapi ? "https://api.uazapi.dev/seu-endpoint" : "https://graph.facebook.com/app ou adapter interno"}
-              className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
           {isUazapi && (
             <>
               <label className="block space-y-2">
-                <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Admin token</span>
-                <input
+                <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Admin token</span>
+                <Input
                   type="password"
                   value={form.adminToken}
                   onChange={(event) => onChange("adminToken", event.target.value)}
                   placeholder="Cole aqui o admintoken do provider"
                   autoComplete="off"
-                  className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                 />
               </label>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Capacidade contratada</span>
-                  <input
+                  <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Capacidade contratada</span>
+                  <Input
                     type="number"
                     min={1}
                     value={form.contractedCapacity}
                     onChange={(event) => onChange("contractedCapacity", event.target.value)}
-                    className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Reserva operacional</span>
-                  <input
+                  <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Reserva operacional</span>
+                  <Input
                     type="number"
                     min={0}
                     value={form.reservedCapacity}
                     onChange={(event) => onChange("reservedCapacity", event.target.value)}
-                    className="w-full rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                   />
                 </label>
               </div>
@@ -968,16 +959,16 @@ function NewProviderModal({
           )}
 
           <label className="block space-y-2">
-            <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Observacoes</span>
-            <textarea
+            <span className="block text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Observacoes</span>
+            <Textarea
               value={form.notes}
               onChange={(event) => onChange("notes", event.target.value)}
               placeholder="Ex: provider dedicado para clientes enterprise, nao receber novas instancias sem aprovacao..."
-              className="h-24 w-full resize-none rounded border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+              className="h-24 w-full resize-none rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
-          <div className="rounded border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
             {isUazapi
               ? "Este provider entra no pool de alocacao WhatsApp. A capacidade disponivel sera calculada como contratada menos instancias em uso menos reserva."
               : "Este provider habilita o conector global. A conta final sera conectada dentro do tenant por OAuth/token."}
@@ -985,15 +976,15 @@ function NewProviderModal({
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button variant="outline" className="rounded" onClick={onClose}>
+          <Button variant="outline" className="rounded-md" onClick={onClose}>
             Cancelar
           </Button>
-          <Button className="rounded" onClick={onCreate} disabled={!canCreate || isCreating}>
+          <Button className="rounded-md" onClick={onCreate} disabled={!canCreate || isCreating}>
             {isCreating ? "Salvando..." : "Criar provider"}
           </Button>
         </div>
-      </div>
-    </div>
+      
+    </Modal>
   )
 }
 
@@ -1009,14 +1000,14 @@ function EmptyState({
   onAction?: () => void
 }) {
   return (
-    <div className="rounded border border-dashed border-border bg-card p-10 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded bg-muted">
+    <div className="rounded-md border border-dashed border-border bg-card p-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-muted">
         <Server className="h-5 w-5 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-lg font-bold text-foreground font-display">{title}</h2>
       <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
       {actionLabel && onAction && (
-        <Button className="mt-5 rounded" onClick={onAction}>
+        <Button className="mt-5 rounded-md" onClick={onAction}>
           <Plus className="mr-2 h-4 w-4" />
           {actionLabel}
         </Button>
@@ -1028,7 +1019,7 @@ function EmptyState({
 function CapacityBox({ label, value, tone = "default" }: { label: string; value: number | string; tone?: "default" | "danger" }) {
   return (
     <div className="rounded-[4px] border border-border bg-muted/30 p-3">
-      <p className="mb-1 text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">{label}</p>
       <p className={cn("text-xl font-bold font-display", tone === "danger" ? "text-destructive" : "text-foreground")}>
         {value}
       </p>
@@ -1040,9 +1031,9 @@ function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2.5 py-1 text-[11px] font-medium uppercase",
+        "rounded-full px-2.5 py-1 text-xs font-medium uppercase",
         status === "active" && "bg-primary/10 text-primary",
-        status === "maintenance" && "bg-amber-500/10 text-amber-500",
+        status === "maintenance" && "bg-warning/10 text-warning",
         status === "disabled" && "bg-muted text-muted-foreground"
       )}
     >
@@ -1057,9 +1048,9 @@ function HealthBadge({ health }: { health: ProviderAccount["health"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium uppercase",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium uppercase",
         health === "ok" && "bg-primary/10 text-primary",
-        health === "warning" && "bg-amber-500/10 text-amber-500",
+        health === "warning" && "bg-warning/10 text-warning",
         health === "error" && "bg-destructive/10 text-destructive"
       )}
     >
@@ -1073,9 +1064,9 @@ function InstanceStatusBadge({ status }: { status: InstanceStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium uppercase",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium uppercase",
         status === "connected" && "bg-primary/10 text-primary",
-        status === "pending" && "bg-amber-500/10 text-amber-500",
+        status === "pending" && "bg-warning/10 text-warning",
         status === "error" && "bg-destructive/10 text-destructive"
       )}
     >
@@ -1110,17 +1101,17 @@ function PlanLimitInput({
   onChange: (value: number) => void
 }) {
   return (
-    <div className="flex items-center justify-between rounded border border-border bg-muted/30 px-4 py-3">
+    <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-4 py-3">
       <span className="flex items-center gap-2 text-sm text-muted-foreground">
         <Icon className="h-4 w-4 text-primary" />
         {label}
       </span>
-      <input
+      <Input
         type="number"
         min={0}
         value={value}
         onChange={(event) => onChange(Math.max(0, Number(event.target.value) || 0))}
-        className="h-9 w-24 rounded border border-input bg-background px-3 text-right font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+        className="h-9 w-24 rounded-md border border-input bg-background px-3 text-right text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
       />
     </div>
   )

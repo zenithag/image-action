@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Building2, ImagePlus, MessageSquareText, ShieldCheck } from "lucide-react"
+import { BarChart3, Bot, Building2, ImagePlus, MessageSquareText, ShieldCheck } from "@/components/spectrum/icons"
 
 import { ModuleCard } from "@/components/molecules/module-card"
 import { MetricCard } from "@/components/molecules/metric-card"

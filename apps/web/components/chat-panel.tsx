@@ -1,5 +1,6 @@
 "use client"
 
+import { NativeSelect, Textarea } from "@/components/spectrum/fields"
 import type { ReactNode } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
 import { useRouter } from "next/navigation"
@@ -30,7 +31,7 @@ import {
   Trash2,
   User,
   Video,
-} from "lucide-react"
+} from "@/components/spectrum/icons"
 import { Button } from "@/components/ui/button"
 import { SafeImage } from "@/components/safe-image"
 import type { ConversationFlowActiveSession, ConversationFlowLibraryItem } from "@/lib/conversation-flow-types"
@@ -143,7 +144,7 @@ function renderTextWithLinks(text: string) {
 
 function MessageText({ children }: { children: string }) {
   return (
-    <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed font-sans">
+    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed font-sans">
       {renderTextWithLinks(children)}
     </p>
   )
@@ -177,20 +178,14 @@ function MediaMessage({
         {caption && <MessageText>{caption}</MessageText>}
         {onSendToStudio && (
           <div className="flex flex-wrap gap-1.5 pt-1">
-            <button
-              type="button"
-              onClick={() => onSendToStudio(message, "base")}
-              className="border border-border bg-card px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-            >
+            <Button variant="outline" type="button" 
+              onClick={() => onSendToStudio(message, "base")}>
               ambiente
-            </button>
-            <button
-              type="button"
-              onClick={() => onSendToStudio(message, "reference")}
-              className="border border-border bg-card px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-            >
+            </Button>
+            <Button variant="outline" type="button" 
+              onClick={() => onSendToStudio(message, "reference")}>
               referência
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -264,7 +259,7 @@ const MessageBubble = memo(function MessageBubble({ msg, tenantSlug, onSendToStu
       )}
     >
       {msg.role === "system" ? (
-        <div className="flex items-center gap-2 rounded-lg bg-card/50 px-4 py-1.5 text-[11px] text-muted-foreground font-sans uppercase tracking-wider">
+        <div className="flex items-center gap-2 rounded-lg bg-card/50 px-4 py-1.5 text-xs text-muted-foreground font-sans uppercase tracking-wider">
           <Loader2 className="h-3 w-3 animate-spin" />
           {msg.content}
         </div>
@@ -279,7 +274,7 @@ const MessageBubble = memo(function MessageBubble({ msg, tenantSlug, onSendToStu
           style={{ borderRadius: msg.direction === "inbound" ? "0 6px 6px 6px" : "6px 0 6px 6px" }}
         >
           {msg.direction === "outbound" && (
-            <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-bold text-current/80 font-sans">
+            <div className="mb-0.5 flex items-center gap-1.5 text-xs font-bold text-current/80 font-sans">
               {msg.role === "assistant" ? (
                 <>
                   <Bot className="h-3 w-3" />
@@ -294,7 +289,7 @@ const MessageBubble = memo(function MessageBubble({ msg, tenantSlug, onSendToStu
             </div>
           )}
           {msg.direction === "inbound" && (
-            <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground font-sans">
+            <div className="mb-0.5 flex items-center gap-1.5 text-xs font-bold text-muted-foreground font-sans">
               <User className="h-3 w-3" />
               <span>Cliente</span>
             </div>
@@ -307,7 +302,7 @@ const MessageBubble = memo(function MessageBubble({ msg, tenantSlug, onSendToStu
               onSendToStudio={msg.contentType === "image" ? onSendToStudio : undefined}
             />
             <div className={cn(
-              "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
+              "mt-0.5 flex items-center justify-end gap-1 text-xs",
               msg.direction === "outbound" ? "text-current/70" : "text-muted-foreground"
             )}>
               <span>{formatMessageTime(msg.createdAt)}</span>
@@ -318,7 +313,7 @@ const MessageBubble = memo(function MessageBubble({ msg, tenantSlug, onSendToStu
                 </span>
               )}
               {msg.direction === "outbound" && msg.status === "read" && (
-                <CheckCheck className="h-3.5 w-3.5 text-sky-500" />
+                <CheckCheck className="h-3.5 w-3.5 text-info" />
               )}
             </div>
           </div>
@@ -800,8 +795,8 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
         <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-muted">
           <Bot className="h-5 w-5 text-muted-foreground" />
         </div>
-        <h3 className="mt-4 font-mono text-[13px] font-medium text-foreground">selecione uma conversa</h3>
-        <p className="mt-1 text-center text-[11px] text-muted-foreground">
+        <h3 className="mt-4 text-sm font-medium text-foreground">selecione uma conversa</h3>
+        <p className="mt-1 text-center text-xs text-muted-foreground">
           mensagens aparecem aqui apos receber webhook da UAZAPI.
         </p>
       </div>
@@ -824,14 +819,14 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-[11px] font-bold text-muted-foreground">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-bold text-muted-foreground">
             {getInitials(currentContactName)}
           </div>
           <div className="min-w-0">
-            <h3 className="truncate text-[12px] font-medium text-foreground">{currentContactName}</h3>
-            <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+            <h3 className="truncate text-xs font-medium text-foreground">{currentContactName}</h3>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {currentPhone && (
-                <span className="flex items-center gap-1 font-mono">
+                <span className="flex items-center gap-1">
                   {currentPhone.startsWith("+") ? currentPhone : `+${currentPhone}`}
                 </span>
               )}
@@ -839,7 +834,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
                 {conversation?.handledBy === "ai" ? (
                   <Bot className="h-2.5 w-2.5 text-primary" />
                 ) : (
-                  <User className="h-2.5 w-2.5 text-blue-500" />
+                  <User className="h-2.5 w-2.5 text-info" />
                 )}
                 {headerStatus}
               </span>
@@ -847,7 +842,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
                 <span className="text-muted-foreground/60">{conversation.channelInstanceName}</span>
               )}
               {isChannelInstanceRemoved && (
-                <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                <span className="inline-flex items-center gap-1 text-warning dark:text-warning">
                   <AlertCircle className="h-2.5 w-2.5" />
                   removida
                 </span>
@@ -858,10 +853,10 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {activeFlowSession && activeFlowSession.status !== "completed" && activeFlowSession.status !== "failed" ? (
-            <div className="hidden items-center gap-1 rounded border border-border bg-card px-2 py-1 lg:flex">
+            <div className="hidden items-center gap-1 rounded-md border border-border bg-card px-2 py-1 lg:flex">
               <GitBranch className="h-3.5 w-3.5 text-primary" />
-              <span className="max-w-32 truncate font-mono text-[11px] text-foreground">{activeFlowSession.flow?.name ?? "fluxo ativo"}</span>
-              <span className="border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary">{activeFlowSession.status}</span>
+              <span className="max-w-32 truncate text-xs text-foreground">{activeFlowSession.flow?.name ?? "fluxo ativo"}</span>
+              <span className="border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-xs text-primary">{activeFlowSession.status}</span>
               {activeFlowSession.status === "paused" ? (
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void controlFlowSession("resume")} disabled={isFlowActionPending}>
                   {isFlowActionPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
@@ -877,10 +872,10 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
             </div>
           ) : (
             <div className="hidden items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-1 lg:flex">
-              <select
+              <NativeSelect
                 value={selectedFlowId}
                 onChange={(event) => setSelectedFlowId(event.target.value)}
-                className="h-7 max-w-36 rounded-sm border border-transparent bg-transparent px-1 font-mono text-[11px] text-foreground outline-none"
+                className="h-7 max-w-36 rounded-sm border border-transparent bg-transparent px-1 text-xs text-foreground outline-none"
                 disabled={publishedFlows.length === 0}
               >
                 {publishedFlows.length === 0 ? (
@@ -888,7 +883,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
                 ) : publishedFlows.map((flow) => (
                   <option key={flow.id} value={flow.id}>{flow.name}</option>
                 ))}
-              </select>
+              </NativeSelect>
               <Button
                 variant="ghost"
                 size="icon"
@@ -923,13 +918,13 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
               title={isChannelInstanceRemoved ? "Esta instância foi removida." : "Devolver para IA"}
             >
               {isReturningToAi ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" /> : <Bot className="h-3.5 w-3.5 sm:mr-1.5" />}
-              <span className="hidden font-mono text-[10px] sm:inline">devolver ia</span>
+              <span className="hidden text-xs sm:inline">devolver ia</span>
             </Button>
           ) : (
             <Button
               variant="outline"
               size="sm"
-              className="h-9 shrink-0 rounded-sm px-2 font-mono text-[10px] sm:px-3"
+              className="h-9 shrink-0 rounded-sm px-2 text-xs sm:px-3"
               onClick={takeoverConversation}
               disabled={isTakingOver || isReturningToAi || !conversation}
               title="Assumir conversa"
@@ -1009,13 +1004,13 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
 
       <div className="shrink-0 border-t border-border bg-background p-4">
         {isChannelInstanceRemoved && (
-          <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-md border border-warning/25 bg-warning/10 px-3 py-2 text-xs text-warning-ink dark:text-warning">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{removedInstanceMessage}</span>
           </div>
         )}
         {isAiActive && (
-          <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary">
+          <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary">
             <Bot className="h-4 w-4 shrink-0" />
             <span>A IA esta respondendo esta conversa. Para enviar manualmente, clique em "Assumir conversa".</span>
           </div>
@@ -1035,7 +1030,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
           </Button>
 
           <div className="min-w-0 flex-1">
-            <textarea
+            <Textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               placeholder={isChannelInstanceRemoved ? "Instância removida. Histórico disponível somente para consulta." : isAiActive ? "IA ativa. Assuma a conversa para responder como operador." : "Digite uma mensagem como operador..."}

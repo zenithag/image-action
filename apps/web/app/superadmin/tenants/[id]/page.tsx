@@ -1,5 +1,6 @@
 "use client"
 
+import { Input, NativeSelect, Textarea } from "@/components/spectrum/fields"
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import Link from "next/link"
@@ -20,7 +21,7 @@ import {
   Trash2,
   Users,
   Workflow,
-} from "lucide-react"
+} from "@/components/spectrum/icons"
 
 import { Button } from "@/components/ui/button"
 import type { PublicAbacatePaySettings, PublicStripeSettings, TenantBillingSubscription } from "@/lib/billing-types"
@@ -439,7 +440,7 @@ export default function TenantDetailPage() {
     return (
       <div className="flex h-full flex-col bg-background">
         <div className="flex items-center gap-4 border-b border-border bg-background py-4 pl-6 pr-10">
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded hover:bg-muted" asChild>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-md hover:bg-muted" asChild>
             <Link href="/superadmin">
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -458,13 +459,13 @@ export default function TenantDetailPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <div className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-background px-7">
-        <Button variant="ghost" size="icon" className="h-8 w-8 rounded hover:bg-muted" asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md hover:bg-muted" asChild>
           <Link href="/superadmin">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[13px] font-medium text-white"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-medium text-white"
           style={{ background: `hsl(${(tenant.name.charCodeAt(0) * 37) % 360}, 55%, 50%)` }}
         >
           {tenant.name[0]?.toUpperCase()}
@@ -472,11 +473,11 @@ export default function TenantDetailPage() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             <h1 className="font-display truncate text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">{tenant.name}</h1>
-            <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase", status.className)}>
+            <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium uppercase", status.className)}>
               {status.label}
             </span>
           </div>
-          <p className="truncate font-mono text-xs text-muted-foreground">{tenant.slug}.comofica.ai</p>
+          <p className="truncate text-xs text-muted-foreground">{tenant.slug}.comofica.ai</p>
         </div>
         <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => void removeTenant()}>
           <Trash2 className="mr-2 h-4 w-4" /> Remover
@@ -499,47 +500,47 @@ export default function TenantDetailPage() {
         <div className="mx-auto max-w-6xl space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="space-y-6 lg:col-span-2">
-              <div className="rounded border border-border bg-card">
+              <div className="rounded-md border border-border bg-card">
                 <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Shield className="h-4 w-4 text-primary" />
                   <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Cadastro do tenant</h2>
                 </div>
                 <div className="grid gap-4 p-6 sm:grid-cols-2">
                   <Field label="Nome da empresa">
-                    <input value={tenantForm.name} onChange={(event) => setTenantForm((current) => current ? { ...current, name: event.target.value } : current)} className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                    <Input value={tenantForm.name} onChange={(event) => setTenantForm((current) => current ? { ...current, name: event.target.value } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                   </Field>
                   <Field label="Email principal">
-                    <input value={tenantForm.contactEmail} onChange={(event) => setTenantForm((current) => current ? { ...current, contactEmail: event.target.value } : current)} className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                    <Input value={tenantForm.contactEmail} onChange={(event) => setTenantForm((current) => current ? { ...current, contactEmail: event.target.value } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                   </Field>
                   <Field label="Responsavel">
-                    <input value={tenantForm.contactName} onChange={(event) => setTenantForm((current) => current ? { ...current, contactName: event.target.value } : current)} className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                    <Input value={tenantForm.contactName} onChange={(event) => setTenantForm((current) => current ? { ...current, contactName: event.target.value } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                   </Field>
                   <Field label="Telefone">
-                    <input value={tenantForm.phone} onChange={(event) => setTenantForm((current) => current ? { ...current, phone: event.target.value } : current)} className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                    <Input value={tenantForm.phone} onChange={(event) => setTenantForm((current) => current ? { ...current, phone: event.target.value } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                   </Field>
                   <Field label="Plano">
-                    <select value={tenantForm.planCode} onChange={(event) => setTenantForm((current) => current ? { ...current, planCode: event.target.value as TenantPlanCode } : current)} className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                    <NativeSelect value={tenantForm.planCode} onChange={(event) => setTenantForm((current) => current ? { ...current, planCode: event.target.value as TenantPlanCode } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                       <option value="starter">Starter</option>
                       <option value="pro">Pro</option>
                       <option value="enterprise">Enterprise</option>
-                    </select>
+                    </NativeSelect>
                   </Field>
                   <Field label="Status">
-                    <select value={tenantForm.status} onChange={(event) => setTenantForm((current) => current ? { ...current, status: event.target.value as TenantStatus } : current)} className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                    <NativeSelect value={tenantForm.status} onChange={(event) => setTenantForm((current) => current ? { ...current, status: event.target.value as TenantStatus } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                       <option value="active">Ativo</option>
                       <option value="draft">Rascunho</option>
                       <option value="suspended">Suspenso</option>
                       <option value="archived">Arquivado</option>
-                    </select>
+                    </NativeSelect>
                   </Field>
                   <Field label="Nicho do tenant">
-                    <select value={tenantForm.businessVertical} onChange={(event) => setTenantForm((current) => current ? { ...current, businessVertical: event.target.value as TenantBusinessVertical } : current)} className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                    <NativeSelect value={tenantForm.businessVertical} onChange={(event) => setTenantForm((current) => current ? { ...current, businessVertical: event.target.value as TenantBusinessVertical } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                       <option value="generic">Generico</option>
                       <option value="decor">Decoracao</option>
                       <option value="fashion">Moda</option>
                       <option value="automotive">Automotivo</option>
                       <option value="furniture">Moveis</option>
-                    </select>
+                    </NativeSelect>
                   </Field>
                 </div>
                 <div className="flex justify-end border-t border-border px-6 py-4">
@@ -550,31 +551,31 @@ export default function TenantDetailPage() {
                 </div>
               </div>
 
-              <div className="rounded border border-border bg-card">
+              <div className="rounded-md border border-border bg-card">
                 <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Workflow className="h-4 w-4 text-primary" />
                   <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Configuracoes de segmentacao</h2>
                 </div>
                 <div className="grid gap-4 p-6 sm:grid-cols-2">
                   <Field label="Perfil de segmentacao">
-                    <select
+                    <NativeSelect
                       value={settings.segmentation.profile}
                       onChange={(event) => setSettings((current) => current ? {
                         ...current,
                         segmentation: { ...current.segmentation, profile: event.target.value as TenantBusinessVertical },
                       } : current)}
-                      className="h-11 w-full rounded border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     >
                       <option value="generic">Generico</option>
                       <option value="decor">Decoracao</option>
                       <option value="fashion">Moda</option>
                       <option value="automotive">Automotivo</option>
                       <option value="furniture">Moveis</option>
-                    </select>
+                    </NativeSelect>
                   </Field>
                   <Field label="Delegacao futura ao tenant">
-                    <label className="flex h-11 items-center gap-3 rounded border border-input bg-muted/20 px-4 text-sm">
-                      <input
+                    <label className="flex h-11 items-center gap-3 rounded-md border border-input bg-muted/20 px-4 text-sm">
+                      <Input
                         type="checkbox"
                         checked={settings.segmentation.tenantCanManage}
                         onChange={(event) => setSettings((current) => current ? {
@@ -586,36 +587,36 @@ export default function TenantDetailPage() {
                     </label>
                   </Field>
                   <Field label="Targets editaveis">
-                    <textarea
+                    <Textarea
                       rows={6}
                       value={toLines(settings.segmentation.editableTargets)}
                       onChange={(event) => setSettings((current) => current ? {
                         ...current,
                         segmentation: { ...current.segmentation, editableTargets: fromLines(event.target.value) },
                       } : current)}
-                      className="w-full rounded border border-input bg-muted/20 px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-md border border-input bg-muted/20 px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Targets protegidos">
-                    <textarea
+                    <Textarea
                       rows={6}
                       value={toLines(settings.segmentation.protectedTargets)}
                       onChange={(event) => setSettings((current) => current ? {
                         ...current,
                         segmentation: { ...current.segmentation, protectedTargets: fromLines(event.target.value) },
                       } : current)}
-                      className="w-full rounded border border-input bg-muted/20 px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-md border border-input bg-muted/20 px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
                   <Field label="Hints de prompt por nicho">
-                    <textarea
+                    <Textarea
                       rows={5}
                       value={toLines(settings.segmentation.promptHints)}
                       onChange={(event) => setSettings((current) => current ? {
                         ...current,
                         segmentation: { ...current.segmentation, promptHints: fromLines(event.target.value) },
                       } : current)}
-                      className="w-full rounded border border-input bg-muted/20 px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary sm:col-span-2"
+                      className="w-full rounded-md border border-input bg-muted/20 px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary sm:col-span-2"
                     />
                   </Field>
                 </div>
@@ -638,7 +639,7 @@ export default function TenantDetailPage() {
             </div>
 
             <div className="space-y-6">
-              <div className="rounded border border-border bg-card">
+              <div className="rounded-md border border-border bg-card">
                 <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Mail className="h-4 w-4 text-primary" />
                   <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Resumo atual</h2>
@@ -651,17 +652,17 @@ export default function TenantDetailPage() {
                 </div>
               </div>
 
-              <div className="rounded border border-border bg-card p-6">
+              <div className="rounded-md border border-border bg-card p-6">
                 <div className="mb-5 flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-primary" />
                   <h3 className="font-display text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Assinatura AbacatePay</h3>
                 </div>
                 {abacateBilling ? (
                   <div className="space-y-4">
-                    <div className="rounded border border-border bg-muted/10 p-4">
+                    <div className="rounded-md border border-border bg-muted/10 p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-[11px] font-medium uppercase text-muted-foreground">Provider</span>
-                        <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase", abacateBilling.settings.enabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                        <span className="text-xs font-medium uppercase text-muted-foreground">Provider</span>
+                        <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", abacateBilling.settings.enabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
                           {abacateBilling.settings.enabled ? "habilitado" : "desabilitado"}
                         </span>
                       </div>
@@ -683,33 +684,33 @@ export default function TenantDetailPage() {
 
                     <div className="grid gap-3">
                       <Field label="Nome no checkout">
-                        <input
+                        <Input
                           value={checkoutForm.name}
                           onChange={(event) => setCheckoutForm((current) => ({ ...current, name: event.target.value }))}
-                          className="h-11 w-full rounded border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </Field>
                       <Field label="Email de cobrança">
-                        <input
+                        <Input
                           type="email"
                           value={checkoutForm.email}
                           onChange={(event) => setCheckoutForm((current) => ({ ...current, email: event.target.value }))}
-                          className="h-11 w-full rounded border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </Field>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Field label="CPF/CNPJ">
-                          <input
+                          <Input
                             value={checkoutForm.taxId}
                             onChange={(event) => setCheckoutForm((current) => ({ ...current, taxId: event.target.value }))}
-                            className="h-11 w-full rounded border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </Field>
                         <Field label="Telefone">
-                          <input
+                          <Input
                             value={checkoutForm.cellphone}
                             onChange={(event) => setCheckoutForm((current) => ({ ...current, cellphone: event.target.value }))}
-                            className="h-11 w-full rounded border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </Field>
                       </div>
@@ -740,7 +741,7 @@ export default function TenantDetailPage() {
                 )}
               </div>
 
-              <div className="rounded border border-border bg-card p-6">
+              <div className="rounded-md border border-border bg-card p-6">
                 <div className="mb-5 flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-primary" />
                   <div>
@@ -750,10 +751,10 @@ export default function TenantDetailPage() {
                 </div>
                 {stripeBilling ? (
                   <div className="space-y-4">
-                    <div className="rounded border border-border bg-muted/10 p-4">
+                    <div className="rounded-md border border-border bg-muted/10 p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-[11px] font-medium uppercase text-muted-foreground">Provider</span>
-                        <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase", stripeBilling.settings.enabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                        <span className="text-xs font-medium uppercase text-muted-foreground">Provider</span>
+                        <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", stripeBilling.settings.enabled ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
                           {stripeBilling.settings.enabled ? "fallback ativo" : "desabilitado"}
                         </span>
                       </div>
@@ -798,7 +799,7 @@ export default function TenantDetailPage() {
                 )}
               </div>
 
-              <div className="rounded border border-border bg-card p-6">
+              <div className="rounded-md border border-border bg-card p-6">
                 <div className="mb-6 flex items-center gap-2">
                   <Coins className="h-4 w-4 text-primary" />
                   <h3 className="font-display text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Tokens da loja</h3>
@@ -806,11 +807,11 @@ export default function TenantDetailPage() {
                 {tokenSnapshot ? (
                   <div className="space-y-6">
                     {tokenSnapshot.isExhausted ? (
-                      <div className="rounded border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                      <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
                         O tenant está sem tokens. Novas composições já ficam bloqueadas até receber crédito manual ou novo pacote.
                       </div>
                     ) : tokenSnapshot.isLowBalance ? (
-                      <div className="rounded border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-700">
+                      <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium text-warning-ink">
                         Saldo em alerta: restam {tokenSnapshot.account.balance} tokens, abaixo do limiar de {tokenSnapshot.account.lowBalanceThreshold}.
                       </div>
                     ) : null}
@@ -822,24 +823,24 @@ export default function TenantDetailPage() {
                       <TokenMetric label="Excedente" value={String(tokenSnapshot.account.overageTokens)} tone={tokenSnapshot.account.overageTokens > 0 ? "warning" : "default"} />
                     </div>
 
-                    <div className="space-y-3 rounded border border-border bg-muted/10 p-4">
-                      <p className="text-[11px] font-medium uppercase text-muted-foreground">Liberar tokens manualmente</p>
+                    <div className="space-y-3 rounded-md border border-border bg-muted/10 p-4">
+                      <p className="text-xs font-medium uppercase text-muted-foreground">Liberar tokens manualmente</p>
                       <div className="grid gap-3">
                         <Field label="Quantidade">
-                          <input
+                          <Input
                             type="number"
                             min={1}
                             value={tokenCreditForm.amount}
                             onChange={(event) => setTokenCreditForm((current) => ({ ...current, amount: event.target.value }))}
-                            className="h-11 w-full rounded border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </Field>
                         <Field label="Observacao">
-                          <input
+                          <Input
                             value={tokenCreditForm.description}
                             onChange={(event) => setTokenCreditForm((current) => ({ ...current, description: event.target.value }))}
                             placeholder="Credito manual de campanha, ajuste comercial..."
-                            className="h-11 w-full rounded border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </Field>
                         <Button onClick={() => void grantTokens()} disabled={isGrantingTokens}>
@@ -851,17 +852,17 @@ export default function TenantDetailPage() {
 
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-medium uppercase text-muted-foreground">Historico recente</p>
+                        <p className="text-xs font-medium uppercase text-muted-foreground">Historico recente</p>
                         <span className="text-xs text-muted-foreground">
                           limiar baixo: {tokenSnapshot.account.lowBalanceThreshold}
                         </span>
                       </div>
                       <div className="space-y-2">
                         {tokenSnapshot.entries.slice(0, 5).map((entry) => (
-                          <div key={entry.id} className="rounded border border-border px-3 py-2 text-sm">
+                          <div key={entry.id} className="rounded-md border border-border px-3 py-2 text-sm">
                             <div className="flex items-center justify-between gap-3">
                               <span className="font-medium text-foreground">{entry.description}</span>
-                              <span className={cn("font-mono text-xs", entry.amount >= 0 ? "text-primary" : "text-foreground")}>
+                              <span className={cn(" text-xs", entry.amount >= 0 ? "text-primary" : "text-foreground")}>
                                 {entry.amount >= 0 ? "+" : ""}{entry.amount}
                               </span>
                             </div>
@@ -879,7 +880,7 @@ export default function TenantDetailPage() {
                 )}
               </div>
 
-              <div className="rounded border border-border bg-card p-6">
+              <div className="rounded-md border border-border bg-card p-6">
                 <div className="mb-6 flex items-center gap-2">
                   <Database className="h-4 w-4 text-primary" />
                   <h3 className="font-display text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Estado do cadastro</h3>
@@ -887,11 +888,11 @@ export default function TenantDetailPage() {
                 <div className="space-y-4 text-sm">
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">ID</span>
-                    <span className="truncate font-mono text-xs">{tenant.id}</span>
+                    <span className="truncate text-xs">{tenant.id}</span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Slug</span>
-                    <span className="font-mono text-xs">{tenant.slug}</span>
+                    <span className="text-xs">{tenant.slug}</span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Perfil de segmentacao</span>
@@ -904,7 +905,7 @@ export default function TenantDetailPage() {
                 </div>
               </div>
 
-              <div className="rounded border border-border bg-card p-6">
+              <div className="rounded-md border border-border bg-card p-6">
                 <h3 className="font-display text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Governanca</h3>
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                   O tenant continua usando o mesmo conjunto de configuracoes persistidas, mas a edicao da parte de segmentacao esta centralizada aqui no Super Admin.
@@ -930,9 +931,9 @@ function TokenMetric({
   tone?: "default" | "warning"
 }) {
   return (
-    <div className={cn("rounded border border-border px-4 py-3", highlight ? "bg-primary/10" : "bg-muted/10")}>
-      <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 font-display text-xl font-bold", tone === "warning" ? "text-amber-600" : "text-foreground")}>
+    <div className={cn("rounded-md border border-border px-4 py-3", highlight ? "bg-primary/10" : "bg-muted/10")}>
+      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+      <p className={cn("mt-1 font-display text-xl font-bold", tone === "warning" ? "text-warning" : "text-foreground")}>
         {value}
       </p>
     </div>
@@ -948,7 +949,7 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-[11px] font-medium uppercase text-muted-foreground">{label}</label>
+      <label className="text-xs font-medium uppercase text-muted-foreground">{label}</label>
       {children}
     </div>
   )
@@ -965,7 +966,7 @@ function InfoItem({
 }) {
   return (
     <div>
-      <p className="mb-1 text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">{label}</p>
       <div className="flex items-center gap-2 text-sm font-medium">
         {Icon ? <Icon className="h-3.5 w-3.5 text-primary/60" /> : null}
         {value}
@@ -984,11 +985,11 @@ function StatCard({
   icon: typeof Users
 }) {
   return (
-    <div className="rounded border border-border bg-card p-4">
-      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded bg-primary/10">
+    <div className="rounded-md border border-border bg-card p-4">
+      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
         <Icon className="h-4 w-4 text-primary" />
       </div>
-      <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
       <p className="font-display text-xl font-bold text-foreground">{value}</p>
     </div>
   )
