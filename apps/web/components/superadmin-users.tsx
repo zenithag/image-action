@@ -1,5 +1,7 @@
 "use client"
 
+import { UserMenu } from "@/components/molecules/user-menu"
+import { Input, NativeSelect } from "@/components/spectrum/fields"
 import { useEffect, useMemo, useState } from "react"
 import {
   CheckCircle2,
@@ -14,7 +16,7 @@ import {
   UserRound,
   X,
   XCircle,
-} from "lucide-react"
+} from "@/components/spectrum/icons"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -261,19 +263,20 @@ export function SuperadminUsers() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-8">
-        <div className="flex flex-col">
-          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">usuarios</h1>
-          <p className="text-[10px] leading-none text-muted-foreground">acesso · superadmin</p>
+      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-8">
+        <div className="mr-auto flex flex-col">
+          <h1 className="text-sm font-semibold tracking-tight text-foreground">usuarios</h1>
+          <p className="text-xs leading-none text-muted-foreground">acesso · superadmin</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-[11px]" onClick={() => void loadUsers()}>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => void loadUsers()}>
             <Clock className="mr-1.5 h-3.5 w-3.5" /> refresh
           </Button>
-          <Button size="sm" className="h-8 text-[11px]" onClick={() => setIsCreateOpen((current) => !current)}>
+          <Button size="sm" className="h-8 text-xs" onClick={() => setIsCreateOpen((current) => !current)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" /> novo
           </Button>
         </div>
+        <UserMenu />
       </div>
 
       {error ? (
@@ -283,19 +286,19 @@ export function SuperadminUsers() {
       ) : null}
 
       <div className="grid gap-3 px-7 py-4 sm:grid-cols-3">
-        <div className="rounded border border-border bg-card p-4">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Total</p>
-          <p className="mt-1 font-mono text-[28px] font-semibold leading-none text-foreground">{stats.total}</p>
+        <div className="rounded-md border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Total</p>
+          <p className="mt-1 text-[28px] font-semibold leading-none text-foreground">{stats.total}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">acessos cadastrados</p>
         </div>
-        <div className="rounded border border-border bg-card p-4">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Ativos</p>
-          <p className="mt-1 font-mono text-[28px] font-semibold leading-none text-primary">{stats.active}</p>
+        <div className="rounded-md border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Ativos</p>
+          <p className="mt-1 text-[28px] font-semibold leading-none text-primary">{stats.active}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">podem acessar o painel</p>
         </div>
-        <div className="rounded border border-border bg-card p-4">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Desativados</p>
-          <p className="mt-1 font-mono text-[28px] font-semibold leading-none text-muted-foreground">{stats.disabled}</p>
+        <div className="rounded-md border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Desativados</p>
+          <p className="mt-1 text-[28px] font-semibold leading-none text-muted-foreground">{stats.disabled}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">mantidos para histórico</p>
         </div>
       </div>
@@ -304,38 +307,38 @@ export function SuperadminUsers() {
         <div className="border-y border-border bg-secondary/30 px-7 py-5">
           <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1fr_0.8fr]">
             <div className="space-y-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Nome</label>
-              <input
+              <label className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Nome</label>
+              <Input
                 value={form.name}
                 onChange={(event) => updateCreateField("name", event.target.value)}
                 placeholder="Nome completo"
-                className="w-full rounded border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Email</label>
-              <input
+              <label className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Email</label>
+              <Input
                 type="email"
                 value={form.email}
                 onChange={(event) => updateCreateField("email", event.target.value)}
                 placeholder="admin@empresa.com"
                 autoComplete="email"
-                className="w-full rounded border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</label>
-              <select
+              <label className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</label>
+              <NativeSelect
                 value={form.status}
                 onChange={(event) => updateCreateField("status", event.target.value as AuthUserStatus)}
-                className="w-full rounded border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="active">Ativo</option>
                 <option value="disabled">Desativado</option>
-              </select>
+              </NativeSelect>
             </div>
             <div className="flex items-end">
-              <Button className="w-full rounded" disabled={isCreating || !canCreateUser} onClick={() => void createUser()}>
+              <Button className="w-full rounded-md" disabled={isCreating || !canCreateUser} onClick={() => void createUser()}>
                 {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                 Adicionar
               </Button>
@@ -343,21 +346,21 @@ export function SuperadminUsers() {
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Senha forte</label>
-              <input
+              <label className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Senha forte</label>
+              <Input
                 type="password"
                 value={form.password}
                 onChange={(event) => updateCreateField("password", event.target.value)}
                 placeholder="Minimo 12 caracteres"
                 autoComplete="new-password"
-                className="w-full rounded border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="flex flex-wrap gap-1.5">
                 {passwordChecks.map((check) => (
                   <span
                     key={check.label}
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-medium uppercase",
+                      "rounded-full px-2 py-0.5 text-xs font-medium uppercase",
                       check.valid ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
                     )}
                   >
@@ -367,17 +370,17 @@ export function SuperadminUsers() {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Confirmar senha</label>
-              <input
+              <label className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Confirmar senha</label>
+              <Input
                 type="password"
                 value={form.passwordConfirmation}
                 onChange={(event) => updateCreateField("passwordConfirmation", event.target.value)}
                 placeholder="Repita a senha"
                 autoComplete="new-password"
-                className="w-full rounded border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
               {form.passwordConfirmation && form.password !== form.passwordConfirmation ? (
-                <p className="text-[11px] font-medium text-destructive">A confirmacao ainda nao confere.</p>
+                <p className="text-xs font-medium text-destructive">A confirmacao ainda nao confere.</p>
               ) : null}
             </div>
           </div>
@@ -387,26 +390,26 @@ export function SuperadminUsers() {
       <div className="border-b border-border px-7 py-3">
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Buscar por nome ou email..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-7 py-6 scrollbar-hide">
-        <div className="overflow-hidden rounded border border-border bg-card">
+        <div className="overflow-hidden rounded-md border border-border bg-card">
           <table className="w-full min-w-[920px] border-collapse">
             <thead>
               <tr className="border-b border-border bg-secondary">
-                <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Usuário</th>
-                <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
-                <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Último login</th>
-                <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Criado em</th>
-                <th className="px-5 py-3.5 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Ações</th>
+                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Usuário</th>
+                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Último login</th>
+                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Criado em</th>
+                <th className="px-5 py-3.5 text-right text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -444,33 +447,33 @@ export function SuperadminUsers() {
                     <td className="px-5 py-4 align-top">
                       {isEditing ? (
                         <div className="grid gap-3">
-                          <input
+                          <Input
                             value={editForm.name}
                             onChange={(event) => updateEditField("name", event.target.value)}
-                            className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                           />
-                          <input
+                          <Input
                             type="email"
                             value={editForm.email}
                             onChange={(event) => updateEditField("email", event.target.value)}
-                            className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           <div className="grid gap-2 sm:grid-cols-2">
-                            <input
+                            <Input
                               type="password"
                               value={editForm.password}
                               onChange={(event) => updateEditField("password", event.target.value)}
                               placeholder="Nova senha opcional"
                               autoComplete="new-password"
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                             />
-                            <input
+                            <Input
                               type="password"
                               value={editForm.passwordConfirmation}
                               onChange={(event) => updateEditField("passwordConfirmation", event.target.value)}
                               placeholder="Confirmar nova senha"
                               autoComplete="new-password"
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                             />
                           </div>
                           {editForm.password ? (
@@ -479,7 +482,7 @@ export function SuperadminUsers() {
                                 <span
                                   key={check.label}
                                   className={cn(
-                                    "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase",
+                                    "rounded-full px-2 py-0.5 text-xs font-medium uppercase",
                                     check.valid ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
                                   )}
                                 >
@@ -495,7 +498,7 @@ export function SuperadminUsers() {
                             {user.name[0]?.toUpperCase() || <UserRound className="h-4 w-4" />}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate font-display text-[15px] font-semibold text-foreground">{user.name}</p>
+                            <p className="truncate font-display text-base font-semibold text-foreground">{user.name}</p>
                             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                               <Mail className="h-3.5 w-3.5" />
                               {user.email}
@@ -506,23 +509,23 @@ export function SuperadminUsers() {
                     </td>
                     <td className="px-5 py-4 align-top">
                       {isEditing ? (
-                        <select
+                        <NativeSelect
                           value={editForm.status}
                           onChange={(event) => updateEditField("status", event.target.value as AuthUserStatus)}
-                          className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                           <option value="active">Ativo</option>
                           <option value="disabled">Desativado</option>
-                        </select>
+                        </NativeSelect>
                       ) : (
-                        <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase", status.className)}>
+                        <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold uppercase", status.className)}>
                           <StatusIcon className="h-3.5 w-3.5" />
                           {status.label}
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-4 align-top font-mono text-sm text-muted-foreground">{formatDate(user.lastLoginAt)}</td>
-                    <td className="px-5 py-4 align-top font-mono text-sm text-muted-foreground">{formatDate(user.createdAt)}</td>
+                    <td className="px-5 py-4 align-top text-sm text-muted-foreground">{formatDate(user.lastLoginAt)}</td>
+                    <td className="px-5 py-4 align-top text-sm text-muted-foreground">{formatDate(user.createdAt)}</td>
                     <td className="px-5 py-4 align-top">
                       <div className="flex justify-end gap-2">
                         {isEditing ? (

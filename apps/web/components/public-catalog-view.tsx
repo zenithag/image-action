@@ -188,7 +188,7 @@ export function PublicCatalogView({
                     <p className="mt-1 line-clamp-2 text-sm font-bold leading-tight text-white">
                       {item.name}
                     </p>
-                    {item.sku && <p className="mt-1 truncate font-mono text-[11px] text-white/45">{item.sku}</p>}
+                    {item.sku && <p className="mt-1 truncate font-mono text-[10px] text-white/45">{item.sku}</p>}
                   </div>
                 </Link>
               )) : (
@@ -310,7 +310,7 @@ export function PublicCatalogView({
                           {item.category}
                         </p>
                         {item.sku && (
-                          <span className="max-w-full rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500">
+                          <span className="max-w-full rounded-full bg-slate-100 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.04em] text-slate-500">
                             {item.sku}
                           </span>
                         )}

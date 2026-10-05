@@ -1,5 +1,6 @@
 "use client"
 
+import { Button } from "@/components/ui/button"
 import { useEffect, useRef, useState } from "react"
 import type { StudioImageArtifact } from "@/lib/studio-draft"
 import { getStudioArtifactKey } from "@/lib/studio-draft"
@@ -65,14 +66,14 @@ export function StudioSurfaces({ slug, base, visible, disabled, onUpdate, target
     </svg>}
     <div className={styles.surfaceControls} tabIndex={-1} ref={controls} onKeyDown={event => { if (event.key === "Escape" && onCancelSelection) { event.preventDefault(); event.stopPropagation(); onCancelSelection() } }}>
       {onConfirmSelection && <p>Selecione os planos na imagem e confirme a seleção. Você pode escolher mais de uma.</p>}
-      {!analysis ? <button type="button" disabled={busy || disabled || !sourceKey} onClick={() => void analyze()}>{busy ? "Reconhecendo superfícies…" : "Reconhecer superfícies"}</button> : <>
-        <div className={styles.surfaceActions}>{(["wall", "floor", "ceiling"] as const).filter(type => !allowedTypes || allowedTypes.includes(type)).map(type => <button key={type} type="button" disabled={disabled || !analysis.surfaces.some(s => s.type === type)} onClick={() => onUpdate(artifactKey, { selectedSurfaceIds: [...new Set([...selected, ...analysis.surfaces.filter(s => s.type === type).map(s => s.id)])] })}>{type === "wall" ? "Todas as paredes" : labels[type]}</button>)}<button type="button" disabled={disabled || !selected.length} onClick={() => onUpdate(artifactKey, { selectedSurfaceIds: [], surfaceMaterialId: undefined })}>Limpar seleção</button></div>
+      {!analysis ? <Button variant="outline" type="button" disabled={busy || disabled || !sourceKey} onClick={() => void analyze()}>{busy ? "Reconhecendo superfícies…" : "Reconhecer superfícies"}</Button> : <>
+        <div className={styles.surfaceActions}>{(["wall", "floor", "ceiling"] as const).filter(type => !allowedTypes || allowedTypes.includes(type)).map(type => <Button variant="outline" type="button" key={type} disabled={disabled || !analysis.surfaces.some(s => s.type === type)} onClick={() => onUpdate(artifactKey, { selectedSurfaceIds: [...new Set([...selected, ...analysis.surfaces.filter(s => s.type === type).map(s => s.id)])] })}>{type === "wall" ? "Todas as paredes" : labels[type]}</Button>)}<Button variant="ghost" type="button" disabled={disabled || !selected.length} onClick={() => onUpdate(artifactKey, { selectedSurfaceIds: [], surfaceMaterialId: undefined })}>Limpar seleção</Button></div>
         <p role="status">{analysis.surfaces.length} planos · {selected.length} selecionadas</p>
         <p>Indicação aproximada de plano. A geração será orientada a preservar os demais elementos, sem isolamento exato de pixels.</p>
         {!analysis.surfaces.length && <p>Nenhum contorno válido retornado. Não foi criada uma área artificial.</p>}
         {analysis.warnings.length > 0 && <p>{analysis.warnings.length} contornos/avisos rejeitados pela validação.</p>}
       </>}
-      {onConfirmSelection && <div className={styles.surfaceActions}><button type="button" disabled={disabled || busy || !selected.length} onClick={() => onConfirmSelection(selected)}>Confirmar seleção ({selected.length})</button><button type="button" disabled={busy} onClick={onCancelSelection}>Cancelar seleção</button></div>}
+      {onConfirmSelection && <div className={styles.surfaceActions}><Button variant="default" type="button" disabled={disabled || busy || !selected.length} onClick={() => onConfirmSelection(selected)}>Confirmar seleção ({selected.length})</Button><Button variant="ghost" type="button" disabled={busy} onClick={onCancelSelection}>Cancelar seleção</Button></div>}
       {busy && <progress aria-label="Análise de superfícies em andamento" />}
       {error && <p role="alert">{error}</p>}
     </div>

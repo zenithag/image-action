@@ -1,7 +1,10 @@
 "use client"
 
+import { ToggleButton } from "@/components/spectrum/toggle-button"
+import { Button } from "@/components/ui/button"
+import { NativeSelect, Textarea } from "@/components/spectrum/fields"
 import { useEffect, useRef, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2 } from "@/components/spectrum/icons"
 import { SafeImage } from "@/components/safe-image"
 import type { CompositionJob } from "@/lib/composition-types"
 
@@ -96,13 +99,13 @@ export function StudioResults({ slug, jobs, onCreated }: { slug: string; jobs: C
   }
 
   return (
-    <div className="flex min-h-72 flex-1 flex-col overflow-hidden rounded border border-border bg-card">
+    <div className="flex min-h-72 flex-1 flex-col overflow-hidden rounded-md border border-border bg-card">
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
         <label className="sr-only" htmlFor="studio-result">Composição do lote</label>
-        <select id="studio-result" disabled={correcting} value={job.id} onChange={event => { setSelected(event.target.value); setShowOriginal(false); setCorrectionOpen(false); setCorrection("") }} className="min-w-0 flex-1 rounded border border-border bg-background p-2 text-xs">
+        <NativeSelect id="studio-result" disabled={correcting} value={job.id} onChange={event => { setSelected(event.target.value); setShowOriginal(false); setCorrectionOpen(false); setCorrection("") }} className="min-w-0 flex-1 rounded-md border border-border bg-background p-2 text-xs">
           {results.map((item, index) => <option key={item.id} value={item.id}>Composição {index + 1} · {labels[item.status]}</option>)}
-        </select>
-        {job.status === "done" && job.baseImageUrl && <button type="button" aria-pressed={showOriginal} onClick={() => setShowOriginal(value => !value)} className="rounded border border-border px-3 py-2 text-xs">{showOriginal ? "Ver resultado" : "Ver original"}</button>}
+        </NativeSelect>
+        {job.status === "done" && job.baseImageUrl && <ToggleButton selected={showOriginal} onClick={() => setShowOriginal(value => !value)}>{showOriginal ? "Ver resultado" : "Ver original"}</ToggleButton>}
       </div>
       <div className="relative flex min-h-64 flex-1 items-center justify-center">
         {image ? <SafeImage src={image} alt={showOriginal ? "Ambiente original" : "Composição gerada"} className="h-full w-full object-contain" fallbackLabel="Imagem indisponível" /> : (
@@ -110,20 +113,20 @@ export function StudioResults({ slug, jobs, onCreated }: { slug: string; jobs: C
             {(job.status === "queued" || job.status === "processing") && <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin motion-reduce:animate-none text-primary" />}
             <p className="text-sm font-medium">{labels[job.status]}</p>
             <p className="mt-2 text-sm text-muted-foreground">{job.status === "failed" ? job.errorMessage || "A geração não foi concluída. Tente novamente." : job.status === "done" ? "O resultado não contém uma imagem disponível." : "O resultado aparecerá aqui automaticamente. Você pode continuar preparando os próximos ambientes."}</p>
-            {job.status === "failed" && <button type="button" disabled={retrying} onClick={() => void retry()} className="mt-4 rounded border border-border px-3 py-2 text-sm disabled:opacity-50">{retrying ? "Reenviando…" : "Tentar novamente"}</button>}
+            {job.status === "failed" && <Button variant="outline" type="button" className="mt-4"  disabled={retrying} onClick={() => void retry()}>{retrying ? "Reenviando…" : "Tentar novamente"}</Button>}
           </div>
         )}
       </div>
       {error && <p role="alert" className="p-3 text-sm text-destructive">{error}</p>}
       {job.status === "done" && job.resultImageUrl && (
         <div className="space-y-2 border-t border-border p-3">
-          <button type="button" aria-expanded={correctionOpen} disabled={correcting} onClick={() => setCorrectionOpen(value => !value)} className="rounded border border-border px-3 py-2 text-sm">Corrigir esta composição</button>
+          <Button variant="outline" type="button"  aria-expanded={correctionOpen} disabled={correcting} onClick={() => setCorrectionOpen(value => !value)}>Corrigir esta composição</Button>
           {correctionOpen && <form onSubmit={event => { event.preventDefault(); void correct() }} className="space-y-2">
             <label className="block text-sm">O que precisa mudar?
-              <textarea required maxLength={4000} disabled={correcting} value={correction} onChange={event => setCorrection(event.target.value)} placeholder="Ex.: ajuste apenas a posição do sofá, mantendo os demais elementos." className="mt-1 min-h-20 w-full rounded border border-border bg-background p-2 text-sm" />
+              <Textarea required maxLength={4000} disabled={correcting} value={correction} onChange={event => setCorrection(event.target.value)} placeholder="Ex.: ajuste apenas a posição do sofá, mantendo os demais elementos." className="mt-1 min-h-20 w-full rounded-md border border-border bg-background p-2 text-sm" />
             </label>
             <p className="text-xs text-muted-foreground">Gera uma nova versão somente desta imagem e pode consumir créditos. A versão anterior e os outros ambientes serão mantidos. Confira se os demais elementos foram preservados.</p>
-            <button type="submit" disabled={correcting || !correction.trim()} className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50">{correcting ? "Enviando correção…" : "Gerar versão corrigida"}</button>
+            <Button  type="submit" disabled={correcting || !correction.trim()}>{correcting ? "Enviando correção…" : "Gerar versão corrigida"}</Button>
           </form>}
         </div>
       )}

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { Send, UserCheck, Bot } from "lucide-react"
+import { Send, UserCheck, Bot } from "@/components/spectrum/icons"
 
 export function ChatPanel() {
   const { data: session } = useSession()
@@ -93,7 +93,7 @@ export function ChatPanel() {
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium">{activeConv.contact_id.slice(0, 16)}...</span>
-          <Badge variant="secondary" className="text-[10px]">{activeConv.state}</Badge>
+          <Badge variant="secondary" className="text-xs">{activeConv.state}</Badge>
         </div>
         <div className="flex gap-2">
           {activeConv.handled_by === "ai" ? (

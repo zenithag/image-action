@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, ReactNode, use } from "react"
+import { useEffect, useRef, useState, ReactNode, use } from "react"
+import type * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { SpectrumProvider } from "@/components/spectrum/spectrum-provider"
 import { SocketProvider } from "@/lib/realtime/socket-provider"
 import { AppSidebar } from "@/components/app-sidebar"
-import { getTenantBrandingVariables, normalizeTenantBrandingSnapshot, type TenantBrandingSnapshot } from "@/lib/tenant-branding"
+import { DEFAULT_TENANT_PRIMARY_COLOR, normalizeTenantBrandingSnapshot, type TenantBrandingSnapshot } from "@/lib/tenant-branding"
 import type { TenantSettings } from "@/lib/tenant-settings-types"
-import { House, BarChart3, GitBranch, Grid2X2, Image as ImageIcon, MessageSquare, Paintbrush, Settings, Smartphone, Users } from "lucide-react"
+import { House, BarChart3, GitBranch, Grid2X2, Image as ImageIcon, MessageSquare, Paintbrush, Settings, Smartphone, Users } from "@/components/spectrum/icons"
 import { cn } from "@/lib/utils"
 
 const mobileNavItems = [
@@ -52,7 +54,7 @@ export default function TenantLayout({
   const [branding, setBranding] = useState<TenantBrandingSnapshot>(() =>
     normalizeTenantBrandingSnapshot({
       companyName: slug.replace(/[-_]+/g, " "),
-      primaryColor: "#31C48D",
+      primaryColor: DEFAULT_TENANT_PRIMARY_COLOR,
       logoUrl: "",
     })
   )
@@ -89,18 +91,16 @@ export default function TenantLayout({
     }
   }, [slug])
 
+  // The tenant's primary colour is the console's accent colour (buttons, selection, focus...).
   useEffect(() => {
     activeMobileNavRef.current?.scrollIntoView({ block: "nearest", inline: "center" })
   }, [pathname])
 
-  const brandingVariables = useMemo(
-    () => getTenantBrandingVariables(branding.primaryColor),
-    [branding.primaryColor]
-  )
 
   return (
+    <SpectrumProvider primaryColor={branding.primaryColor}>
     <SocketProvider>
-      <div className="flex h-dvh overflow-hidden bg-background" style={brandingVariables}>
+      <div className="flex h-dvh overflow-hidden bg-background">
         <AppSidebar
           variant="tenant"
           tenantSlug={slug}
@@ -122,7 +122,7 @@ export default function TenantLayout({
                   href={href}
                   ref={isActive ? activeMobileNavRef : undefined}
                   className={cn(
-                    "relative flex min-w-[56px] flex-none flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-[9px] font-medium transition-colors",
+                    "relative flex min-w-[56px] flex-none flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-xs font-medium transition-colors",
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground"
@@ -140,5 +140,6 @@ export default function TenantLayout({
         </nav>
       </div>
     </SocketProvider>
+    </SpectrumProvider>
   )
 }

@@ -1,0 +1,447 @@
+/*
+ * Adobe Spectrum 2, applied to the tenant console and superadmin (.cf-panel is the sp-theme).
+ *
+ * Colours, radii and type come from Spectrum's own tokens (--spectrum-*), so light/dark follow
+ * the sp-theme `color` attribute. The `--cf-*` names below are only aliases that let the Tailwind
+ * utilities already used across the app (bg-card, text-muted-foreground, bg-success...) resolve
+ * to Spectrum values. Nothing here defines a colour of its own.
+ */
+
+.cf-panel {
+  --cf-bg: var(--spectrum-gray-100);
+  --cf-surface: var(--spectrum-gray-50);
+  --cf-surface-sunken: var(--spectrum-gray-200);
+  --cf-surface-hover: var(--spectrum-gray-200);
+  --cf-surface-selected: var(--spectrum-blue-100);
+  --cf-border: var(--spectrum-gray-300);
+  --cf-border-strong: var(--spectrum-gray-500);
+  --cf-ink: var(--spectrum-gray-900);
+  --cf-ink-muted: var(--spectrum-gray-700);
+  --cf-ink-subtle: var(--spectrum-gray-600);
+  --cf-focus: var(--spectrum-blue-800);
+
+  --cf-brand: var(--spectrum-accent-background-color-default);
+  --cf-brand-hover: var(--spectrum-accent-background-color-hover);
+  --cf-brand-soft: var(--spectrum-blue-100);
+  --cf-brand-ink: var(--spectrum-blue-1000);
+  --cf-on-brand: var(--spectrum-white);
+
+  --cf-success: var(--spectrum-green-900);
+  --cf-success-soft: var(--spectrum-green-100);
+  --cf-success-ink: var(--spectrum-green-1000);
+  --cf-warning: var(--spectrum-orange-900);
+  --cf-warning-soft: var(--spectrum-orange-100);
+  --cf-warning-ink: var(--spectrum-orange-1000);
+  --cf-danger: var(--spectrum-red-900);
+  --cf-danger-soft: var(--spectrum-red-100);
+  --cf-danger-ink: var(--spectrum-red-1000);
+  --cf-human: var(--spectrum-blue-900);
+  --cf-human-soft: var(--spectrum-blue-100);
+  --cf-human-ink: var(--spectrum-blue-1000);
+
+  --cf-chart-1: var(--spectrum-blue-800);
+  --cf-chart-2: var(--spectrum-green-800);
+  --cf-chart-3: var(--spectrum-orange-800);
+  --cf-chart-4: var(--spectrum-gray-500);
+  --cf-chart-track: var(--spectrum-gray-200);
+
+  --cf-radius-sm: 4px;
+  --cf-radius-md: 8px;
+  --cf-radius-lg: 12px;
+  --cf-radius-xl: 16px;
+  --cf-radius-full: 999px;
+
+  /* Bridge to the shadcn variables used by existing screens. */
+  --background: var(--cf-bg);
+  --foreground: var(--cf-ink);
+  --card: var(--cf-surface);
+  --card-foreground: var(--cf-ink);
+  --popover: var(--spectrum-background-elevated-color, var(--cf-surface));
+  --popover-foreground: var(--cf-ink);
+  --primary: var(--cf-brand);
+  --primary-foreground: var(--cf-on-brand);
+  --secondary: var(--cf-surface-sunken);
+  --secondary-foreground: var(--cf-ink);
+  --muted: var(--cf-surface-sunken);
+  --muted-foreground: var(--cf-ink-muted);
+  --accent: var(--cf-surface-hover);
+  --accent-foreground: var(--cf-ink);
+  --destructive: var(--cf-danger);
+  --border: var(--cf-border);
+  --input: var(--cf-border);
+  --ring: var(--cf-focus);
+  --radius: var(--cf-radius-md);
+
+  --sidebar: var(--cf-surface);
+  --sidebar-foreground: var(--cf-ink);
+  --sidebar-primary: var(--cf-brand);
+  --sidebar-primary-foreground: var(--cf-on-brand);
+  --sidebar-accent: var(--cf-surface-selected);
+  --sidebar-accent-foreground: var(--cf-brand-ink);
+  --sidebar-border: var(--cf-border);
+  --sidebar-ring: var(--cf-focus);
+
+  /* Spectrum 2 uses Adobe Clean (licensed through Adobe Fonts). Source Sans 3 is its open
+     fallback; when an Adobe Fonts kit is added, "Adobe Clean" is already first in the stack. */
+  --font-sans: "Adobe Clean", var(--font-source-sans), "Source Sans Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-source-code), ui-monospace, monospace;
+  font-family: var(--font-sans);
+  color: var(--cf-ink);
+}
+
+/* Icons are slotted SVGs (lucide); Spectrum lays items out with flex but does not centre them. */
+.cf-panel sp-sidenav-item > [slot="icon"],
+.cf-panel sp-button > [slot="icon"],
+.cf-panel sp-action-button > [slot="icon"] {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+
+/*
+ * Tailwind's preflight (`* { margin: 0; padding: 0; border: 0 solid }`, in @layer base) matches
+ * the host element of every Spectrum component. A document rule always beats the component's own
+ * `:host` rule, so buttons lost their padding and borders. Rolling these properties back past the
+ * base layer, for Spectrum elements only, lets the components use their own spacing again.
+ */
+@layer base {
+  sp-button,
+  sp-action-button,
+  sp-picker,
+  sp-search,
+  sp-textfield,
+  sp-number-field,
+  sp-checkbox,
+  sp-switch,
+  sp-tabs,
+  sp-tab,
+  sp-underlay,
+  sp-field-label,
+  sp-menu,
+  sp-menu-item,
+  sp-sidenav,
+  sp-sidenav-item,
+  sp-sidenav-heading,
+  sp-progress-circle,
+  sp-divider,
+  sp-badge,
+  sp-help-text {
+    margin: revert-layer;
+    padding: revert-layer;
+    border: revert-layer;
+  }
+}
+
+
+/*
+ * Design-system look for native elements the app still renders itself. These sit in the
+ * `components` layer so Tailwind utilities on a given element (border-0, bg-transparent,
+ * rounded-full...) still win, and low specificity keeps them easy to override.
+ */
+@layer components {
+  .cf-panel :where(h1, h2) {
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  .cf-panel :where(h3, h4) {
+    font-weight: 700;
+  }
+
+  .cf-panel :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"]), select, textarea) {
+    background-color: var(--cf-surface);
+    color: var(--cf-ink);
+    border: 1px solid var(--cf-border-strong);
+    border-radius: var(--cf-radius-md);
+    font: inherit;
+  }
+
+  .cf-panel :where(input, select, textarea)::placeholder {
+    color: var(--cf-ink-subtle);
+  }
+
+  .cf-panel :where(input, select, textarea, button, a, [tabindex]):focus-visible {
+    outline: 2px solid var(--cf-focus);
+    outline-offset: 2px;
+  }
+
+  .cf-panel :where(input[type="checkbox"], input[type="radio"], input[type="range"], progress) {
+    accent-color: var(--cf-brand);
+  }
+
+  .cf-panel ::selection {
+    background: color-mix(in srgb, var(--cf-brand) 25%, transparent);
+  }
+
+  .cf-panel {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Icons passed as plain children (not slotted) must stay on the label's line. */
+.cf-panel sp-button,
+.cf-panel sp-action-button {
+  white-space: nowrap;
+}
+
+/* Tailwind's preflight makes every svg `display: block`, which would break the label line. */
+.cf-panel sp-button :is(svg, [data-icon]),
+.cf-panel sp-action-button :is(svg, [data-icon]) {
+  display: inline-block;
+  vertical-align: -0.2em;
+}
+
+/*
+ * Native inputs had an intrinsic width (~20 characters) that flex rows relied on. Spectrum fields
+ * size to their container, so give them Spectrum's default field width as a floor.
+ */
+.cf-panel sp-textfield,
+.cf-panel sp-search {
+  min-inline-size: 12rem;
+}
+
+.cf-panel sp-picker {
+  min-inline-size: 8rem;
+}
+
+.cf-panel sp-number-field {
+  min-inline-size: 6rem;
+}
+
+/* Count pill used inside tabs and filter chips: always legible, stronger when selected. */
+.cf-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--spectrum-gray-200);
+  color: var(--spectrum-gray-900);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+sp-tab[selected] .cf-count {
+  background: var(--cf-accent-soft, var(--spectrum-blue-100));
+  color: var(--cf-accent-ink, var(--spectrum-blue-1000));
+}
+
+/* Sidebar navigation fills its container; Spectrum's default item offset must not spill out of it. */
+.cf-panel sp-sidenav {
+  inline-size: 100%;
+  margin-inline: 0;
+}
+
+.cf-panel sp-sidenav-item {
+  margin-inline: 0;
+}
+
+/*
+ * Selected (non-emphasized) action buttons default to Spectrum 2's near-black fill, which is too
+ * heavy for filters, view switches and chips. Use the accent colour as a soft fill instead.
+ */
+.cf-panel sp-action-button[selected]:not([emphasized]) {
+  --mod-actionbutton-background-color-default-selected: var(--cf-accent-soft, var(--spectrum-blue-100));
+  --mod-actionbutton-background-color-hover-selected: var(--cf-accent-soft-hover, var(--spectrum-blue-200));
+  --mod-actionbutton-background-color-down-selected: var(--cf-accent-soft-hover, var(--spectrum-blue-200));
+  --mod-actionbutton-background-color-focus-selected: var(--cf-accent-soft, var(--spectrum-blue-100));
+  --mod-actionbutton-content-color-default-selected: var(--cf-accent-ink, var(--spectrum-blue-1000));
+  --mod-actionbutton-content-color-hover-selected: var(--cf-accent-ink, var(--spectrum-blue-1000));
+  --mod-actionbutton-content-color-down-selected: var(--cf-accent-ink, var(--spectrum-blue-1000));
+  --mod-actionbutton-content-color-focus-selected: var(--cf-accent-ink, var(--spectrum-blue-1000));
+}
+
+/* Navigation-style toggles (settings sections): label on the left, like a list. */
+.cf-panel sp-action-button[data-align="start"] {
+  --mod-actionbutton-min-width: 0;
+  justify-content: flex-start;
+  text-align: start;
+}
+
+.cf-panel sp-action-button[data-align="start"]::part(button),
+.cf-panel sp-action-button[data-align="start"] {
+  justify-content: flex-start;
+}
+
+/*
+ * Sidebar: the selected item is marked by a soft accent box around its label and an accent-coloured
+ * icon; the row itself stays flat. (The row background Spectrum draws is the same grey as this bar.)
+ */
+.cf-panel sp-sidenav-item {
+  --mod-sidenav-background-default: transparent;
+  --mod-sidenav-background-hover: transparent;
+  --mod-sidenav-item-background-default-selected: transparent;
+  --mod-sidenav-background-hover-selected: transparent;
+  --mod-sidenav-background-key-focus-selected: transparent;
+  --mod-sidenav-item-background-down: transparent;
+  --mod-sidenav-item-background-down-selected: transparent;
+  --mod-sidenav-content-color-default-selected: var(--cf-on-accent, #fff);
+  --mod-sidenav-content-color-hover-selected: var(--cf-on-accent, #fff);
+  --mod-sidenav-content-color-key-focus-selected: var(--cf-on-accent, #fff);
+  --mod-sidenav-content-color-down-selected: var(--cf-on-accent, #fff);
+}
+
+/* Every item reserves the same icon square, so labels stay aligned whether selected or not. */
+.cf-panel sp-sidenav-item {
+  position: relative;
+  isolation: isolate;
+  margin-block: 2px;
+  /* Spectrum pads the label 6px above and 8px below, which pushes it off the icon's centre line. */
+  --mod-sidenav-top-to-label: 0px;
+  --mod-sidenav-bottom-to-label: 0px;
+  --mod-sidenav-min-height: 32px;
+}
+
+.cf-panel sp-sidenav-item > [slot="icon"] {
+  box-sizing: content-box;
+  width: 20px;
+  height: 20px;
+  padding: 6px;
+  margin-inline: -6px 6px;
+  border-radius: 8px;
+  transition: background-color 130ms ease, color 130ms ease;
+}
+
+/* Icon square, label and box share one 32px band, so their vertical centres coincide. */
+.cf-nav-label {
+  display: inline-block;
+  vertical-align: middle;
+  padding-inline-start: 14px;
+  line-height: 32px;
+}
+
+/* The label's box is drawn on the item itself so it can run to the right edge of the menu. */
+.cf-panel sp-sidenav-item::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 0;
+  block-size: 32px;
+  inset-inline: 44px 0;
+  border-radius: 8px 0 0 8px;
+  background: transparent;
+  pointer-events: none;
+  transition: background-color 130ms ease;
+}
+
+.cf-panel sp-sidenav-item:hover::before {
+  background: var(--spectrum-gray-300);
+}
+
+.cf-panel sp-sidenav-item[selected]::before {
+  background: var(--cf-accent, var(--spectrum-accent-visual-color, var(--spectrum-blue-800)));
+}
+
+.cf-panel sp-sidenav-item[selected] .cf-nav-label {
+  color: var(--cf-on-accent, #fff);
+  font-weight: 700;
+}
+
+/* Selected icon: inverted, on a square in the system (brand) colour. */
+.cf-panel sp-sidenav-item[selected] > [slot="icon"] {
+  background: var(--cf-accent, var(--spectrum-accent-visual-color, var(--spectrum-blue-800)));
+  color: var(--cf-on-accent, #fff);
+}
+
+/* Fields placed in a narrow row next to a button opt out of the width floor with `min-w-0`. */
+.cf-panel :is(sp-textfield, sp-search, sp-picker, sp-number-field).min-w-0 {
+  min-inline-size: 0;
+}
+
+/* Text on the accent fill follows the brand colour's luminance (dark text on a light brand colour). */
+.cf-panel sp-button[variant="accent"] {
+  --mod-button-content-color-default: var(--cf-on-accent, #fff);
+  --mod-button-content-color-hover: var(--cf-on-accent, #fff);
+  --mod-button-content-color-down: var(--cf-on-accent, #fff);
+  --mod-button-content-color-focus: var(--cf-on-accent, #fff);
+}
+
+/* Tabs: the selected tab and its underline use the brand accent. */
+.cf-panel sp-tabs {
+  --mod-tabs-selection-indicator-color: var(--cf-accent, var(--spectrum-accent-visual-color));
+  --mod-tabs-color-selected: var(--cf-accent-ink, var(--spectrum-gray-900));
+}
+
+.cf-panel sp-tab {
+  --mod-tabs-color-selected: var(--cf-accent-ink, var(--spectrum-gray-900));
+}
+
+/*
+ * Text-like fields (search, text, textarea, number, picker) take the same surface colour as the
+ * cards, instead of Spectrum's pure white field fill, so they sit naturally on the page.
+ */
+.cf-panel {
+  --mod-textfield-background-color: var(--cf-surface);
+  --mod-search-background-color: var(--cf-surface);
+  --mod-picker-background-color-default: var(--cf-surface);
+  --mod-picker-background-color-default-open: var(--cf-surface);
+  --mod-picker-background-color-hover: var(--cf-surface-hover);
+  --mod-picker-background-color-hover-open: var(--cf-surface-hover);
+  --mod-picker-background-color-active: var(--cf-surface-hover);
+  --mod-picker-background-color-key-focus: var(--cf-surface);
+}
+
+/* Draft indicator after "Estúdio": accent colour normally, inverted (on-accent) inside the selected bar. */
+.cf-nav-dot {
+  display: inline-block;
+  vertical-align: middle;
+  width: 6px;
+  height: 6px;
+  margin-inline-start: 8px;
+  border-radius: 999px;
+  background: var(--cf-accent, var(--spectrum-accent-visual-color));
+}
+
+.cf-panel sp-sidenav-item[selected] .cf-nav-dot {
+  background: var(--cf-on-accent, #fff);
+}
+
+/* Frosted glass: action buttons that sit on top of an image take the card colour, blurred. */
+[data-glass] sp-action-button {
+  background: color-mix(in srgb, var(--card, #f8f8f8) 62%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: blur(12px) saturate(1.5);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--card, #f8f8f8) 55%, transparent);
+}
+
+[data-glass] sp-action-button:hover {
+  background: color-mix(in srgb, var(--card, #f8f8f8) 80%, transparent);
+}
+
+/*
+ * Focus rings: shown for keyboard navigation only. Clicking or tapping a control no longer lights
+ * it up in blue. `data-cf-input` on <html> is set by SpectrumProvider ("keyboard" after Tab/arrows,
+ * "pointer" after a click or touch).
+ */
+.cf-panel {
+  --mod-actionbutton-focus-indicator-color: transparent;
+  --mod-button-focus-ring-color: transparent;
+  --mod-picker-focus-indicator-color: transparent;
+  --mod-sidenav-focus-ring-color: transparent;
+  --mod-tabs-focus-indicator-color: transparent;
+  --mod-checkbox-focus-indicator-color: transparent;
+  --mod-textfield-focus-indicator-color: transparent;
+  /* Fields keep a neutral border when focused instead of Spectrum's blue one. */
+  --mod-textfield-border-color-focus: var(--cf-border-strong);
+  --mod-textfield-border-color-focus-hover: var(--cf-border-strong);
+}
+
+html[data-cf-input="keyboard"] .cf-panel {
+  --mod-actionbutton-focus-indicator-color: var(--cf-focus);
+  --mod-button-focus-ring-color: var(--cf-focus);
+  --mod-picker-focus-indicator-color: var(--cf-focus);
+  --mod-sidenav-focus-ring-color: var(--cf-focus);
+  --mod-tabs-focus-indicator-color: var(--cf-focus);
+  --mod-checkbox-focus-indicator-color: var(--cf-focus);
+  --mod-textfield-focus-indicator-color: var(--cf-focus);
+}
+
+html:not([data-cf-input="keyboard"]) .cf-panel :focus-visible,
+html:not([data-cf-input="keyboard"]) .cf-panel :focus {
+  outline: none;
+}

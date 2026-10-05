@@ -1,7 +1,13 @@
 "use client"
 
+import { Tabs } from "@/components/spectrum/tabs"
+import { PageHeader } from "@/components/organisms/page-header"
+import { BRAND } from "@/lib/brand-palette"
+import { getReadableTextColor } from "@/lib/tenant-branding"
+import { ToggleButton } from "@/components/spectrum/toggle-button"
+import { Input, NativeSelect, Textarea } from "@/components/spectrum/fields"
 import { useEffect, useState, type ReactNode } from "react"
-import { Copy, Gift, Loader2, Save, Upload } from "lucide-react"
+import { Copy, Gift, Loader2, Save, Upload } from "@/components/spectrum/icons"
 
 import { SafeImage } from "@/components/safe-image"
 import { Button } from "@/components/ui/button"
@@ -28,8 +34,11 @@ const sections: Array<{ id: SectionId; title: string }> = [
   { id: "billing", title: "Faturamento" },
 ]
 
-const BRAND_PRESETS = [
-  { name: "ComoFica (padrão)", primary: "#00AF67" },
+// Themes a tenant can pick. The first is what a new tenant gets when it subscribes.
+// `secondary` is only used for the swatch: the brand theme pairs Dark Blue with Tifany.
+const BRAND_PRESETS: { name: string; primary: string; secondary?: string }[] = [
+  { name: "Como fica.ai (padrão)", primary: BRAND.tifany, secondary: BRAND.darkBlue },
+  { name: "Verde clássico", primary: "#00AF67" },
   { name: "Grafite", primary: "#2b2f36" },
   { name: "Óleo índigo", primary: "#3b5bdb" },
   { name: "Terracota", primary: "#c0562a" },
@@ -133,6 +142,22 @@ function toggleListValue(values: string[], value: string) {
     : [...values, value]
 }
 
+/**
+ * One settings group, laid out like a block of the Analytics page: title and description above the
+ * controls, full width, groups separated by a rule. No card behind it.
+ */
+function SettingsGroup({ title, description, children, className }: { title: string; description?: string; children: ReactNode; className?: string }) {
+  return (
+    <section className={cn("py-8 first:pt-0 last:pb-2", className)}>
+      <header className="mb-5 min-w-0">
+        <h3 className="text-base font-bold text-foreground">{title}</h3>
+        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+      </header>
+      <div className="min-w-0">{children}</div>
+    </section>
+  )
+}
+
 function Field({
   label,
   children,
@@ -144,7 +169,7 @@ function Field({
 }) {
   return (
     <label className={cn("space-y-2", className)}>
-      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       {children}
     </label>
   )
@@ -152,7 +177,7 @@ function Field({
 
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <input
+    <Input
       {...props}
       className={cn(
         "h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-primary",
@@ -164,7 +189,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
-    <textarea
+    <Textarea
       {...props}
       className={cn(
         "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary",
@@ -187,7 +212,7 @@ function Toggle({
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between rounded border border-border bg-background p-4 text-left transition-colors hover:border-primary/50"
+      className="flex items-center justify-between border-t border-border pt-4 text-left transition-colors hover:border-primary/50"
     >
       <span className="text-sm font-medium text-foreground">{label}</span>
       <span className={cn("relative h-6 w-11 rounded-full transition-colors", checked ? "bg-primary" : "bg-muted")}>
@@ -412,96 +437,90 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-8">
-        <div className="flex flex-col">
-          <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">configurações</h1>
-          <p className="text-[10px] leading-none text-muted-foreground">tenant · {tenantSlug}</p>
-        </div>
-        <Button size="sm" className="h-8 text-[11px]" onClick={saveSettings} disabled={!settings || isSaving}>
-          {isSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-          save
-        </Button>
-      </div>
+      <PageHeader
+        title="configurações"
+        subtitle={`tenant · ${tenantSlug}`}
+        actions={
+          <Button onClick={saveSettings} disabled={!settings || isSaving}>
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salvar
+          </Button>
+        }
+      />
 
       {(error || notice) && (
         <div className={cn(
-          "px-8 py-2 text-[11px] font-medium",
+          "px-8 py-2 text-xs font-medium",
           error
-            ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300"
-            : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+            ? "bg-danger-soft text-danger-ink dark:bg-danger/30 dark:text-danger"
+            : "bg-success-soft text-success-ink dark:bg-success/30 dark:text-success"
         )}>
           {error || notice}
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[180px_minmax(0,1fr)] lg:grid-rows-1">
-          <nav className="flex min-w-0 gap-1 overflow-x-auto border-b border-border bg-card p-2 scrollbar-hide lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => setActiveSection(section.id)}
-                className={cn(
-                  "shrink-0 rounded border px-3 py-1.5 text-left text-[11px] font-medium transition-colors",
-                  activeSection === section.id
-                    ? "border-transparent bg-primary text-primary-foreground"
-                    : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                {section.title}
-              </button>
-            ))}
-          </nav>
+      <div className="flex min-h-0 flex-1 flex-col">
+          <Tabs
+            className="mx-8 shrink-0"
+            aria-label="Seções das configurações"
+            value={activeSection}
+            onValueChange={(next) => setActiveSection(next as SectionId)}
+            items={sections.map((section) => ({ value: section.id, label: section.title }))}
+          />
 
-          <div className="min-h-0 overflow-auto p-5">
+          <div className="min-h-0 overflow-auto px-8 py-6">
             {isLoading || !settings ? (
               <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Carregando configuracoes...
               </div>
           ) : (
-            <div className="mx-auto w-full max-w-4xl space-y-6">
+            <div className="w-full">
               {activeSection === "branding" && (
-                <div className="space-y-6">
-                  <div className="rounded border border-border bg-card p-4 sm:p-5">
-                    <h3 className="font-display text-lg font-bold">Identidade da marca</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">Logo, cores e dados que aparecem no portal do tenant.</p>
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <div className="grid items-start gap-x-12 max-xl:divide-y max-xl:divide-border xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
+                  <SettingsGroup title="Identidade da marca" description="Logo, cores e dados que aparecem no portal do tenant.">
+<div className="grid gap-4 md:grid-cols-2">
                       <Field label="Nome da empresa">
                         <TextInput value={settings.general.companyName} onChange={(event) => updateSection("general", { companyName: event.target.value })} />
                       </Field>
                       <Field label="Locale">
                         <TextInput value={settings.general.locale} onChange={(event) => updateSection("general", { locale: event.target.value })} />
                       </Field>
-                      <Field label="Cor principal">
-                        <div className="grid gap-3 sm:grid-cols-[72px_minmax(0,1fr)] sm:items-center">
-                          <label className="relative h-12 w-full cursor-pointer overflow-hidden rounded-lg sm:h-10 sm:w-14" style={{ background: settings.branding.primaryColor }}>
-                            <input type="color" value={settings.branding.primaryColor} onChange={(event) => updateSection("branding", { primaryColor: event.target.value })} className="absolute inset-0 cursor-pointer opacity-0" />
-                          </label>
-                          <TextInput value={settings.branding.primaryColor} onChange={(event) => updateSection("branding", { primaryColor: event.target.value })} className="min-w-0 font-mono uppercase" />
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {BRAND_PRESETS.map((preset) => (
-                            <button
-                              key={preset.name}
-                              type="button"
-                              title={preset.name}
-                              onClick={() => updateSection("branding", { primaryColor: preset.primary })}
-                              className="h-7 w-7 rounded-lg border border-border transition-transform hover:scale-110"
-                              style={{
-                                background: preset.primary,
-                                outline: settings.branding.primaryColor.toLowerCase() === preset.primary.toLowerCase() ? "2px solid var(--foreground)" : "none",
-                                outlineOffset: 2,
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </Field>
+                      <div className="md:col-span-2">
+                        <Field label="Tema e cor principal">
+                          <p className="mb-3 text-xs text-muted-foreground">
+                            Define a cor de destaque do painel (menu, botões, seleções). A logo da Como fica.ai não muda.
+                          </p>
+                          <div className="flex flex-wrap gap-2" role="group" aria-label="Temas">
+                            {BRAND_PRESETS.map((preset) => (
+                              <ToggleButton
+                                key={preset.name}
+                                selected={settings.branding.primaryColor.toLowerCase() === preset.primary.toLowerCase()}
+                                onClick={() => updateSection("branding", { primaryColor: preset.primary })}
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="mr-2 inline-block h-4 w-4 shrink-0 rounded-full align-middle shadow-[0_0_0_1px_rgba(0,0,0,0.18)]"
+                                  style={{ background: preset.secondary ? `linear-gradient(135deg, ${preset.secondary} 50%, ${preset.primary} 50%)` : preset.primary }}
+                                />
+                                {preset.name}
+                              </ToggleButton>
+                            ))}
+                          </div>
+                          <div className="mt-4 grid max-w-md gap-3 sm:grid-cols-[72px_minmax(0,1fr)] sm:items-center">
+                            <label className="relative h-12 w-full cursor-pointer overflow-hidden rounded-lg sm:h-10 sm:w-14" style={{ background: settings.branding.primaryColor }} title="Escolher outra cor">
+                              <Input type="color" value={settings.branding.primaryColor} onChange={(event) => updateSection("branding", { primaryColor: event.target.value })} className="absolute inset-0 cursor-pointer opacity-0" />
+                            </label>
+                            <TextInput value={settings.branding.primaryColor} onChange={(event) => updateSection("branding", { primaryColor: event.target.value })} className="min-w-0 uppercase" />
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">Personalizado: escolha qualquer cor ou digite o código hexadecimal.</p>
+                        </Field>
+                      </div>
                       <div className="md:col-span-2">
                         <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Logo</span>
                         <div className="grid gap-4 md:grid-cols-[1fr_200px]">
                           <div
-                            className="flex min-h-[140px] cursor-pointer flex-col items-center justify-center gap-3 rounded border-2 border-dashed border-border bg-background p-6 text-center transition-colors hover:border-primary/50"
+                            className="flex min-h-[140px] cursor-pointer flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-border bg-background p-6 text-center transition-colors hover:border-primary/50"
                             onClick={() => document.getElementById("logo-upload")?.click()}
                             onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
                             onDrop={(e) => {
@@ -531,7 +550,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                                 </div>
                               </>
                             )}
-                            <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(e) => {
+                            <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(e) => {
                               const file = e.target.files?.[0]
                               if (file) {
                                 void applyLogoFile(file)
@@ -539,8 +558,8 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                             }} />
                           </div>
                           <div className="space-y-2">
-                            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Persistência</span>
-                            <div className="rounded border border-border bg-background p-3 text-sm text-muted-foreground">
+                            <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Persistência</span>
+                            <div className="border-t border-border pt-3 text-sm text-muted-foreground">
                               O logo enviado fica salvo nas configurações do tenant e reaparece após recarregar a página.
                             </div>
                             {settings.branding.logoUrl && (
@@ -562,37 +581,59 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       <Field label="Voz da marca" className="md:col-span-2">
                         <TextArea rows={4} value={settings.branding.brandVoice} onChange={(event) => updateSection("branding", { brandVoice: event.target.value })} />
                       </Field>
+                      {/* Watermark: one column, one setting per row */}
+                      <div className="md:col-span-2 border-t border-border pt-5">
+                        <h4 className="mb-3 text-sm font-bold text-foreground">Marca d’água</h4>
+                        <div className="grid max-w-xl gap-4">
                       <Toggle
-                        checked={settings.branding.watermarkEnabled}
-                        onChange={(checked) => updateSection("branding", { watermarkEnabled: checked })}
-                        label="Aplicar marca d’água nas composições"
-                      />
-                      <Field label="Texto da marca d’água">
-                        <TextInput
-                          placeholder={settings.general.companyName || "ComoFica"}
-                          value={settings.branding.watermarkText}
-                          onChange={(event) => updateSection("branding", { watermarkText: event.target.value })}
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">Se ficar vazio, o sistema usa o nome da empresa do tenant.</p>
-                      </Field>
-                      <Field label="Posição da marca d’água">
-                        <select
-                          value={settings.branding.watermarkPosition}
-                          onChange={(event) => updateSection("branding", { watermarkPosition: event.target.value === "bottom-right" ? "bottom-right" : "center" })}
-                          className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                        >
-                          <option value="center">Centro</option>
-                          <option value="bottom-right">Canto inferior direito</option>
-                        </select>
-                      </Field>
+                            checked={settings.branding.watermarkEnabled}
+                            onChange={(checked) => updateSection("branding", { watermarkEnabled: checked })}
+                            label="Aplicar marca d’água nas composições"
+                          />
+                          <Field label="Texto da marca d’água">
+                            <TextInput
+                              placeholder={settings.general.companyName || "ComoFica"}
+                              value={settings.branding.watermarkText}
+                              onChange={(event) => updateSection("branding", { watermarkText: event.target.value })}
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">Se ficar vazio, o sistema usa o nome da empresa do tenant.</p>
+                          </Field>
+                          <Field label="Posição da marca d’água">
+                            <NativeSelect
+                              value={settings.branding.watermarkPosition}
+                              onChange={(event) => updateSection("branding", { watermarkPosition: event.target.value === "bottom-right" ? "bottom-right" : "center" })}
+                              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                            >
+                              <option value="center">Centro</option>
+                              <option value="bottom-right">Canto inferior direito</option>
+                            </NativeSelect>
+                          </Field>
+                          <Field label={`Tamanho da marca d’água · ${settings.branding.watermarkSize ?? 100}%`}>
+                            <Input
+                              type="range"
+                              min={50}
+                              max={200}
+                              step={5}
+                              aria-label="Tamanho da marca d’água"
+                              value={settings.branding.watermarkSize ?? 100}
+                              onChange={(event) => updateSection("branding", { watermarkSize: Number(event.target.value) })}
+                              className="w-full"
+                            />
+                            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                              <span>Menor (50%)</span>
+                              <button type="button" className="font-semibold underline-offset-2 hover:underline" onClick={() => updateSection("branding", { watermarkSize: 100 })}>Padrão (100%)</button>
+                              <span>Maior (200%)</span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">Vale para novas composições, tanto para texto quanto para logo, e aparece na pré-visualização ao lado.</p>
+                          </Field>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="rounded border border-border bg-card p-4 sm:p-5">
-                    <h3 className="font-display text-lg font-bold">Pré-visualização</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">Como a marca aparece para os clientes.</p>
-                    <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  </SettingsGroup>
+                  <SettingsGroup title="Pré-visualização" description="Como a marca aparece para os clientes." className="xl:sticky xl:top-0 xl:pt-0">
+<div className="grid gap-4">
                       {/* Sidebar preview */}
-                      <div className="overflow-hidden rounded border border-border">
+                      <div className="overflow-hidden rounded-md border border-border">
                         <div className="flex items-center gap-3 p-4" style={{ backgroundColor: settings.branding.primaryColor + "15" }}>
                           {settings.branding.logoUrl ? (
                             <SafeImage
@@ -604,11 +645,11 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                               fallbackHint=""
                             />
                           ) : (
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white" style={{ backgroundColor: settings.branding.primaryColor }}>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold" style={{ backgroundColor: settings.branding.primaryColor, color: getReadableTextColor(settings.branding.primaryColor) }}>
                               {settings.general.companyName?.[0]?.toUpperCase() || "C"}
                             </div>
                           )}
-                          <span className="text-sm font-bold" style={{ color: settings.branding.primaryColor }}>{settings.general.companyName || "Empresa"}</span>
+                          <span className="text-sm font-bold text-foreground">{settings.general.companyName || "Empresa"}</span>
                         </div>
                         <div className="space-y-1 p-3">
                           {["Inbox", "Composições", "Catálogo", "Contatos"].map((item) => (
@@ -617,18 +658,18 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         </div>
                       </div>
                       {/* WhatsApp message preview */}
-                      <div className="overflow-hidden rounded border border-border bg-[#e5ddd5] dark:bg-[#0b141a] p-4">
-                        <div className="mb-2 text-center text-[10px] text-muted-foreground">WhatsApp</div>
+                      <div className="overflow-hidden rounded-md border border-border bg-[#e5ddd5] dark:bg-[#0b141a] p-4">
+                        <div className="mb-2 text-center text-xs text-muted-foreground">WhatsApp</div>
                         <div className="flex flex-col gap-2">
-                          <div className="self-start rounded rounded-tl-none bg-white dark:bg-[#202c33] px-3 py-1.5 text-xs text-foreground">
+                          <div className="self-start rounded-md rounded-tl-none bg-white dark:bg-[#202c33] px-3 py-1.5 text-xs text-foreground">
                             Olá! Gostaria de ver opções de decoração.
                           </div>
-                          <div className="self-end rounded rounded-tr-none px-3 py-1.5 text-xs text-white" style={{ backgroundColor: settings.branding.primaryColor }}>
+                          <div className="self-end rounded-md rounded-tr-none px-3 py-1.5 text-xs" style={{ backgroundColor: settings.branding.primaryColor, color: getReadableTextColor(settings.branding.primaryColor) }}>
                             Claro! Vou mostrar algumas opções. 😊
                           </div>
                         </div>
                       </div>
-                      <div className="relative overflow-hidden rounded border border-border bg-black">
+                      <div className="relative overflow-hidden rounded-md border border-border bg-black">
                         <SafeImage
                           src={settings.branding.logoUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'%3E%3Crect width='800' height='520' fill='%23e5e7eb'/%3E%3Crect x='110' y='80' width='580' height='280' rx='18' fill='%23f8fafc'/%3E%3Crect x='160' y='120' width='260' height='180' rx='16' fill='%23d1fae5'/%3E%3Crect x='450' y='120' width='180' height='20' rx='10' fill='%239ca3af'/%3E%3Crect x='450' y='160' width='140' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='194' width='120' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='228' width='150' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='274' width='120' height='34' rx='17' fill='%2331c48d'/%3E%3C/svg%3E"}
                           alt="Prévia de composição"
@@ -648,7 +689,8 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                             <span
                               className="rounded-md border border-white/10 bg-black/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]"
                               style={{
-                                transform: settings.branding.watermarkPosition === "center" ? "rotate(-14deg)" : "none",
+                                transform: `${settings.branding.watermarkPosition === "center" ? "rotate(-14deg) " : ""}scale(${(settings.branding.watermarkSize ?? 100) / 100})`,
+                                transformOrigin: settings.branding.watermarkPosition === "bottom-right" ? "bottom right" : "center",
                               }}
                             >
                               {settings.branding.watermarkText || settings.general.companyName || "ComoFica"}
@@ -657,41 +699,37 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </SettingsGroup>
                 </div>
               )}
 
               {activeSection === "domain" && (
-                <div className="rounded border border-border bg-card p-4 sm:p-5">
-                  <h3 className="font-display text-lg font-bold">Domínio</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Configurações de domínio e canais do tenant.</p>
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <SettingsGroup title="Domínio" description="Configurações de domínio e canais do tenant.">
+<div className="grid gap-4 md:grid-cols-2">
                     <Toggle checked={settings.channels.whatsappEnabled} onChange={(checked) => updateSection("channels", { whatsappEnabled: checked })} label="WhatsApp habilitado" />
                     <Toggle checked={settings.channels.instagramEnabled} onChange={(checked) => updateSection("channels", { instagramEnabled: checked })} label="Instagram habilitado" />
                     <Toggle checked={settings.channels.telegramEnabled} onChange={(checked) => updateSection("channels", { telegramEnabled: checked })} label="Telegram habilitado" />
                     <Toggle checked={settings.channels.autoSendCompositionsToWhatsapp} onChange={(checked) => updateSection("channels", { autoSendCompositionsToWhatsapp: checked })} label="Enviar composições do Estúdio no WhatsApp" />
                     <Field label="Handoff">
-                      <select
+                      <NativeSelect
                         value={settings.channels.handoffMode}
                         onChange={(event) => updateSection("channels", { handoffMode: event.target.value === "auto" ? "auto" : "manual" })}
                         className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
                       >
                         <option value="manual">Manual</option>
                         <option value="auto">Automatico</option>
-                      </select>
+                      </NativeSelect>
                     </Field>
                     <Field label="Dominios permitidos" className="md:col-span-2">
                       <TextArea rows={4} value={asLines(settings.security.allowedDomains)} onChange={(event) => updateSection("security", { allowedDomains: fromLines(event.target.value) })} />
                     </Field>
                   </div>
-                </div>
+                </SettingsGroup>
               )}
 
               {activeSection === "assistant" && (
-                <div className="rounded border border-border bg-card p-4 sm:p-5">
-                  <h3 className="font-display text-lg font-bold">IA & prompts</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Configurações do assistente de IA e prompts do sistema.</p>
-                  <div className="mt-6 grid gap-4">
+                <SettingsGroup title="IA & prompts" description="Configurações do assistente de IA e prompts do sistema.">
+<div className="grid gap-4">
                     <Toggle checked={settings.assistant.enabled} onChange={(checked) => updateSection("assistant", { enabled: checked })} label="Assistente IA habilitado" />
                     <Toggle checked={settings.assistant.catalogEnabled} onChange={(checked) => updateSection("assistant", { catalogEnabled: checked })} label="Usar catálogo no WhatsApp" />
                     <p className="-mt-2 text-xs text-muted-foreground">
@@ -717,7 +755,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                     </Field>
                     <Field label="Perfil de modelo">
                       {modelProfiles.length > 0 ? (
-                        <select
+                        <NativeSelect
                           value={settings.assistant.modelProfileId}
                           onChange={(event) => updateSection("assistant", { modelProfileId: event.target.value })}
                           className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
@@ -727,7 +765,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                               {profile.name} · {profile.purpose} · {profile.modelId}
                             </option>
                           ))}
-                        </select>
+                        </NativeSelect>
                       ) : (
                         <TextInput value={settings.assistant.modelProfileId} onChange={(event) => updateSection("assistant", { modelProfileId: event.target.value })} />
                       )}
@@ -742,43 +780,22 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                     </Field>
                     <Field label="Categorias consultáveis no WhatsApp">
                       {catalogCategories.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
+                        <div className="border-t border-dashed border-border pt-4 text-sm text-muted-foreground">
                           Nenhuma categoria encontrada no catálogo. Cadastre produtos primeiro para liberar a seleção.
                         </div>
                       ) : (
-                        <div className="space-y-3 rounded border border-border bg-background p-4">
-                          <button
-                            type="button"
-                            onClick={() => updateSection("assistant", { catalogCategories: [] })}
-                            className={cn(
-                              "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                              settings.assistant.catalogCategories.length === 0
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border text-muted-foreground hover:border-primary/50 hover:text-primary"
-                            )}
-                          >
+                        <div className="space-y-3 border-t border-border pt-4">
+                          <ToggleButton selected={settings.assistant.catalogCategories.length === 0} onClick={() => updateSection("assistant", { catalogCategories: [] })}>
                             Todas as categorias
-                          </button>
+                          </ToggleButton>
                           <div className="flex flex-wrap gap-2">
                             {catalogCategories.map((category) => {
                               const selected = settings.assistant.catalogCategories.includes(category)
 
                               return (
-                                <button
-                                  key={category}
-                                  type="button"
-                                  onClick={() => updateSection("assistant", {
-                                    catalogCategories: toggleListValue(settings.assistant.catalogCategories, category),
-                                  })}
-                                  className={cn(
-                                    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                                    selected
-                                      ? "border-primary bg-primary text-primary-foreground"
-                                      : "border-border text-muted-foreground hover:border-primary/50 hover:text-primary"
-                                  )}
-                                >
+                                <ToggleButton selected={selected} key={category} onClick={() => updateSection("assistant", { catalogCategories: toggleListValue(settings.assistant.catalogCategories, category), })}>
                                   {category}
-                                </button>
+                                </ToggleButton>
                               )
                             })}
                           </div>
@@ -792,49 +809,45 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       <TextArea rows={4} value={asLines(settings.assistant.humanHandoffKeywords)} onChange={(event) => updateSection("assistant", { humanHandoffKeywords: fromLines(event.target.value) })} />
                     </Field>
                   </div>
-                </div>
+                </SettingsGroup>
               )}
 
               {activeSection === "limits" && (
-                <div className="rounded border border-border bg-card p-4 sm:p-5">
-                  <h3 className="font-display text-lg font-bold">Limites</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Limites de uso e cotas do tenant.</p>
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <SettingsGroup title="Limites" description="Limites de uso e cotas do tenant.">
+<div className="grid gap-4 md:grid-cols-2">
                     <Toggle checked={settings.security.twoFactorRequired} onChange={(checked) => updateSection("security", { twoFactorRequired: checked })} label="Exigir 2FA" />
                     <Field label="Timeout de sessao em minutos">
                       <TextInput type="number" min={15} value={settings.security.sessionTimeoutMinutes} onChange={(event) => updateSection("security", { sessionTimeoutMinutes: Number(event.target.value) })} />
                     </Field>
                   </div>
-                </div>
+                </SettingsGroup>
               )}
 
               {activeSection === "team" && (
-                <div className="rounded border border-border bg-card p-4 sm:p-5">
-                  <h3 className="font-display text-lg font-bold">Time</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Membros e papeis do tenant.</p>
-                  <div className="mt-6 space-y-4">
+                <SettingsGroup title="Time" description="Membros e papeis do tenant.">
+<div className="space-y-4">
                     <div className="flex justify-stretch sm:justify-end">
                       <Button variant="outline" className="w-full sm:w-auto" onClick={addTeamMember}>Adicionar membro</Button>
                     </div>
                     {settings.team.members.length === 0 ? (
-                      <div className="rounded border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                      <div className="border-t border-dashed border-border py-8 text-center text-sm text-muted-foreground">
                         Nenhum membro cadastrado neste tenant.
                       </div>
                     ) : settings.team.members.map((member) => (
-                      <div key={member.id} className="space-y-3 rounded border border-border bg-background p-4">
+                      <div key={member.id} className="space-y-3 border-t border-border pt-4">
                         <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_120px_auto]">
                         <TextInput placeholder="Nome" value={member.name} onChange={(event) => updateTeamMember(member.id, { name: event.target.value })} />
                         <TextInput placeholder="Email" value={member.email} onChange={(event) => updateTeamMember(member.id, { email: event.target.value })} />
-                        <select value={member.role} onChange={(event) => updateTeamMember(member.id, { role: event.target.value as TenantSettingsTeamMemberRole })} className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
+                        <NativeSelect value={member.role} onChange={(event) => updateTeamMember(member.id, { role: event.target.value as TenantSettingsTeamMemberRole })} className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
                           <option value="admin">Admin</option>
                           <option value="operator">Operador</option>
                           <option value="viewer">Visualizador</option>
-                        </select>
-                        <select value={member.status} onChange={(event) => updateTeamMember(member.id, { status: event.target.value === "disabled" ? "disabled" : event.target.value === "invited" ? "invited" : "active" })} className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
+                        </NativeSelect>
+                        <NativeSelect value={member.status} onChange={(event) => updateTeamMember(member.id, { status: event.target.value === "disabled" ? "disabled" : event.target.value === "invited" ? "invited" : "active" })} className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary">
                           <option value="active">Ativo</option>
                           <option value="invited">Convidado</option>
                           <option value="disabled">Desativado</option>
-                        </select>
+                        </NativeSelect>
                         <Button variant="outline" className="w-full md:w-auto" onClick={() => removeTeamMember(member.id)}>Remover</Button>
                         </div>
                         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
@@ -856,14 +869,12 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       </div>
                     ))}
                   </div>
-                </div>
+                </SettingsGroup>
               )}
 
               {activeSection === "billing" && (
-                <div className="rounded border border-border bg-card p-4 sm:p-5">
-                  <h3 className="font-display text-lg font-bold">Faturamento</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Configuracoes de faturamento e notificacoes do tenant.</p>
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <SettingsGroup title="Faturamento" description="Configuracoes de faturamento e notificacoes do tenant.">
+<div className="grid gap-4 md:grid-cols-2">
                     <Toggle checked={settings.notifications.emailNotifications} onChange={(checked) => updateSection("notifications", { emailNotifications: checked })} label="Notificacoes por email" />
                     <Toggle checked={settings.notifications.whatsappNotifications} onChange={(checked) => updateSection("notifications", { whatsappNotifications: checked })} label="Notificacoes por WhatsApp" />
                     <Toggle checked={settings.notifications.jobFailureAlerts} onChange={(checked) => updateSection("notifications", { jobFailureAlerts: checked })} label="Alertar falhas de composicao" />
@@ -874,7 +885,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                   {tokenSnapshot && (
                     <div className="mt-6 space-y-4">
                       <div className="grid gap-4 lg:grid-cols-2">
-                        <div className="rounded border border-border bg-background p-4">
+                        <div className="border-t border-border pt-4">
                           <div className="flex items-center gap-2">
                             <Gift className="h-4 w-4 text-primary" />
                             <h4 className="font-display text-base font-bold">Aplicar cupom</h4>
@@ -894,7 +905,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                           </div>
                         </div>
 
-                        <div className="rounded border border-border bg-background p-4">
+                        <div className="border-t border-border pt-4">
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <h4 className="font-display text-base font-bold">Indicações</h4>
@@ -902,17 +913,17 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                                 Indicações convertidas liberam créditos extras uma única vez.
                               </p>
                             </div>
-                            <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase", referralProgram?.settings.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                            <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", referralProgram?.settings.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
                               {referralProgram?.settings.enabled ? "ativo" : "pausado"}
                             </span>
                           </div>
-                          <div className="mt-4 rounded border border-border bg-card p-3">
-                            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Link de indicação</p>
+                          <div className="mt-4 border-t border-border pt-3">
+                            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Link de indicação</p>
                             <div className="mt-2 flex gap-2">
-                              <input
+                              <Input
                                 readOnly
                                 value={referralProgram?.referralUrl ?? ""}
-                                className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 font-mono text-xs text-foreground"
+                                className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-xs text-foreground"
                               />
                               <Button type="button" variant="outline" size="sm" onClick={copyReferralUrl} disabled={!referralProgram?.referralUrl}>
                                 <Copy className="h-4 w-4" />
@@ -920,14 +931,14 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                             </div>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                            <div className="rounded border border-border bg-card p-3">
-                              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Convertidas</p>
+                            <div className="border-t border-border pt-3">
+                              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Convertidas</p>
                               <p className="mt-1 text-xl font-bold text-foreground">
                                 {referralProgram?.referrals.filter((referral) => referral.status === "converted").length ?? 0}
                               </p>
                             </div>
-                            <div className="rounded border border-border bg-card p-3">
-                              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Créditos recebidos</p>
+                            <div className="border-t border-border pt-3">
+                              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Créditos recebidos</p>
                               <p className="mt-1 text-xl font-bold text-foreground">
                                 {referralProgram?.referrals.reduce((total, referral) => total + referral.creditsGranted, 0) ?? 0}
                               </p>
@@ -937,47 +948,47 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       </div>
 
                       {tokenSnapshot.isExhausted ? (
-                        <div className="rounded border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
                           Os tokens deste tenant acabaram. Novas composições ficam bloqueadas até receber crédito adicional.
                         </div>
                       ) : tokenSnapshot.isLowBalance ? (
-                        <div className="rounded border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-700">
+                        <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium text-warning-ink">
                           Saldo baixo: restam {tokenSnapshot.account.balance} tokens. O limiar configurado é {tokenSnapshot.account.lowBalanceThreshold}.
                         </div>
                       ) : null}
 
                       <div className="grid gap-4 md:grid-cols-5">
-                        <div className="rounded border border-border bg-background p-4">
-                          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Saldo</p>
+                        <div className="border-t border-border pt-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Saldo</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.balance}</p>
                         </div>
-                        <div className="rounded border border-border bg-background p-4">
-                          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano incluído</p>
+                        <div className="border-t border-border pt-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano incluído</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.includedTokens}</p>
                         </div>
-                        <div className="rounded border border-border bg-background p-4">
-                          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Bônus</p>
+                        <div className="border-t border-border pt-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Bônus</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.bonusTokens}</p>
                         </div>
-                        <div className="rounded border border-border bg-background p-4">
-                          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Consumidos</p>
+                        <div className="border-t border-border pt-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Consumidos</p>
                           <p className="mt-2 text-2xl font-bold text-foreground">{tokenSnapshot.account.consumedTokens}</p>
                         </div>
-                        <div className="rounded border border-border bg-background p-4">
-                          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Excedente</p>
-                          <p className={cn("mt-2 text-2xl font-bold", tokenSnapshot.account.overageTokens > 0 ? "text-amber-600" : "text-foreground")}>
+                        <div className="border-t border-border pt-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Excedente</p>
+                          <p className={cn("mt-2 text-2xl font-bold", tokenSnapshot.account.overageTokens > 0 ? "text-warning" : "text-foreground")}>
                             {tokenSnapshot.account.overageTokens}
                           </p>
                         </div>
                       </div>
 
-                      <div className="rounded border border-border bg-background">
+                      <div className="border-y border-border">
                         <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <h4 className="font-display text-base font-bold">Histórico de tokens</h4>
                             <p className="text-xs text-muted-foreground">Últimos lançamentos registrados para este tenant.</p>
                           </div>
-                          <span className="w-fit rounded-full border border-border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                          <span className="w-fit rounded-full border border-border px-3 py-1 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                             limiar baixo: {tokenSnapshot.account.lowBalanceThreshold}
                           </span>
                         </div>
@@ -988,7 +999,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                             <div key={entry.id} className="grid gap-2 px-4 py-3 md:grid-cols-[180px_1fr_100px_100px] md:items-center">
                               <div>
                                 <p className="text-sm font-medium text-foreground">{new Date(entry.createdAt).toLocaleString("pt-BR")}</p>
-                                <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{entry.type}</p>
+                                <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{entry.type}</p>
                               </div>
                               <div>
                                 <p className="text-sm text-foreground">{entry.description}</p>
@@ -996,7 +1007,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                                   <p className="text-xs text-muted-foreground">ref: {entry.referenceId}</p>
                                 )}
                               </div>
-                              <div className={cn("text-sm font-semibold", entry.amount < 0 ? "text-destructive" : "text-emerald-600")}>
+                              <div className={cn("text-sm font-semibold", entry.amount < 0 ? "text-destructive" : "text-success")}>
                                 {formatSignedAmount(entry.amount)}
                               </div>
                               <div className="text-sm font-medium text-foreground">{entry.balanceAfter}</div>
@@ -1006,7 +1017,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       </div>
                     </div>
                   )}
-                </div>
+                </SettingsGroup>
               )}
               </div>
             )}

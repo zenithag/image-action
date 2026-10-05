@@ -1,5 +1,9 @@
 "use client"
 
+import { PageHeader } from "@/components/organisms/page-header"
+import { ToggleButton } from "@/components/spectrum/toggle-button"
+import { Tabs } from "@/components/spectrum/tabs"
+import { Input, NativeSelect } from "@/components/spectrum/fields"
 import { useEffect, useMemo, useState } from "react"
 import {
   ArrowRight, ArrowLeftRight, CalendarDays, Columns2, Copy, Download, Grid2X2, Hash, List, Maximize, Minimize, Minus, MoreVertical, Plus, Search, X,
@@ -10,7 +14,7 @@ import {
   RotateCcw,
   Sparkles,
   XCircle,
-} from "lucide-react"
+} from "@/components/spectrum/icons"
 
 import { Dialog, DropdownMenu } from "radix-ui"
 import styles from "./composition-jobs.module.css"
@@ -191,7 +195,7 @@ async function requestJson<T>(url: string, init?: RequestInit) {
 
 function CompositionMenu({ label, items }: { label: string; items: Array<{ label: string; action: () => void; disabled?: boolean; destructive?: boolean }> }) {
   return <DropdownMenu.Root>
-    <DropdownMenu.Trigger asChild><button type="button" className={styles.menuTrigger} aria-label={label}><MoreVertical size={18} /></button></DropdownMenu.Trigger>
+    <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" type="button" aria-label={label}><MoreVertical size={18} /></Button></DropdownMenu.Trigger>
     <DropdownMenu.Portal><DropdownMenu.Content className={styles.menu} align="end" sideOffset={6}>
       {items.map((item) => <DropdownMenu.Item key={item.label} className={cn(styles.menuItem, item.destructive && styles.destructive)} disabled={item.disabled} onSelect={item.action}>{item.label}</DropdownMenu.Item>)}
     </DropdownMenu.Content></DropdownMenu.Portal>
@@ -370,30 +374,36 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <div className={cn(overviewStyles.surface, styles.surface)}>
-      <header className={styles.header}>
-        <div><h1>Composições</h1><p>Acompanhe e gerencie suas composições visuais.</p></div>
-        <div className={styles.actions}>
+      <PageHeader
+        title="composições"
+        search={{ value: search, onChange: setSearch, label: "Buscar composições", placeholder: "Buscar composições por nome, contato ou descrição..." }}
+        actions={
+          <>
           <Button variant="outline" onClick={() => loadJobs()} disabled={isLoading}><RotateCcw className={cn("h-4 w-4", isLoading && "animate-spin")} />Atualizar</Button>
-          <Button className={styles.process} onClick={() => processQueue()} disabled={isProcessingQueue || stats.queued === 0}>{isProcessingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}Processar</Button>
-          <CompositionMenu label="Mais ações das composições" items={[{ label: isCleaningStorage ? "Limpando armazenamento…" : "Limpar armazenamento", action: () => void cleanupStorage(), disabled: isCleaningStorage || isProcessingQueue || jobs.length === 0 || stats.processing > 0, destructive: true }]} />
-        </div>
-      </header>
-      <div className={styles.tabs} role="group" aria-label="Filtrar por status">
-        {[
-          { id: "all", label: "Todas", count: stats.queued + stats.processing + stats.done + stats.failed },
-          { id: "review", label: "Em revisão", count: stats.queued },
-          { id: "processing", label: "Processando", count: stats.processing },
-          { id: "done", label: "Concluídas", count: stats.done },
-          { id: "failed", label: "Falhas", count: stats.failed },
-        ].map((tab) => <button key={tab.id} type="button" aria-pressed={statusFilter === tab.id} onClick={() => setStatusFilter(tab.id as typeof statusFilter)}>{tab.label}<span>{tab.count}</span></button>)}
-      </div>
+            <Button className={styles.process} onClick={() => processQueue()} disabled={isProcessingQueue || stats.queued === 0}>{isProcessingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}Processar</Button>
+            <CompositionMenu label="Mais ações das composições" items={[{ label: isCleaningStorage ? "Limpando armazenamento…" : "Limpar armazenamento", action: () => void cleanupStorage(), disabled: isCleaningStorage || isProcessingQueue || jobs.length === 0 || stats.processing > 0, destructive: true }]} />
+          </>
+        }
+      />
+      <Tabs
+        className={styles.tabs}
+        aria-label="Filtrar por status"
+        value={statusFilter}
+        onValueChange={(next) => setStatusFilter(next as typeof statusFilter)}
+        items={[
+          { value: "all", label: "Todas", count: stats.queued + stats.processing + stats.done + stats.failed },
+          { value: "review", label: "Em revisão", count: stats.queued },
+          { value: "processing", label: "Processando", count: stats.processing },
+          { value: "done", label: "Concluídas", count: stats.done },
+          { value: "failed", label: "Falhas", count: stats.failed },
+        ]}
+      />
       {error && <div role="alert" className={styles.error}>{error}</div>}
       {notice && <div role="status" className={styles.notice}>{notice}</div>}
       <div className={styles.content}>
         <div className={styles.toolbar}>
-          <label className={styles.search}><Search size={19} aria-hidden="true" /><input aria-label="Buscar composições" placeholder="Buscar por nome, contato ou composição..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-          <select aria-label="Categoria" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Categoria: Todas</option>{Object.entries(modeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-          <div className={styles.viewSwitch} role="group" aria-label="Visualização"><button type="button" aria-label="Visualização em grade" aria-pressed={layout === "grid"} onClick={() => setLayout("grid")}><Grid2X2 size={18} /></button><button type="button" aria-label="Visualização em lista" aria-pressed={layout === "list"} onClick={() => setLayout("list")}><List size={20} /></button></div>
+          <NativeSelect aria-label="Categoria" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Categoria: Todas</option>{Object.entries(modeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect>
+          <div className={styles.viewSwitch} role="group" aria-label="Visualização"><ToggleButton selected={layout === "grid"} aria-label="Visualização em grade" onClick={() => setLayout("grid")}><Grid2X2 size={18} /></ToggleButton><ToggleButton selected={layout === "list"} aria-label="Visualização em lista" onClick={() => setLayout("list")}><List size={20} /></ToggleButton></div>
           <p className={styles.summary} aria-live="polite">{filteredJobs.length} {filteredJobs.length === 1 ? "composição" : "composições"} · {stats.failed} {stats.failed === 1 ? "falha" : "falhas"}</p>
         </div>
         {isLoading && jobs.length === 0 ? <div className={styles.empty} role="status"><Loader2 className="animate-spin" /><p>Carregando composições...</p></div> : jobs.length === 0 ? (
@@ -409,8 +419,9 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                   <button type="button" className={styles.imageButton} onClick={() => setViewingJob(job)} aria-label={`Abrir composição de ${title}`}>
                     <SafeImage src={getCompositionThumbnailUrl(job, { width: 768 })} alt={job.resultImageUrl ? `Composição de ${title}` : `Imagem base de ${title}`} className={styles.image} loading="lazy" decoding="async" sizes="(min-width: 1450px) 30vw, (min-width: 900px) 40vw, 100vw" fallbackLabel="Prévia indisponível" fallbackHint={job.resultImageUrl ? "Abra a composição para ver os detalhes." : "Esta composição ainda não tem uma imagem disponível."} />
                   </button>
+                  <div className={styles.hoverOverlay}><Button type="button" onClick={() => setViewingJob(job)}>Ver composição</Button></div>
                   <span className={cn(styles.badge, styles[job.status])}><StatusIcon size={15} className={job.status === "processing" ? "animate-spin" : undefined} />{status.label}</span>
-                  <div className={styles.cardMenu}><CompositionMenu label={`Ações da composição ${job.id.slice(0, 8)}`} items={[
+                  <div className={styles.cardMenu} data-glass=""><CompositionMenu label={`Ações da composição ${job.id.slice(0, 8)}`} items={[
                     { label: "Ver composição", action: () => setViewingJob(job) },
                     { label: "Reenfileirar", action: () => void retryJob(job.id), disabled: job.status === "processing" || isRetrying === job.id },
                     { label: "Excluir composição", action: () => void archiveJob(job.id), disabled: job.status === "processing", destructive: true },
@@ -427,7 +438,6 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
                     <div><Hash size={16} /><dt>ID</dt><dd title={job.id}>{job.id.slice(0, 8)}</dd></div>
                   </dl>
                   {job.status === "failed" && <p className={styles.failure} title={formatCompositionError(job.errorMessage)}>{formatCompositionError(job.errorMessage)}</p>}
-                  <button type="button" className={styles.open} onClick={() => setViewingJob(job)}>Ver composição <ArrowRight size={16} /></button>
                 </div>
               </article>
             })}
@@ -646,8 +656,8 @@ function CompositionViewerModal({
               <div className={styles.comparisonHeader}>
                 <h3><Columns2 size={22} />Comparação</h3>
                 <div className={styles.comparisonSwitch} role="group" aria-label="Modo de comparação">
-                  <button type="button" aria-pressed={comparisonView === "slider"} disabled={!canCompare} onClick={() => setComparisonView("slider")}>Arrastar</button>
-                  <button type="button" aria-pressed={comparisonView === "side-by-side"} disabled={!canCompare} onClick={() => setComparisonView("side-by-side")}>Lado a lado</button>
+                  <ToggleButton selected={comparisonView === "slider"} disabled={!canCompare} onClick={() => setComparisonView("slider")}>Arrastar</ToggleButton>
+                  <ToggleButton selected={comparisonView === "side-by-side"} disabled={!canCompare} onClick={() => setComparisonView("side-by-side")}>Lado a lado</ToggleButton>
                 </div>
               </div>
               <div className={styles.imageStage}>
@@ -664,15 +674,15 @@ function CompositionViewerModal({
                         <div className={styles.beforeImage} style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}><SafeImage src={baseImageUrl} alt="Antes: imagem base" className={styles.viewerImage} draggable={false} /></div>
                         <span className={styles.beforeLabel}>Antes · Base usada</span><span className={styles.afterLabel}>Depois · Nova imagem</span>
                         <div className={styles.divider} style={{ left: `${sliderPos}%` }}><span><ArrowLeftRight size={21} /></span></div>
-                        <input className={styles.comparisonRange} aria-label="Comparar antes e depois" type="range" min={0} max={100} value={sliderPos} onChange={(event) => setSliderPos(Number(event.target.value))} />
+                        <Input className={styles.comparisonRange} aria-label="Comparar antes e depois" type="range" min={0} max={100} value={sliderPos} onChange={(event) => setSliderPos(Number(event.target.value))} />
                       </> : <span className={styles.beforeLabel}>{jobResultImageUrl ? "Imagem gerada" : "Base usada"}</span>}
                     </>
                   )}
                 </div>
               </div>
               <div className={styles.zoomControls}>
-                <div><button type="button" aria-label="Diminuir zoom" disabled={zoom <= 100} onClick={() => setZoom((value) => Math.max(100, value - 25))}><Minus size={18} /></button><button type="button" aria-label="Restaurar zoom" onClick={() => setZoom(100)}>{zoom}%</button><button type="button" aria-label="Aumentar zoom" disabled={zoom >= 200 || !resultImageUrl} onClick={() => setZoom((value) => Math.min(200, value + 25))}><Plus size={18} /></button></div>
-                <button type="button" aria-label={expanded ? "Mostrar detalhes" : "Ampliar comparação"} aria-pressed={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? <Minimize size={20} /> : <Maximize size={20} />}</button>
+                <div><Button variant="ghost" size="icon" type="button"  aria-label="Diminuir zoom" disabled={zoom <= 100} onClick={() => setZoom((value) => Math.max(100, value - 25))}><Minus size={18} /></Button><Button variant="outline" type="button" aria-label="Restaurar zoom" onClick={() => setZoom(100)}>{zoom}%</Button><Button variant="ghost" size="icon" type="button"  aria-label="Aumentar zoom" disabled={zoom >= 200 || !resultImageUrl} onClick={() => setZoom((value) => Math.min(200, value + 25))}><Plus size={18} /></Button></div>
+                <ToggleButton selected={expanded} aria-label={expanded ? "Mostrar detalhes" : "Ampliar comparação"} onClick={() => setExpanded((value) => !value)}>{expanded ? <Minimize size={20} /> : <Maximize size={20} />}</ToggleButton>
               </div>
               <p className={styles.comparisonHint}>{canCompare ? "Arraste o controle para comparar a imagem original com o resultado." : "A comparação estará disponível quando houver imagem base e resultado."}</p>
             </section>
@@ -680,7 +690,7 @@ function CompositionViewerModal({
               <section><h3>Detalhes da composição</h3><dl>
                 <div><dt>Cliente</dt><dd>{job.contactName || "Studio"}</dd></div>
                 {job.contactPhone && <div><dt>Telefone</dt><dd>{job.contactPhone}</dd></div>}
-                <div><dt>ID do processo</dt><dd className={styles.copyId}>{job.id.slice(0, 8)}<button type="button" aria-label="Copiar ID do processo" onClick={async () => { try { await navigator.clipboard.writeText(job.id); setShareSuccess("ID do processo copiado.") } catch { setDownloadError("Não foi possível copiar o ID.") } }}><Copy size={16} /></button></dd></div>
+                <div><dt>ID do processo</dt><dd className={styles.copyId}>{job.id.slice(0, 8)}<Button variant="ghost" size="icon" type="button"  aria-label="Copiar ID do processo" onClick={async () => { try { await navigator.clipboard.writeText(job.id); setShareSuccess("ID do processo copiado.") } catch { setDownloadError("Não foi possível copiar o ID.") } }}><Copy size={16} /></Button></dd></div>
                 <div><dt>Modo</dt><dd><span className={styles.category}>{modeLabels[job.mode]}</span></dd></div>
                 <div><dt>Origem</dt><dd>{job.source === "ai" ? "IA" : "Operador"}</dd></div>
               </dl></section>

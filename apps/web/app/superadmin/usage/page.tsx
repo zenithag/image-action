@@ -1,7 +1,8 @@
 "use client"
 
+import { UserMenu } from "@/components/molecules/user-menu"
 import { useEffect, useMemo, useState } from "react"
-import { Activity, ArrowDown, ArrowUp, Bot, Loader2, MessageSquare, RefreshCw, Smartphone, Users, Zap } from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Bot, Loader2, MessageSquare, RefreshCw, Smartphone, Users, Zap } from "@/components/spectrum/icons"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
@@ -64,7 +65,7 @@ function Delta({ value }: { value?: number | null }) {
 
   const positive = value >= 0
   return (
-    <span className={cn("mt-1 flex items-center gap-1 text-xs", positive ? "text-primary" : "text-amber-500")}>
+    <span className={cn("mt-1 flex items-center gap-1 text-xs", positive ? "text-primary" : "text-warning")}>
       {positive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
       {Math.abs(value)}% vs 7 dias anteriores
     </span>
@@ -100,15 +101,16 @@ export default function UsagePage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-7">
-        <div className="flex flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Observabilidade</p>
+      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-7">
+        <div className="mr-auto flex flex-col">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Observabilidade</p>
           <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Uso da plataforma</h1>
         </div>
         <Button variant="outline" size="sm" onClick={loadUsage} disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Atualizar
         </Button>
+        <UserMenu />
       </div>
 
       {error ? (
@@ -124,12 +126,12 @@ export default function UsagePage() {
           { label: "Contatos", value: data?.totals.contacts ?? 0, delta: data?.deltas.contacts, icon: Users },
           { label: "Instâncias conectadas", value: data?.totals.connectedInstances ?? 0, delta: null, icon: Smartphone },
         ].map((kpi) => (
-          <div key={kpi.label} className="rounded border border-border bg-card p-4">
-            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded bg-primary/10">
+          <div key={kpi.label} className="rounded-md border border-border bg-card p-4">
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-primary/10">
               <kpi.icon className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{kpi.label}</p>
-            <p className="mt-1 font-mono text-[26px] font-medium leading-none text-foreground">{kpi.value}</p>
+            <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{kpi.label}</p>
+            <p className="mt-1 text-[26px] font-medium leading-none text-foreground">{kpi.value}</p>
             <Delta value={kpi.delta} />
           </div>
         ))}
@@ -137,7 +139,7 @@ export default function UsagePage() {
 
       <div className="flex-1 overflow-y-auto px-7 py-2 scrollbar-hide">
         {isLoading && !data ? (
-          <div className="flex h-full items-center justify-center rounded border border-border bg-card">
+          <div className="flex h-full items-center justify-center rounded-md border border-border bg-card">
             <div className="text-center">
               <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">Carregando dados reais...</p>
@@ -146,13 +148,13 @@ export default function UsagePage() {
         ) : data ? (
           <>
             <div className="grid grid-cols-[1.6fr_1fr] gap-4">
-              <div className="rounded border border-border bg-card p-5">
+              <div className="rounded-md border border-border bg-card p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h3 className="font-display text-[15px] font-semibold text-foreground">Volume da plataforma</h3>
+                    <h3 className="font-display text-base font-semibold text-foreground">Volume da plataforma</h3>
                     <p className="text-xs text-muted-foreground">Conversas, composições e contatos dos últimos 7 dias</p>
                   </div>
-                  <span className="rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground">7 dias</span>
+                  <span className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground">7 dias</span>
                 </div>
                 <div className="h-[260px]">
                   {data.weeklyData.some((item) => item.conversas > 0 || item.composicoes > 0 || item.contatos > 0) ? (
@@ -162,9 +164,9 @@ export default function UsagePage() {
                         <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                         <Tooltip />
-                        <Area type="monotone" dataKey="conversas" stroke="#31c48d" fill="#31c48d" fillOpacity={0.15} strokeWidth={2} />
-                        <Area type="monotone" dataKey="composicoes" stroke="#60a5fa" fill="#60a5fa" fillOpacity={0.1} strokeWidth={2} />
-                        <Area type="monotone" dataKey="contatos" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.08} strokeWidth={2} />
+                        <Area type="monotone" dataKey="conversas" stroke="var(--cf-chart-2)" fill="var(--cf-chart-2)" fillOpacity={0.15} strokeWidth={2} />
+                        <Area type="monotone" dataKey="composicoes" stroke="var(--cf-chart-1)" fill="var(--cf-chart-1)" fillOpacity={0.1} strokeWidth={2} />
+                        <Area type="monotone" dataKey="contatos" stroke="var(--cf-chart-3)" fill="var(--cf-chart-3)" fillOpacity={0.08} strokeWidth={2} />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
@@ -173,21 +175,21 @@ export default function UsagePage() {
                 </div>
               </div>
 
-              <div className="rounded border border-border bg-card p-5">
+              <div className="rounded-md border border-border bg-card p-5">
                 <div className="mb-4">
-                  <h3 className="font-display text-[15px] font-semibold text-foreground">Top 5 tenants</h3>
+                  <h3 className="font-display text-base font-semibold text-foreground">Top 5 tenants</h3>
                   <p className="text-xs text-muted-foreground">Mais ativos por conversas reais</p>
                 </div>
                 <div className="space-y-3">
                   {data.topTenants.length > 0 ? data.topTenants.map((tenant) => (
                     <div key={tenant.id} className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[12px] font-medium text-white" style={{ background: `hsl(${(tenant.name.charCodeAt(0) * 37) % 360}, 55%, 50%)` }}>
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-medium text-white" style={{ background: `hsl(${(tenant.name.charCodeAt(0) * 37) % 360}, 55%, 50%)` }}>
                         {tenant.name[0]?.toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between text-sm">
                           <span className="truncate font-medium text-foreground">{tenant.name}</span>
-                          <span className="font-mono text-xs text-muted-foreground">{tenant.conversations}</span>
+                          <span className="text-xs text-muted-foreground">{tenant.conversations}</span>
                         </div>
                         <div className="mt-1 h-[5px] overflow-hidden rounded-full bg-border">
                           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${maxConversations > 0 ? (tenant.conversations / maxConversations) * 100 : 0}%` }} />
@@ -205,35 +207,35 @@ export default function UsagePage() {
             </div>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-              <div className="rounded border border-border bg-card p-5">
+              <div className="rounded-md border border-border bg-card p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <Activity className="h-4 w-4 text-primary" />
-                  <h2 className="font-display text-[15px] font-semibold text-foreground">Resumo operacional</h2>
+                  <h2 className="font-display text-base font-semibold text-foreground">Resumo operacional</h2>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded border border-border bg-secondary/50 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Tenants cadastrados</p>
-                    <p className="mt-2 font-mono text-2xl font-medium text-foreground">{data.totals.tenants}</p>
+                  <div className="rounded-md border border-border bg-secondary/50 p-4">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Tenants cadastrados</p>
+                    <p className="mt-2 text-2xl font-medium text-foreground">{data.totals.tenants}</p>
                   </div>
-                  <div className="rounded border border-border bg-secondary/50 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Providers ativos</p>
-                    <p className="mt-2 font-mono text-2xl font-medium text-foreground">{data.providerSummary.active}</p>
+                  <div className="rounded-md border border-border bg-secondary/50 p-4">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Providers ativos</p>
+                    <p className="mt-2 text-2xl font-medium text-foreground">{data.providerSummary.active}</p>
                   </div>
-                  <div className="rounded border border-border bg-secondary/50 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Providers em alerta</p>
-                    <p className="mt-2 font-mono text-2xl font-medium text-foreground">{data.providerSummary.warning + data.providerSummary.error}</p>
+                  <div className="rounded-md border border-border bg-secondary/50 p-4">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Providers em alerta</p>
+                    <p className="mt-2 text-2xl font-medium text-foreground">{data.providerSummary.warning + data.providerSummary.error}</p>
                   </div>
-                  <div className="rounded border border-border bg-secondary/50 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Custo de infra</p>
-                    <p className="mt-2 font-mono text-2xl font-medium text-foreground">n/d</p>
+                  <div className="rounded-md border border-border bg-secondary/50 p-4">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Custo de infra</p>
+                    <p className="mt-2 text-2xl font-medium text-foreground">n/d</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded border border-border bg-card p-5">
+              <div className="rounded-md border border-border bg-card p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <Bot className="h-4 w-4 text-primary" />
-                  <h2 className="font-display text-[15px] font-semibold text-foreground">Leitura atual</h2>
+                  <h2 className="font-display text-base font-semibold text-foreground">Leitura atual</h2>
                 </div>
                 <div className="space-y-3 text-sm text-muted-foreground">
                   <p>A tela agora usa apenas dados reais dos stores de conversas, contatos, jobs, providers e instâncias.</p>

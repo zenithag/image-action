@@ -10,7 +10,7 @@ type ActivityRowProps = {
 
 export function ActivityRow({ title, detail, status, tone = "outline" }: ActivityRowProps) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded border border-border bg-card px-4 py-3">
+    <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-card px-4 py-3">
       <div className="space-y-1">
         <p className="text-sm font-medium tracking-[-0.01em] text-foreground">{title}</p>
         <p className="text-sm leading-6 text-muted-foreground">{detail}</p>

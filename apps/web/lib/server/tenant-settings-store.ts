@@ -45,6 +45,13 @@ function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
 }
 
+export function normalizeWatermarkSize(value: unknown, fallback = 100) {
+  const parsed = typeof value === "number" ? value : Number(value)
+  const base = Number.isFinite(parsed) ? parsed : Number.isFinite(fallback) ? fallback : 100
+
+  return Math.min(200, Math.max(50, Math.round(base)))
+}
+
 function normalizeBoolean(value: unknown, fallback: boolean) {
   return typeof value === "boolean" ? value : fallback
 }
@@ -190,12 +197,13 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
       locale: "pt-BR",
     },
     branding: {
-      primaryColor: "#31c48d",
+      primaryColor: "#01cfb0",
       logoUrl: "",
       brandVoice: "",
       watermarkEnabled: true,
       watermarkText: "",
       watermarkPosition: "center",
+      watermarkSize: 100,
     },
     channels: {
       whatsappEnabled: true,
@@ -297,12 +305,13 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
       locale: normalizeText(next.general.locale) || "pt-BR",
     },
     branding: {
-      primaryColor: normalizeColor(next.branding.primaryColor, existing.branding.primaryColor || "#31c48d"),
+      primaryColor: normalizeColor(next.branding.primaryColor, existing.branding.primaryColor || "#01cfb0"),
       logoUrl: normalizeText(next.branding.logoUrl),
       brandVoice: normalizeText(next.branding.brandVoice),
       watermarkEnabled: normalizeBoolean(next.branding.watermarkEnabled, existing.branding.watermarkEnabled),
       watermarkText: normalizeText(next.branding.watermarkText),
       watermarkPosition: next.branding.watermarkPosition === "bottom-right" ? "bottom-right" : "center",
+      watermarkSize: normalizeWatermarkSize(next.branding.watermarkSize, existing.branding.watermarkSize),
     },
     channels: {
       whatsappEnabled: normalizeBoolean(next.channels.whatsappEnabled, existing.channels.whatsappEnabled),

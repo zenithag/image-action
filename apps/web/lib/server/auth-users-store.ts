@@ -23,6 +23,8 @@ export type StoredAuthUser = {
   createdAt: string
   updatedAt: string
   lastLoginAt?: string
+  /** Profile photo / logo as a small image data URL (kept out of the session cookie). */
+  avatarUrl?: string
 }
 
 export type PublicStoredAuthUser = Omit<StoredAuthUser, "passwordHash" | "passwordSalt">
@@ -571,4 +573,93 @@ export async function authenticateStoredUser(emailInput: unknown, passwordInput:
     tenantSlug: user.tenantSlug,
     roles: user.roles,
   }
+}
+
+const MAX_AVATAR_LENGTH = 400_000
+
+export async function getStoredAuthUserById(idInput: unknown) {
+  const id = normalizeText(idInput)
+  if (!id) return null
+
+  const data = await ensureBootstrapUsers()
+  const user = data.users.find((item) => item.id === id)
+
+  return user ? toPublicAuthUser(user) : null
+}
+
+async function mutateOwnUser(
+  idInput: unknown,
+  mutate: (user: StoredAuthUser, users: StoredAuthUser[]) => Promise<Partial<StoredAuthUser>>,
+) {
+  const id = normalizeText(idInput)
+
+  return withAuthUsersMutation(async () => {
+    const data = await ensureBootstrapUsersUnlocked()
+    const index = data.users.findIndex((user) => user.id === id)
+
+    if (index === -1) return null
+
+    const changes = await mutate(data.users[index], data.users)
+    const updated: StoredAuthUser = { ...data.users[index], ...changes, updatedAt: new Date().toISOString() }
+    const nextUsers = [...data.users]
+    nextUsers[index] = updated
+
+    await writeAuthUsersData({ users: nextUsers })
+
+    return toPublicAuthUser(updated)
+  })
+}
+
+export async function updateOwnProfile(idInput: unknown, input: { name?: unknown; avatarUrl?: unknown }) {
+  return mutateOwnUser(idInput, async (user) => {
+    const changes: Partial<StoredAuthUser> = {}
+
+    if (input.name !== undefined) {
+      const name = normalizeText(input.name)
+      if (!name) throw new Error("O nome é obrigatório.")
+      changes.name = name.slice(0, 120)
+    }
+
+    if (input.avatarUrl !== undefined) {
+      const avatar = normalizeText(input.avatarUrl)
+      if (avatar && !/^data:image\/(png|jpeg|webp);base64,/.test(avatar)) {
+        throw new Error("Use uma imagem PNG, JPG ou WebP.")
+      }
+      if (avatar.length > MAX_AVATAR_LENGTH) throw new Error("A imagem é grande demais.")
+      changes.avatarUrl = avatar || undefined
+    }
+
+    void user
+    return changes
+  })
+}
+
+export async function changeOwnEmail(idInput: unknown, input: { newEmail: unknown; currentPassword: unknown }) {
+  const email = normalizeEmail(input.newEmail)
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Informe um e-mail válido.")
+
+  return mutateOwnUser(idInput, async (user, users) => {
+    if (!(await verifyPassword(normalizeText(input.currentPassword), user))) {
+      throw new Error("Senha atual incorreta.")
+    }
+
+    if (users.some((item) => item.id !== user.id && item.email.toLowerCase() === email)) {
+      throw new Error("Já existe um usuário com esse e-mail.")
+    }
+
+    return { email }
+  })
+}
+
+export async function changeOwnPassword(idInput: unknown, input: { currentPassword: unknown; newPassword: unknown }) {
+  const newPassword = validateStrongPassword(input.newPassword)
+
+  return mutateOwnUser(idInput, async (user) => {
+    if (!(await verifyPassword(normalizeText(input.currentPassword), user))) {
+      throw new Error("Senha atual incorreta.")
+    }
+
+    return hashPassword(newPassword)
+  })
 }

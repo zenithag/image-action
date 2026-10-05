@@ -1,12 +1,15 @@
 "use client"
 
+import { UserMenu } from "@/components/molecules/user-menu"
+import { ToggleButton } from "@/components/spectrum/toggle-button"
+import { Button } from "@/components/ui/button"
 import { use, useEffect, useMemo, useState } from "react"
 import type { InboxConversationSummary, InboxMessage } from "@/lib/inbox-types"
 import { ChatPanel } from "@/components/chat-panel"
 import { ConversationList } from "@/components/conversation-list"
 import { useInboxRealtime } from "@/lib/inbox-realtime-client"
 import { SafeImage } from "@/components/safe-image"
-import { Bot, FileText, Image as ImageIcon, Mic, Phone, User, Video } from "lucide-react"
+import { Bot, FileText, Image as ImageIcon, Mic, Phone, User, Video } from "@/components/spectrum/icons"
 
 async function requestJson<T>(url: string) {
   const response = await fetch(url, { cache: "no-store" })
@@ -221,8 +224,8 @@ function ContextPanel({
             { label: "Mídias", value: mediaMessages.length },
           ].map((item) => (
             <div key={item.label} className="rounded-lg border border-border bg-background px-3 py-2">
-              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
-              <p className="mt-1 font-mono text-lg font-medium text-foreground">{item.value}</p>
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
+              <p className="mt-1 text-lg font-medium text-foreground">{item.value}</p>
             </div>
           ))}
         </div>
@@ -305,30 +308,24 @@ export default function InboxPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-5 lg:px-8">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-5 lg:px-8">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
-            <h1 className="font-mono text-[13px] font-semibold tracking-tight text-foreground">
+            <h1 className="text-sm font-semibold tracking-tight text-foreground">
               inbox
             </h1>
-            <p className="text-[10px] leading-none text-muted-foreground">atendimento · {slug}</p>
+            <p className="text-xs leading-none text-muted-foreground">atendimento · {slug}</p>
           </div>
         </div>
-        <div className="flex items-center gap-0.5 rounded-md border border-border bg-background p-[2px]">
-          {([["classic", "classic"], ["focus", "focus"]] as const).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setVariant(key)}
-              className={`rounded px-3 py-1 text-[11px] font-medium transition-all ${
-                variant === key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
+        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1" role="group" aria-label="Modo de exibição">
+          {([["classic", "Clássico"], ["focus", "Foco"]] as const).map(([key, label]) => (
+            <ToggleButton key={key} selected={variant === key} onClick={() => setVariant(key)}>
               {label}
-            </button>
+            </ToggleButton>
           ))}
+        </div>
+          <UserMenu />
         </div>
       </div>
 

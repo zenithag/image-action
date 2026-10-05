@@ -125,7 +125,7 @@ export default async function PublicCatalogProductPage({ params }: PageProps) {
             {item.sku && (
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">SKU</p>
-                <p className="mt-1 break-all font-mono text-sm font-bold text-slate-800">{item.sku}</p>
+                <p className="mt-1 break-all font-mono text-xs font-bold text-slate-800">{item.sku}</p>
               </div>
             )}
 

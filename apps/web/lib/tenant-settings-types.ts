@@ -29,6 +29,8 @@ export type TenantSettings = {
     watermarkEnabled: boolean
     watermarkText: string
     watermarkPosition: "center" | "bottom-right"
+    /** Watermark size as a percentage of the default size (50-200). */
+    watermarkSize: number
   }
   channels: {
     whatsappEnabled: boolean
