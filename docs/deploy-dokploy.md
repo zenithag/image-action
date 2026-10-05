@@ -8,7 +8,8 @@ A produção atual usa duas Applications no Dokploy. O arquivo `docker-compose.d
 
 - O workflow `.github/workflows/publish-image.yml` publica `ghcr.io/zenithag/image-action:develop` e uma tag imutável por commit. O build usa o Dockerfile existente e cache entre execuções.
 - No Dokploy, selecione o provedor Docker nas Applications `web` e `app-job-worker` e configure a imagem acima. Preserve ambiente, comandos, domínio, portas e volumes existentes. Para rollback, use a tag do commit anterior.
-- O pacote GHCR deve permitir pull pelo servidor (público para este repositório público, ou credencial de leitura de pacote configurada no Dokploy).
+- A organização mantém o pacote GHCR privado e bloqueia visibilidade pública. Configure uma credencial GitHub com `read:packages` no provedor Docker das duas Applications. O usuário cria e insere a credencial diretamente nas telas protegidas; não deve enviá-la em chat.
+- Após validar o pull da imagem e mudar as duas Applications para Docker, configure a variável de repositório `DOKPLOY_IMAGE_DEPLOY_ENABLED=true`. Até lá o workflow publica a imagem sem disparar os provedores Git antigos.
 - Salve os webhooks das duas Applications nos secrets `DOKPLOY_WEB_DEPLOY_WEBHOOK` e `DOKPLOY_WORKER_DEPLOY_WEBHOOK` do repositório. O workflow só os chama depois que a imagem foi publicada; sem os secrets, publica a imagem e informa que o deploy é manual.
 - O servidor deve fazer deploy a partir da imagem, sem disparar builds adicionais por pushes Git. Segredos e variáveis de execução permanecem no Dokploy; o build recebe apenas URLs públicas.
 

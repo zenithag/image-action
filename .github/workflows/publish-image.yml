@@ -55,6 +55,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Deploy web and worker after publishing
+        if: ${{ vars.DOKPLOY_IMAGE_DEPLOY_ENABLED == 'true' }}
         env:
           WEB_HOOK: ${{ secrets.DOKPLOY_WEB_DEPLOY_WEBHOOK }}
           WORKER_HOOK: ${{ secrets.DOKPLOY_WORKER_DEPLOY_WEBHOOK }}
@@ -64,10 +65,14 @@ jobs:
               echo '::notice::Dokploy webhook not configured; image published for manual deployment.'
               continue
             fi
-            curl --fail --silent --show-error --output /dev/null \
+            status=$(curl --fail --silent --show-error --output /dev/null --write-out '%{http_code}' \
               --connect-timeout 15 --max-time 60 \
               --header 'Content-Type: application/json' \
               --header 'User-Agent: Go-http-client/1.1' \
               --data '{"push_data":{"tag":"develop"},"repository":{"repo_name":"ghcr.io/zenithag/image-action"}}' \
-              "$hook"
+              "$hook")
+            case "$status" in
+              2??) ;;
+              *) echo "::error::Dokploy rejected deployment (HTTP $status)."; exit 1 ;;
+            esac
           done
