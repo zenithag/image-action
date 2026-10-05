@@ -1,8 +1,18 @@
 # Deploy no Dokploy
 
-Este projeto deve ser publicado como uma aplicacao Docker Compose no Dokploy usando o arquivo `docker-compose.dokploy.yml`.
+O build de produção roda no GitHub Actions. O Dokploy baixa a imagem pronta do GHCR; não executa instalação de dependências nem compilação no VPS. Web e worker usam a mesma imagem.
 
-## Fluxo recomendado
+A produção atual usa duas Applications no Dokploy. O arquivo `docker-compose.dokploy.yml` oferece a alternativa em Compose, também sem build local.
+
+## GitHub Actions e Applications
+
+- O workflow `.github/workflows/publish-image.yml` publica `ghcr.io/zenithag/image-action:develop` e uma tag imutável por commit. O build usa o Dockerfile existente e cache entre execuções.
+- No Dokploy, selecione o provedor Docker nas Applications `web` e `app-job-worker` e configure a imagem acima. Preserve ambiente, comandos, domínio, portas e volumes existentes. Para rollback, use a tag do commit anterior.
+- O pacote GHCR deve permitir pull pelo servidor (público para este repositório público, ou credencial de leitura de pacote configurada no Dokploy).
+- Salve os webhooks das duas Applications nos secrets `DOKPLOY_WEB_DEPLOY_WEBHOOK` e `DOKPLOY_WORKER_DEPLOY_WEBHOOK` do repositório. O workflow só os chama depois que a imagem foi publicada; sem os secrets, publica a imagem e informa que o deploy é manual.
+- O servidor deve fazer deploy a partir da imagem, sem disparar builds adicionais por pushes Git. Segredos e variáveis de execução permanecem no Dokploy; o build recebe apenas URLs públicas.
+
+## Alternativa com Docker Compose
 
 1. No Dokploy, crie uma aplicacao do tipo Docker Compose.
 2. Aponte o repositório para `git@github.com:zenithag/image-action.git` e branch `develop`.
