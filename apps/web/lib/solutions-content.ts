@@ -108,7 +108,7 @@ export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
     eyebrow: "ComoFica.ai para construtoras e incorporadoras",
     title: "Ajude o comprador a enxergar o imóvel antes de tudo estar pronto.",
     subheadline:
-      "Leve acabamentos, personalizações, ambientações e possibilidades do empreendimento para o stand, o site e o WhatsApp - em uma experiência visual com a marca da construtora.",
+      "Leve acabamentos, personalizações, ambientações e possibilidades do empreendimento para o stand, o site e o WhatsApp - em uma experiência visual personalizada com a identidade da construtora.",
     secondaryCtaLabel: "Explorar aplicações",
     secondaryCtaHref: "#aplicacoes",
     microcopy: "A demonstração pode usar um ambiente, uma imagem ou um render autorizado do seu projeto.",
@@ -192,7 +192,7 @@ export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
     items: [
       { question: "A ComoFica substitui os renders do empreendimento?", answer: "Não. Ela complementa renders e imagens aprovadas com variações rápidas para atendimento, site e WhatsApp." },
       { question: "O comprador pode usar sozinho?", answer: "Pode, se a construtora optar pelo acesso externo. Também é possível restringir o uso à equipe ou adotar um modelo híbrido." },
-      { question: "A experiência pode ter a marca da construtora?", answer: "Sim. O white label permite destacar a identidade da sua construtora para equipe e compradores, conforme o escopo do projeto." },
+      { question: "Posso personalizar a experiência com a identidade da construtora?", answer: "Sim. Você personaliza itens como logo e cores para equipe e compradores, conforme o escopo do projeto. A marca ComoFica.ai permanece visível na plataforma." },
       { question: "É possível associar acabamentos e preços?", answer: "Quando o catálogo está configurado, a simulação pode permanecer associada ao produto, SKU e preço. Regras comerciais e disponibilidade devem ser confirmadas nos sistemas oficiais." },
       { question: "A ComoFica serve para personalização de unidades?", answer: "Serve para explorar e comunicar alternativas preliminares. A escolha formal continua sujeita a memorial, compatibilidade, disponibilidade, preço e processo contratual." },
       { question: "Podemos integrar com CRM ou sistemas do empreendimento?", answer: "Integrações podem ser desenvolvidas sob demanda, depois da avaliação de API, dados, segurança, suporte e resultado esperado." },
@@ -200,7 +200,7 @@ export const CONSTRUTORAS_CONTENT: SolutionPageContent = {
   },
   ctaFinal: {
     title: "Traga um ambiente do empreendimento. Vamos transformar uma dúvida em demonstração.",
-    text: "Escolha uma imagem autorizada e uma possibilidade que seus compradores costumam perguntar. A demonstração mostra o fluxo completo, os três canais e o uso com a marca da construtora.",
+    text: "Escolha uma imagem autorizada e uma possibilidade que seus compradores costumam perguntar. A demonstração mostra o fluxo completo, os três canais e a personalização com a identidade da construtora.",
   },
 }
 
@@ -230,10 +230,10 @@ export const IMOBILIARIAS_CONTENT: SolutionPageContent = {
   flow: {
     id: "fluxo",
     eyebrow: "Operação de equipe",
-    title: "Uma experiência comum para a equipe. Uma marca consistente para o cliente.",
+    title: "Uma experiência comum para a equipe. Uma identidade consistente para o cliente.",
     steps: [
       { number: "01", title: "Acesso próprio", description: "Cada usuário pode ter acesso próprio, enquanto a imobiliária acompanha históricos e analytics no painel." },
-      { number: "02", title: "Marca da imobiliária", description: "A interface pode destacar a marca da sua imobiliária em toda a experiência." },
+      { number: "02", title: "Identidade da imobiliária", description: "A interface pode levar o logo e as cores da sua imobiliária, com a marca ComoFica.ai visível na plataforma." },
       { number: "03", title: "Equipe ou cliente", description: "Pode funcionar apenas para corretores, para clientes finais ou para os dois públicos." },
       { number: "04", title: "Histórico e analytics", description: "Consultas de histórico e analytics ficam centralizadas no painel da imobiliária." },
     ],
@@ -433,7 +433,7 @@ export const MOVEIS_CONTENT: SolutionPageContent = {
     title: "A visualização acompanha a jornada da loja ao celular do cliente.",
     channels: [
       { title: "Atendimento", description: "O vendedor revisa alternativas no painel." },
-      { title: "Site", description: "O visitante explora produtos em uma experiência com a marca da sua loja." },
+      { title: "Site", description: "O visitante explora produtos em uma experiência personalizada com a identidade da sua loja." },
       { title: "WhatsApp", description: "Cliente e equipe transformam uma dúvida em simulação durante a conversa." },
     ],
   },

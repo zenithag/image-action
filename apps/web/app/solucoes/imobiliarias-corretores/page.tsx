@@ -5,7 +5,7 @@ import { IMOBILIARIAS_CONTENT } from "@/lib/solutions-content"
 import { pageSocialMetadata } from "@/lib/seo"
 
 const title = "Visualização de imóveis com IA - ComoFica.ai"
-const description = "Mostre imóveis mobiliados, reformados ou adaptados durante a visita, no site e no WhatsApp, com a marca da imobiliária."
+const description = "Mostre imóveis mobiliados, reformados ou adaptados durante a visita, no site e no WhatsApp, com a identidade da imobiliária."
 
 export const metadata: Metadata = {
   title,

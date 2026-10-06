@@ -6,8 +6,8 @@ import { auth } from "@/lib/auth"
 import { getSafeCallbackUrl } from "@/lib/auth-routing"
 
 export const metadata: Metadata = {
-  title: "Login | ComoFica",
-  description: "Entre na sua conta para acessar a area interna do ComoFica.",
+  title: "Entrar - ComoFica.ai",
+  description: "Acesse o painel da ComoFica.ai para gerar simulações, acompanhar conversas e gerenciar sua equipe.",
 }
 
 type LoginPageProps = {
@@ -20,7 +20,7 @@ type LoginPageProps = {
 
 function getErrorMessage(error?: string, sessionExpired?: string) {
   if (sessionExpired === "1") {
-    return "Sua sessao expirou. Entre novamente para continuar."
+    return "Sua sessão expirou. Entre novamente para continuar."
   }
 
   if (!error) {
@@ -28,10 +28,10 @@ function getErrorMessage(error?: string, sessionExpired?: string) {
   }
 
   if (error === "CredentialsSignin") {
-    return "Credenciais invalidas. Use o e-mail e a senha do ambiente local."
+    return "Credenciais inválidas. Verifique o e-mail e a senha cadastrados."
   }
 
-  return "Nao foi possivel autenticar agora. Tente novamente."
+  return "Não foi possível autenticar agora. Tente novamente."
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {

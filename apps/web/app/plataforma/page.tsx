@@ -5,7 +5,7 @@ import { pageSocialMetadata } from "@/lib/seo"
 
 const title = "Plataforma de visualização com IA - ComoFica.ai"
 const description =
-  "Conheça a plataforma ComoFica.ai: simulações visuais pela plataforma, no site e no WhatsApp, com white label, catálogo, equipe e analytics."
+  "Conheça a plataforma ComoFica.ai: simulações visuais pela plataforma, no site e no WhatsApp, com catálogo, equipe, analytics e a identidade da sua empresa."
 
 export const metadata: Metadata = {
   title,

@@ -31,7 +31,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
     ],
   },
   {
-    title: "Canais, usuários e marca",
+    title: "Canais, usuários e personalização",
     items: [
       {
         question: "Onde a ComoFica funciona?",
@@ -42,9 +42,9 @@ export const FAQ_GROUPS: FaqGroup[] = [
         answer: "A empresa pode restringir o acesso à equipe, liberar para clientes finais ou adotar um modelo híbrido.",
       },
       {
-        question: "A experiência pode ter a marca da minha empresa?",
+        question: "Posso personalizar a experiência com a identidade da minha empresa?",
         answer:
-          "Sim. A ComoFica pode operar em white label e destacar a identidade da sua empresa para usuários internos e externos, conforme o projeto.",
+          "Sim. É possível configurar o uso da ferramenta com a marca da sua empresa e adicionar a logo dela como marca d'água nas imagens geradas, para evitar usos indevidos.",
       },
       {
         question: "Cada vendedor pode ter um acesso?",
@@ -99,7 +99,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "Qual a diferença para uma IA genérica?",
         answer:
-          "Uma IA genérica resolve bem uma necessidade pontual, mas cada geração depende de quem está no comando: é preciso montar o pedido, testar e ajustar manualmente, e o resultado varia conforme essa habilidade. A ComoFica foi parametrizada especificamente para visualização comercial - o fluxo já sabe o que perguntar, então sua equipe e seus clientes não precisam de conhecimento técnico pra obter um resultado consistente. Isso sustenta um uso contínuo e em volume, não um teste isolado: a marca da sua empresa, o catálogo, a equipe, o histórico, o analytics e a integração ao site e ao WhatsApp continuam presentes em cada geração, elevando o padrão de atendimento em vez de depender de um recurso avulso.",
+          "Uma IA genérica resolve bem uma necessidade pontual, mas cada geração depende de quem está no comando: é preciso montar o pedido, testar e ajustar manualmente, e o resultado varia conforme essa habilidade. A ComoFica foi parametrizada especificamente para visualização comercial - o fluxo já sabe o que perguntar, então sua equipe e seus clientes não precisam de conhecimento técnico pra obter um resultado consistente. Isso sustenta um uso contínuo e em volume, não um teste isolado: a identidade da sua empresa, o catálogo, a equipe, o histórico, o analytics e a integração ao site e ao WhatsApp continuam presentes em cada geração, elevando o padrão de atendimento em vez de depender de um recurso avulso.",
       },
       {
         question: "A qualidade se mantém estável quando o uso aumenta?",

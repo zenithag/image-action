@@ -42,7 +42,7 @@ export function LoginForm({
     setIsSubmitting(false)
 
     if (result?.error) {
-      setSubmitError("Credenciais invalidas. Verifique o e-mail e a senha cadastrados.")
+      setSubmitError("Credenciais inválidas. Verifique o e-mail e a senha cadastrados.")
       return
     }
 
@@ -77,15 +77,15 @@ export function LoginForm({
         <div className="relative space-y-8">
           <div className="space-y-4">
             <p className="text-sm font-semibold uppercase tracking-[0.08em] text-primary">
-              Plataforma Conversacional
+              Visualização comercial com IA
             </p>
             <h1 className="text-5xl font-bold leading-tight tracking-tight text-sidebar-foreground">
-              Atendimento inteligente
+              Mostre como fica
               <br />
-              em um só lugar.
+              antes da decisão.
             </h1>
             <p className="max-w-md text-lg leading-relaxed text-muted-foreground">
-              Gerencie conversas, automatize composições e conecte sua equipe ao WhatsApp com total controle.
+              Gere simulações antes/depois, acompanhe conversas e históricos e atenda seus clientes pela plataforma, pelo site e pelo WhatsApp.
             </p>
           </div>
 
@@ -219,7 +219,7 @@ export function LoginForm({
         </div>
 
         <p className="mt-16 text-center text-xs text-muted-foreground font-medium">
-          &copy; {new Date().getFullYear()} ComoFica. Todos os direitos reservados.
+          &copy; {new Date().getFullYear()} ComoFica.ai. Todos os direitos reservados.
         </p>
       </div>
     </div>

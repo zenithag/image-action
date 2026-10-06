@@ -6,7 +6,7 @@ import { pageSocialMetadata } from "@/lib/seo"
 
 const title = "Visualização com IA para construtoras - ComoFica.ai"
 const description =
-  "Ajude compradores a visualizar acabamentos, personalizações e ambientes pelo stand, site e WhatsApp, com a marca da construtora."
+  "Ajude compradores a visualizar acabamentos, personalizações e ambientes pelo stand, site e WhatsApp, com a identidade da construtora."
 
 export const metadata: Metadata = {
   title,

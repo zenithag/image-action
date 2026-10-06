@@ -23,10 +23,10 @@ export function PlatformPage() {
           tone="blue"
           eyebrow="A plataforma ComoFica.ai"
           title="Leve a visualização para o canal onde a decisão acontece."
-          subheadline="Sua equipe e seus clientes podem transformar ambientes, produtos e possibilidades em simulações visuais pela plataforma própria, no seu site ou no seu WhatsApp - com uma experiência adaptada à sua marca e ao seu processo."
+          subheadline="Sua equipe e seus clientes podem transformar ambientes, produtos e possibilidades em simulações visuais pela plataforma própria, no seu site ou no seu WhatsApp - com uma experiência adaptada ao seu processo e à identidade da sua empresa."
           primaryCta={{ label: cta.label, href: buildWhatsAppLink(cta.message), external: true }}
           secondaryCta={{ label: "Explorar as formas de usar", href: "#modos-de-acesso" }}
-          proofItems={["Plataforma própria", "Site da sua empresa", "WhatsApp da sua empresa", "White label", "Multiusuário", "Analytics"]}
+          proofItems={["Plataforma própria", "Site da sua empresa", "WhatsApp da sua empresa", "Logo e cores da sua empresa", "Multiusuário", "Analytics"]}
           visual={<ChannelDiagram />}
         />
 
@@ -35,7 +35,7 @@ export function PlatformPage() {
           tone="white"
           eyebrow="O que a sua empresa compra"
           title="Mais do que gerar uma imagem: colocar a visualização em operação."
-          text="Uma assinatura genérica entrega uma IA para alguém usar. A ComoFica entrega uma experiência especializada para a sua empresa operar: canais, marca, equipe, catálogo, históricos, regras de acesso, comparação antes/depois e acompanhamento de uso."
+          text="Uma assinatura genérica entrega uma IA para alguém usar. A ComoFica entrega uma experiência especializada para a sua empresa operar: canais, personalização, equipe, catálogo, históricos, regras de acesso, comparação antes/depois e acompanhamento de uso."
           highlight="A tecnologia trabalha em segundo plano. Para o usuário, a experiência deve parecer simples, clara e integrada ao atendimento."
         />
 
@@ -65,7 +65,7 @@ export function PlatformPage() {
             "Painel de analytics",
             "Comparação antes/depois",
             "Uso com catálogo ou foto de referência",
-            "Personalização com a marca da sua empresa",
+            "Logo e cores da sua empresa, com a marca ComoFica.ai sempre visível",
           ]}
         />
 
@@ -141,7 +141,7 @@ export function PlatformPage() {
         <ContextualCta
           tone="blue"
           title="Veja a plataforma, o site e o WhatsApp funcionando no mesmo fluxo."
-          text="Em uma demonstração, você acompanha uma geração completa, o antes/depois, os modos de acesso e a experiência com a sua marca."
+          text="Em uma demonstração, você acompanha uma geração completa, o antes/depois, os modos de acesso e a personalização com a identidade da sua empresa."
           ctaLabel={cta.label}
           ctaHref={buildWhatsAppLink(cta.message)}
         />
