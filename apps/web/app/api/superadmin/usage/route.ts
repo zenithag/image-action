@@ -1,3 +1,4 @@
+import { summarizeGenerationCosts } from "@/lib/generation-costs"
 import { NextResponse } from "next/server"
 
 import type { Tenant } from "@/lib/tenant-types"
@@ -119,6 +120,7 @@ export async function GET() {
   }))
 
   return NextResponse.json({
+    generationCosts: summarizeGenerationCosts(tenantMetrics.flatMap(item => item.jobs)),
     totals: {
       tenants: tenants.length,
       conversations: conversations.length,

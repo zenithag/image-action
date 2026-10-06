@@ -14,7 +14,14 @@ export type TenantSettingsTeamMember = {
   lastLoginAt?: string
 }
 
+export const DEFAULT_STUDIO_SETTINGS = {
+  catalogEnabled: false,
+  environmentTypes: ["Sala", "Quarto", "Cozinha", "Banheiro", "Escritório", "Área externa", "Varanda"],
+  propertyContexts: ["Apartamento", "Casa", "Alto padrão", "Pequeno", "Grande", "Conjugado"],
+}
+
 export type TenantSettings = {
+  studio: { catalogEnabled: boolean; environmentTypes: string[]; propertyContexts: string[] }
   tenantSlug: string
   general: {
     companyName: string
@@ -78,6 +85,7 @@ export type TenantSettings = {
 }
 
 export type TenantSettingsInput = Partial<{
+  studio: Partial<TenantSettings["studio"]>
   general: Partial<TenantSettings["general"]>
   branding: Partial<TenantSettings["branding"]>
   channels: Partial<TenantSettings["channels"]>

@@ -1,4 +1,7 @@
-import { NextResponse } from "next/server"
+import { getToken } from "next-auth/jwt"
+import { findTenant } from "@/lib/server/tenants-store"
+import { checkStudioSurfaceAccess } from "@/lib/server/studio-surface-access"
+import { NextRequest, NextResponse } from "next/server"
 
 import type { CompositionJob } from "@/lib/composition-types"
 import type { InboxConversationSummary, InboxMessage } from "@/lib/inbox-types"
@@ -221,13 +224,18 @@ function mapReviewJob(job: CompositionJob) {
     status: job.status,
     prompt: job.prompt,
     catalogItemName: job.catalogItemName,
+    operatorName: job.operator?.name || (job.source === "operator" ? "Operador não registrado" : "IA"),
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
   }
 }
 
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   const { slug } = await context.params
+  const secureCookie = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https" || process.env.NEXTAUTH_URL?.startsWith("https://") === true
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET, secureCookie })
+  const access = checkStudioSurfaceAccess(token, slug, token ? await findTenant(slug) : null)
+  if (access) return NextResponse.json({ error: access === 401 ? "Entre novamente para consultar o Analytics." : "Você não tem acesso a este tenant." }, { status: access })
   const { searchParams } = new URL(request.url)
   const range = resolveRange(searchParams.get("range"))
   const window = getRangeWindow(range, {
@@ -255,6 +263,16 @@ export async function GET(request: Request, context: RouteContext) {
   const previousJobs = jobs.filter((job) => isWithin(job.createdAt, window.previousStart, window.previousEnd))
   const messagesInRange = messages.filter((message) => isWithin(message.createdAt, window.start, window.end))
   const previousMessages = messages.filter((message) => isWithin(message.createdAt, window.previousStart, window.previousEnd))
+
+  const operators = new Map<string, { id: string | null; name: string; generations: number; completed: number; failed: number }>()
+  for (const job of jobsInRange.filter(job => job.source === "operator")) {
+    const key = job.operator?.id || "unregistered"
+    const entry = operators.get(key) || { id: job.operator?.id || null, name: job.operator?.name || "Operador não registrado", generations: 0, completed: 0, failed: 0 }
+    entry.generations++
+    if (job.status === "done") entry.completed++
+    if (job.status === "failed") entry.failed++
+    operators.set(key, entry)
+  }
 
   const jobsByMode = jobsInRange.reduce<Record<string, number>>((acc, job) => {
     acc[job.mode] = (acc[job.mode] ?? 0) + 1
@@ -331,6 +349,7 @@ export async function GET(request: Request, context: RouteContext) {
       .filter((job) => job.status === "queued" || job.status === "processing" || job.status === "failed")
       .slice(0, 5)
       .map(mapReviewJob),
+    operatorGenerationData: [...operators.values()].sort((left, right) => right.generations - left.generations || left.name.localeCompare(right.name, "pt-BR")),
     conversationData,
     hourlyData,
     compositionModeData: [

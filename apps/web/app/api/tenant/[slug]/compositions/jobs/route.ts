@@ -1,3 +1,4 @@
+import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
 import { findTenant } from "@/lib/server/tenants-store"
@@ -18,6 +19,7 @@ type RouteContext = {
 }
 
 const CompositionJobInputSchema = z.object({
+  presetIds: z.array(z.enum(["remove-furniture", "renovate", "fresh-paint", "wall-covering", "flooring", "ceiling", "furnish"])).min(1).max(7).refine(ids => new Set(ids).size === ids.length, "Presets repetidos.").optional(),
   studioVersion: z.literal("v1").optional(),
   purpose: z.enum(["composition", "studio-preset"]).optional(),
   conversationId: z.string().min(1).max(255),
@@ -118,17 +120,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }, { status: 400 })
   }
 
-  if (parsed.data.purpose === "studio-preset") {
-    const secureCookie = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https" || process.env.NEXTAUTH_URL?.startsWith("https://") === true
-    const token = await getToken({ req: request, secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET, secureCookie })
-    const access = checkStudioSurfaceAccess(token, slug, token ? await findTenant(slug) : null)
-    if (access) return NextResponse.json({ error: access === 401 ? "Entre novamente para aplicar o preset." : "Você não tem acesso a este tenant." }, { status: access })
-    const origin = request.headers.get("origin")
-    if (!checkStudioRequestOrigin(origin, request.headers.get("host"), request.url)) return NextResponse.json({ error: "Origem inválida." }, { status: 403 })
-  }
+  const secureCookie = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https" || process.env.NEXTAUTH_URL?.startsWith("https://") === true
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET, secureCookie })
+  const access = checkStudioSurfaceAccess(token, slug, token ? await findTenant(slug) : null)
+  if (access) return NextResponse.json({ error: access === 401 ? "Entre novamente para gerar a composição." : "Você não tem acesso a este tenant." }, { status: access })
+  if (!checkStudioRequestOrigin(request.headers.get("origin"), request.headers.get("host"), request.url)) return NextResponse.json({ error: "Origem inválida." }, { status: 403 })
+
 
   try {
+    if (parsed.data.purpose === "studio-preset") {
+      const settings = await getTenantSettings(slug)
+      if (!settings.studio.catalogEnabled && (parsed.data.catalogItemId || parsed.data.references?.some(ref => ref.source === "catalog" || ref.catalogItemId))) return NextResponse.json({ error: "O catálogo está desativado para os presets deste tenant." }, { status: 400 })
+    }
     const payload = await normalizeCompositionJobInputImages(parsed.data)
+    payload.source = "operator"
+    payload.operator = { id: token!.sub!, name: (typeof token!.name === "string" && token!.name.trim() ? token!.name : typeof token!.email === "string" ? token!.email : "Operador").trim().slice(0, 255) }
     const tokenCheck = await canTenantCreateComposition(slug)
 
     if (!tokenCheck.allowed) {

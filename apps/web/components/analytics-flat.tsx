@@ -66,6 +66,15 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
         />
       </MetricStrip>
 
+      <Section title="Gerações por operador" aside={<span className="text-xs text-muted-foreground">No período selecionado · inclui presets</span>}>
+        {data.operatorGenerationData?.length ? <ul className="divide-y divide-border">
+          {data.operatorGenerationData.map(operator => <li key={operator.id || "unregistered"} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+            <span className="text-sm font-semibold">{operator.name}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">{number.format(operator.generations)} {operator.generations === 1 ? "geração" : "gerações"} · {number.format(operator.completed)} {operator.completed === 1 ? "concluída" : "concluídas"} · {number.format(operator.failed)} {operator.failed === 1 ? "falha" : "falhas"}</span>
+          </li>)}
+        </ul> : <Empty>Nenhuma geração por operador no período.</Empty>}
+      </Section>
+
       <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Section
           title="Atividade"
@@ -191,6 +200,7 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-foreground">{job.contactName}</span>
                     <span className="block truncate text-xs text-muted-foreground">{job.catalogItemName || job.prompt}</span>
+                    <span className="block truncate text-xs text-muted-foreground">Gerada por: {job.operatorName}</span>
                   </span>
                   <Pill tone={job.status === "failed" ? "danger" : job.status === "processing" ? "ai" : "neutral"}>{statusLabel[job.status]}</Pill>
                 </li>

@@ -10,6 +10,7 @@ export type StudioPresetId = "remove-furniture" | "renovate" | "furnish" | Studi
 export type StudioPresetVersion = {
   jobId: string
   preset: StudioPresetId
+  presetIds?: StudioPresetId[]
   label: string
   parentVersionId?: string
   selectedSurfaceIds?: string[]
@@ -33,7 +34,11 @@ export type StudioImageArtifact = {
   selectedSurfaceSourceKey?: string
   selectedSurfaceIds?: string[]
   surfaceMaterialId?: string
-  roomType?: "auto" | "living-room" | "bedroom" | "kitchen" | "bathroom"
+  roomType?: string
+  propertyContexts?: string[]
+  sceneDescription?: string
+  combinePresets?: boolean
+  paintCeiling?: boolean
   removeFixedFurniture?: boolean
   furnishingLuxury?: boolean
   materialReferences?: Partial<Record<StudioMaterialPresetId, StudioImageArtifact>>
@@ -42,6 +47,7 @@ export type StudioImageArtifact = {
   catalogProductType?: string
   presetIds?: StudioPresetId[]
   paintCatalogItemId?: string
+  presetOptions?: Partial<Record<StudioPresetId, { instructions?: string; reference?: StudioImageArtifact; color?: string; surface?: "floor" | "walls" | "both" }>>
   paintJobId?: string
   selectedReferenceUrls?: string[]
   instruction?: string
