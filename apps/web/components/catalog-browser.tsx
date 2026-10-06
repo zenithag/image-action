@@ -1,6 +1,7 @@
 "use client"
 
 import { Modal } from "@/components/spectrum/modal"
+import styles from "./management-layout.module.css"
 import { PageHeader } from "@/components/organisms/page-header"
 import { SkuChip } from "@/components/molecules/sku-chip"
 import { Checkbox } from "@/components/spectrum/fields"
@@ -385,10 +386,11 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className={styles.page}>
       <PageHeader
-        title="catálogo"
-        subtitle={`biblioteca · ${items.length} itens`}
+        className={styles.header}
+        title="Catálogo"
+        subtitle={`Produtos e materiais · ${items.length} itens`}
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
@@ -398,12 +400,10 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
         actions={
           <>
             <Button variant="outline" type="button" onClick={() => void exportCsv()} disabled={isLoading || isExporting}>
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Exportar CSV
+              <span className={styles.actionLabel}>{isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Exportar CSV</span>
             </Button>
             <Button variant="outline" type="button" onClick={() => importInputRef.current?.click()} disabled={isLoading || isImporting}>
-              {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              Importar CSV
+              <span className={styles.actionLabel}>{isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}Importar CSV</span>
             </Button>
             <Input
               ref={importInputRef}
@@ -419,14 +419,13 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
               }}
             />
             <Button type="button" onClick={() => setCreateOpen(true)} disabled={isLoading}>
-              <Plus className="h-4 w-4" />
-              Novo produto
+              <span className={styles.actionLabel}><Plus className="h-4 w-4" />Novo produto</span>
             </Button>
           </>
         }
       />
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-8 py-2.5">
+      <div className={styles.categories}>
         {categories.map((category) => (
           <ToggleButton selected={selectedCategory === category.id} key={category.id} onClick={() => setSelectedCategory(category.id)}>
             {category.name}
@@ -497,7 +496,7 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
           </div>
         )}
 
-        <div className={cn("flex-1 overflow-y-auto p-8 scrollbar-hide", selectedIds.length > 0 && "pt-16")}>
+        <div className={cn(styles.catalogContent, selectedIds.length > 0 && "pt-16")}>
           <div className="mb-6 flex items-center justify-between border-b pb-4">
             <Checkbox
               checked={selectedIds.length > 0 && selectedIds.length === filteredItems.length}
@@ -514,7 +513,7 @@ export function CatalogBrowser({ tenantSlug }: CatalogBrowserProps) {
               Carregando catálogo...
             </div>
           ) : filteredItems.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className={styles.productGrid}>
               {filteredItems.map((item) => (
                 <ProductCard
                   key={item.id}
@@ -617,7 +616,7 @@ function ProductCard({
 
   return (
     <>
-      <div className={cn("group relative overflow-hidden rounded-md border transition-all duration-300", isSelected ? "border-primary bg-primary/[0.03] ring-1 ring-primary/20" : "border-border bg-card hover:border-primary/40")}>
+      <div className={cn(styles.productCard, "group relative overflow-hidden rounded-md border transition-all duration-300", isSelected ? "border-primary bg-primary/[0.03] ring-1 ring-primary/20" : "border-border bg-card hover:border-primary/40")}>
         <div onClick={onToggleSelect} className={cn("absolute left-3 top-3 z-30 cursor-pointer rounded-md bg-black/20 p-1.5", isSelected ? "bg-primary text-white" : "text-white/80 opacity-0 group-hover:opacity-100")}>
           {isSelected ? <CheckCircle className="h-4 w-4" /> : <Square className="h-4 w-4" />}
         </div>

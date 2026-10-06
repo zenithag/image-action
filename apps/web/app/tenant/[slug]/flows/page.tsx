@@ -1,5 +1,6 @@
 "use client"
 
+import styles from "./flows.module.css"
 import { UserMenu } from "@/components/molecules/user-menu"
 import { Input, NativeSelect, Textarea } from "@/components/spectrum/fields"
 import { use, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
@@ -221,6 +222,7 @@ function ConversationFlowCanvasNode({ data, selected }: NodeProps<FlowNode>) {
   return (
     <div
       className={cn(
+        styles.node,
         "relative min-w-36 rounded-md border bg-card px-3 py-2 text-sm font-semibold",
         nodeColor(data.nodeType),
         selected && "ring-2 ring-primary/50"
@@ -709,9 +711,9 @@ export default function TenantFlowsPage({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-4 py-1.5 lg:px-5">
-        <h1 className="shrink-0 text-base font-bold text-foreground">Fluxos</h1>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div className={styles.heading}><h1>Fluxos</h1><p>Organize e personalize suas conversas automatizadas.</p></div>
 
         {/* Below xl the flow library is hidden, so the picker lives here instead. */}
         {allFlows.length > 0 && (
@@ -751,7 +753,7 @@ export default function TenantFlowsPage({
           <span className="flex-1" />
         )}
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className={styles.actions}>
           <Input
             ref={importInputRef}
             type="file"
@@ -760,20 +762,24 @@ export default function TenantFlowsPage({
             className="hidden"
           />
           <Button variant="outline" onClick={() => importInputRef.current?.click()} disabled={isImporting}>
+            <span className={styles.actionLabel}>
             {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Importar
+            Importar</span>
           </Button>
           <Button variant="outline" onClick={exportFlow} disabled={!selectedFlow}>
+            <span className={styles.actionLabel}>
             <Download className="h-4 w-4" />
-            Exportar
+            Exportar</span>
           </Button>
           <Button variant="outline" onClick={saveFlow} disabled={!selectedFlowId || isSaving}>
+            <span className={styles.actionLabel}>
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar rascunho
+            Salvar rascunho</span>
           </Button>
           <Button onClick={publishFlow} disabled={!selectedFlowId || isPublishing}>
+            <span className={styles.actionLabel}>
             {isPublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Publicar
+            Publicar</span>
           </Button>
           <Button variant="ghost" size="icon" aria-label="Excluir fluxo" title="Excluir fluxo" onClick={deleteFlow} disabled={!selectedFlow}>
             <Trash2 className="h-4 w-4" />
@@ -818,8 +824,8 @@ export default function TenantFlowsPage({
         </>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden xl:grid-cols-[240px_minmax(0,1fr)_320px] xl:grid-rows-1">
-        <aside className="hidden min-h-0 border-r border-border bg-card xl:flex xl:flex-col">
+      <div className={styles.workspace}>
+        <aside className={styles.library}>
           <div className="flex h-12 shrink-0 items-center border-b border-border bg-card px-3">
             <form
               className="flex w-full items-center gap-2"
@@ -869,6 +875,7 @@ export default function TenantFlowsPage({
                     type="button"
                     onClick={() => selectFlow(flow)}
                     className={cn(
+                      styles.flowCard,
                       "w-full rounded-md border px-3 py-3 text-left transition-colors",
                       selectedFlowId === flow.id ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-muted"
                     )}
@@ -895,7 +902,7 @@ export default function TenantFlowsPage({
           </div>
         </aside>
 
-        <main className="min-h-0 min-w-0 overflow-hidden">
+        <main className={styles.canvas}>
           {selectedFlow ? (
             <div className="flex h-full min-h-0 flex-col">
               <div className="min-h-0 flex-1">
@@ -916,7 +923,7 @@ export default function TenantFlowsPage({
               </div>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+            <div className={styles.empty}>
               <Layers3 className="h-10 w-10 text-muted-foreground" />
               <h2 className="mt-4 text-lg font-semibold">Nenhum fluxo selecionado</h2>
               <p className="mt-1 text-sm text-muted-foreground">Crie ou selecione um fluxo para abrir o editor.</p>
@@ -934,15 +941,14 @@ export default function TenantFlowsPage({
                   className="min-w-0 flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none"
                 />
                 <Button type="submit" disabled={!newFlowName.trim()}>
-                  <Plus className="h-4 w-4" />
-                  Criar fluxo
+                  <span className={styles.actionLabel}><Plus className="h-4 w-4" />Criar fluxo</span>
                 </Button>
               </form>
             </div>
           )}
         </main>
 
-        <aside className="min-h-0 max-h-80 overflow-y-auto border-t border-border bg-card xl:max-h-none xl:border-l xl:border-t-0">
+        <aside className={styles.inspector}>
           <div className="border-b border-border p-4">
             <h2 className="text-sm font-semibold text-foreground">Blocos</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -952,7 +958,7 @@ export default function TenantFlowsPage({
                   type="button"
                   onClick={() => addBlock(block.type)}
                   disabled={!selectedFlow}
-                  className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2 text-left text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                  className={styles.block}
                 >
                   <block.icon className="h-4 w-4 text-primary" />
                   {block.label}

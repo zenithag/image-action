@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
+import styles from "./tenant-overview-cards.module.css"
 import Link from "next/link"
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
-import { Empty, Metric, MetricStrip, Section } from "@/components/molecules/flat-blocks"
+import { Empty, Section } from "@/components/molecules/flat-blocks"
 import { Pill, SearchField } from "@/components/spectrum"
-import { ArrowRight, CheckCircle2, Clock3, Cpu, UserRound } from "@/components/spectrum/icons"
+import { ArrowRight, CheckCircle2, Clock3, Cpu, UserRound, MessageSquare, FileText, Layers, GitBranch } from "@/components/spectrum/icons"
 import type { AnalyticsPayload } from "@/components/tenant-analytics-view"
 
 const number = new Intl.NumberFormat("pt-BR")
@@ -20,6 +21,7 @@ const tooltipStyle = { background: "var(--popover)", border: "1px solid var(--bo
  * background separated by rules), so the two screens read as one system.
  */
 export function TenantOverview({ data, tenantSlug }: { data: AnalyticsPayload; tenantSlug: string }) {
+  const chartId = useId().replace(/:/g, "")
   const [search, setSearch] = useState("")
   const term = search.trim().toLocaleLowerCase("pt-BR")
   const conversations = data.recentConversations.filter((item) =>
@@ -28,46 +30,58 @@ export function TenantOverview({ data, tenantSlug }: { data: AnalyticsPayload; t
   const base = `/tenant/${tenantSlug}`
   const hasTimeline = data.conversationData.some((item) => item.conversas > 0 || item.composicoes > 0)
   const operational = [
-    { icon: Cpu, label: "Latência da IA", value: data.responseTimes.aiLabel ?? "n/d" },
-    { icon: UserRound, label: "Resposta do operador", value: data.responseTimes.operatorLabel ?? "n/d" },
-    { icon: Clock3, label: "Respostas da IA em até 5 s", value: data.responseTimes.aiFastRate == null ? "n/d" : `${data.responseTimes.aiFastRate}%` },
+    { icon: Cpu, label: "Latência da IA", value: data.responseTimes.aiLabel ?? "0 s" },
+    { icon: UserRound, label: "Resposta do operador", value: data.responseTimes.operatorLabel ?? "0 s" },
+    { icon: Clock3, label: "Respostas da IA em até 5 s", value: `${data.responseTimes.aiFastRate ?? 0}%` },
   ]
 
   return (
-    <div className="space-y-8 px-8 py-6">
-      <MetricStrip columns={4}>
-        <Metric label="Conversas" value={number.format(data.stats.conversations)} delta={data.deltas.conversations} />
-        <Metric label="Mensagens" value={number.format(data.stats.messages)} delta={data.deltas.messages} />
-        <Metric label="Composições" value={number.format(data.stats.compositions)} delta={data.deltas.compositions} />
-        <Metric
-          label="Pipeline"
-          value={number.format(data.stats.compositions)}
-          hint={`${number.format(data.stats.completedCompositions)} concluídas · ${number.format(data.stats.failedCompositions)} falhas`}
-        />
-      </MetricStrip>
+    <div className={styles.overview}>
+      <div className={styles.metrics}>
+        {[
+          { label: "Conversas", icon: MessageSquare, value: data.stats.conversations, delta: data.deltas.conversations },
+          { label: "Mensagens", icon: FileText, value: data.stats.messages, delta: data.deltas.messages },
+          { label: "Composições", icon: Layers, value: data.stats.compositions, delta: data.deltas.compositions },
+          { label: "Pipeline", icon: GitBranch, value: data.stats.compositions, delta: null },
+        ].map(({ label, icon: Icon, value, delta }) => (
+          <section key={label} className={styles.metricCard} aria-label={label}>
+            <span className={styles.metricIcon}><Icon size={25} aria-hidden="true" /></span>
+            <div className={styles.metricContent}>
+              <p>{label}</p>
+              <strong>{number.format(value)}</strong>
+              {delta !== null ? <small><b className={delta >= 0 ? "text-success-ink" : "text-danger"}>{delta >= 0 ? "+" : ""}{delta}%</b><span> vs. período anterior</span></small> : <small>{number.format(data.stats.completedCompositions)} concluídas<br />{number.format(data.stats.failedCompositions)} falhas</small>}
+            </div>
+          </section>
+        ))}
+      </div>
 
-      <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className={styles.mainGrid}>
         <Section
           title="Volume por dia"
+          className={styles.chartCard}
           aside={
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className={styles.legend}>
               <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--cf-chart-2)" }} />Conversas</span>
               <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--cf-chart-1)" }} />Composições</span>
               <span>{data.meta.label}</span>
             </div>
           }
         >
-          <div className="h-64" role="img" aria-label={`Volume de conversas e composições: ${data.meta.label}`}>
+          <div className={styles.chart} role="img" aria-label={`Volume de conversas e composições: ${data.meta.label}`}>
             {hasTimeline ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <LineChart data={data.conversationData} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+                <AreaChart data={data.conversationData} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+                  <defs>
+                    <linearGradient id={`${chartId}-conversations`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--cf-chart-2)" stopOpacity={0.22} /><stop offset="100%" stopColor="var(--cf-chart-2)" stopOpacity={0.01} /></linearGradient>
+                    <linearGradient id={`${chartId}-compositions`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--cf-chart-1)" stopOpacity={0.18} /><stop offset="100%" stopColor="var(--cf-chart-1)" stopOpacity={0.01} /></linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 4" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="name" tickLine={false} axisLine={false} tick={axis} tickMargin={10} />
                   <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={axis} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" name="Composições" dataKey="composicoes" stroke="var(--cf-chart-1)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                  <Line type="monotone" name="Conversas" dataKey="conversas" stroke="var(--cf-chart-2)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                </LineChart>
+                  <Area type="monotone" name="Composições" dataKey="composicoes" fill={`url(#${chartId}-compositions)`} stroke="var(--cf-chart-1)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                  <Area type="monotone" name="Conversas" dataKey="conversas" fill={`url(#${chartId}-conversations)`} stroke="var(--cf-chart-2)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                </AreaChart>
               </ResponsiveContainer>
             ) : (
               <Empty>Sem atividade em {data.meta.label.toLowerCase()}.</Empty>
@@ -75,10 +89,10 @@ export function TenantOverview({ data, tenantSlug }: { data: AnalyticsPayload; t
           </div>
         </Section>
 
-        <div className="space-y-8">
-          <Section title="Fila de revisão" aside={<span className="text-xs text-muted-foreground">{data.reviewQueue.length} {data.reviewQueue.length === 1 ? "item" : "itens"}</span>}>
+        <div className={styles.sideCards}>
+          <Section className={styles.card} title="Fila de revisão" aside={<span className="text-xs text-muted-foreground">{data.reviewQueue.length} {data.reviewQueue.length === 1 ? "item" : "itens"}</span>}>
             {data.reviewQueue.length === 0 ? (
-              <div className="flex items-center gap-3 py-2 text-sm">
+              <div className={styles.reviewEmpty}>
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
                 <span>
                   <b className="text-foreground">Tudo em dia.</b>{" "}
@@ -104,7 +118,7 @@ export function TenantOverview({ data, tenantSlug }: { data: AnalyticsPayload; t
             )}
           </Section>
 
-          <Section title="Informações operacionais">
+          <Section className={styles.card} title="Informações operacionais">
             <dl className="divide-y divide-border">
               {operational.map(({ icon: Icon, label, value }) => (
                 <div key={label} className="flex items-center justify-between gap-3 py-2.5">
@@ -122,7 +136,7 @@ export function TenantOverview({ data, tenantSlug }: { data: AnalyticsPayload; t
 
       <Section
         title="Últimas conversas"
-        className="border-t border-border pt-8"
+        className={`${styles.card} ${styles.conversations}`}
         aside={
           <div className="flex items-center gap-4">
             <SearchField label="Buscar nas últimas conversas" placeholder="Buscar conversa..." value={search} onValueChange={setSearch} width={260} />
@@ -133,26 +147,20 @@ export function TenantOverview({ data, tenantSlug }: { data: AnalyticsPayload; t
         }
       >
         {conversations.length > 0 ? (
-          <ul className="divide-y divide-border">
-            {conversations.map((conversation) => (
-              <li key={conversation.id} className="flex items-center gap-3 py-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--cf-accent-soft,var(--muted))] text-xs font-bold text-[var(--cf-accent-ink,var(--foreground))]">
-                  {conversation.contactName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-foreground">{conversation.contactName}</span>
-                    <Pill tone={conversation.handledBy === "ai" ? "ai" : "human"}>{conversation.handledBy === "ai" ? "IA" : "OP"}</Pill>
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">{conversation.lastMessage || "Sem mensagem"}</span>
-                </span>
-                {conversation.unreadCount > 0 && <Pill tone="brand">{conversation.unreadCount}</Pill>}
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                  {Number.isNaN(Date.parse(conversation.lastMessageAt)) ? "—" : dateTime.format(new Date(conversation.lastMessageAt))}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead><tr><th>Contato</th><th>Última mensagem</th><th>Não lidas</th><th>Atualizado em</th><th>Status</th></tr></thead>
+              <tbody>{conversations.map((conversation) => (
+                <tr key={conversation.id}>
+                  <td><div className={styles.contact}><span className={styles.avatar}>{conversation.contactName.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span><span className={styles.contactName}>{conversation.contactName}</span><Pill tone={conversation.handledBy === "ai" ? "ai" : "human"}>{conversation.handledBy === "ai" ? "IA" : "OP"}</Pill></div></td>
+                  <td><span className={styles.messagePreview}>{conversation.lastMessage || "Sem mensagem"}</span></td>
+                  <td><Pill tone="brand">{conversation.unreadCount}</Pill></td>
+                  <td className={styles.updatedAt}>{Number.isNaN(Date.parse(conversation.lastMessageAt)) ? "—" : dateTime.format(new Date(conversation.lastMessageAt))}</td>
+                  <td><Pill tone={conversation.status === "open" ? "brand" : "neutral"}>{({ open: "Aberta", waiting_customer: "Aguardando cliente", waiting_operator: "Aguardando operador", closed: "Encerrada" })[conversation.status]}</Pill></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
         ) : (
           <Empty>{search ? "Nenhuma conversa encontrada. Tente outro nome ou mensagem." : "Suas conversas aparecerão aqui."}</Empty>
         )}

@@ -1,5 +1,7 @@
 "use client"
 
+import styles from "./inbox-layout.module.css"
+
 import { ToggleButton } from "@/components/spectrum/toggle-button"
 import { Button } from "@/components/ui/button"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
@@ -89,9 +91,10 @@ const ConversationItem = memo(function ConversationItem({
   return (
     <div
       className={cn(
+        styles.conversation,
         "relative border-b border-border transition-all duration-200",
         selectedId === conversation.id
-          ? "bg-accent"
+          ? styles.selected
           : "bg-transparent hover:bg-accent/50"
       )}
     >
@@ -101,10 +104,10 @@ const ConversationItem = memo(function ConversationItem({
       <button
         type="button"
         onClick={handleSelect}
-        className="flex w-full items-start gap-2.5 border-b border-border/50 p-3 text-left transition-colors hover:bg-accent/50"
+        className="flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-accent/50"
       >
         <div className="relative shrink-0">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-bold text-muted-foreground">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-muted text-sm font-bold text-muted-foreground">
             {getInitials(conversation.contact.name)}
           </div>
           <div
@@ -118,8 +121,8 @@ const ConversationItem = memo(function ConversationItem({
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-1.5">
             <span className={cn(
-              "truncate text-xs font-medium",
-              selectedId === conversation.id ? "text-primary" : "text-foreground"
+              "truncate text-sm font-semibold",
+              "text-foreground"
             )}>
               {conversation.contact.name}
             </span>
@@ -340,10 +343,10 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
   }, [conversations, filter])
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+    <div className={`${styles.list} flex h-full min-h-0 w-full flex-col overflow-hidden`}>
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          conversas
+        <h2 className="text-lg font-semibold text-foreground">
+          Conversas
         </h2>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
@@ -357,12 +360,12 @@ export function ConversationList({ tenantSlug, selectedId, onSelect }: Conversat
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-2 py-1.5">
+      <div className={styles.filters}>
         {[
-          { id: "all", label: "all" },
-          { id: "ai", label: "ai" },
-          { id: "operator", label: "op" },
-          { id: "unread", label: "unread" },
+          { id: "all", label: "Todas" },
+          { id: "ai", label: "IA" },
+          { id: "operator", label: "Operador" },
+          { id: "unread", label: "Não lidas" },
         ].map((item) => (
           <ToggleButton selected={filter === item.id} key={item.id} onClick={() => setFilter(item.id as "all" | InboxHandledBy | "unread")}>
             {item.label}

@@ -1,6 +1,7 @@
 "use client"
 
 import { Modal } from "@/components/spectrum/modal"
+import styles from "./management-layout.module.css"
 import { PageHeader } from "@/components/organisms/page-header"
 import { Input, Textarea } from "@/components/spectrum/fields"
 import { useEffect, useMemo, useState } from "react"
@@ -264,24 +265,24 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className={styles.page}>
       <PageHeader
-        title="contatos"
+        className={styles.header}
+        title="Contatos"
         subtitle={`CRM · ${filteredContacts.length} registros`}
         search={{ value: query, onChange: setQuery, label: "Buscar contatos", placeholder: "Buscar contatos por nome, telefone ou empresa..." }}
         actions={
           <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            Novo contato
+            <span className={styles.actionLabel}><Plus className="h-4 w-4" />Novo contato</span>
           </Button>
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col px-8 pb-4 pt-4">
+      <div className={styles.contactsContent}>
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-3 pb-3">
             <Button variant="outline" type="button">
-              <Filter className="h-4 w-4" /> Filtros
+              <span className={styles.actionLabel}><Filter className="h-4 w-4" />Filtros</span>
             </Button>
             <span className="ml-auto text-sm text-muted-foreground">{filteredContacts.length} {filteredContacts.length === 1 ? "contato" : "contatos"}</span>
           </div>
@@ -292,14 +293,14 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
             </div>
           )}
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className={styles.tablePanel}>
             {isLoading ? (
               <div className="flex h-full items-center justify-center p-12 text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Carregando contatos...
               </div>
             ) : filteredContacts.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+              <div className={styles.empty}>
                 <UserRound className="mb-3 h-10 w-10 text-muted-foreground" />
                 <h2 className="font-display text-lg font-semibold text-foreground">Nenhum contato encontrado</h2>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
@@ -307,7 +308,7 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
                 </p>
               </div>
             ) : (
-              <table className="w-full">
+              <table className={styles.table}>
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     <th className="w-10 px-4 py-3"><Input type="checkbox" className="rounded-md border-border" /></th>

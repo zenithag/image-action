@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/organisms/page-header"
 import { Button as SpectrumButton, Select as SpectrumSelect } from "@/components/spectrum"
 import { Input } from "@/components/spectrum/fields"
 import { Loader2, RefreshCw } from "@/components/spectrum/icons"
+import analyticsStyles from "./analytics-layout.module.css"
+import overviewStyles from "./tenant-overview-cards.module.css"
 import { TenantOverview } from "@/components/tenant-overview"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
@@ -158,7 +160,7 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
         onClick={() => loadAnalytics(dateRange)}
         icon={isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
       >
-        Atualizar
+        <span className={compact ? undefined : analyticsStyles.actionLabel}>Atualizar</span>
       </SpectrumButton>
     </>
   )
@@ -182,12 +184,12 @@ export function TenantAnalyticsView({ tenantSlug, compact = false }: TenantAnaly
   ) : null
 
   // Visão geral (compact) and Analytics share one frame: page header + flat sections.
-  const title = compact ? "Visão geral" : "analytics"
+  const title = compact ? "Visão geral" : "Analytics"
   const subtitle = compact ? "Acompanhe a operação da sua empresa." : `${tenantSlug} · ${data?.meta.label ?? ""}`
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <PageHeader title={title} subtitle={subtitle} actions={controls} />
+    <div className={`flex h-full min-h-0 flex-col bg-background ${compact ? overviewStyles.frame : analyticsStyles.frame}`}>
+      <PageHeader title={title} subtitle={subtitle} actions={controls} className={compact ? overviewStyles.header : analyticsStyles.header} />
       {errorAlert}
       <div className="min-h-0 flex-1 overflow-auto">
         {body ?? (compact ? <TenantOverview data={data!} tenantSlug={tenantSlug} /> : <AnalyticsFlat data={data!} />)}

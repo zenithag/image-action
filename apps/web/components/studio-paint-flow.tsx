@@ -6,7 +6,7 @@ import { Input, NativeSelect } from "@/components/spectrum/fields"
 import { useEffect, useRef, useState } from "react"
 import type { CSSProperties, MutableRefObject } from "react"
 import { Dialog } from "radix-ui"
-import { Check, Loader2, Paintbrush, Save, X } from "@/components/spectrum/icons"
+import { Check, ChevronLeft, ChevronRight, Loader2, Paintbrush, Save, X } from "@/components/spectrum/icons"
 import Link from "next/link"
 import { SafeImage } from "@/components/safe-image"
 import type { CatalogItem } from "@/lib/catalog-types"
@@ -47,6 +47,26 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
   const [furnitureMode, setFurnitureMode] = useState<"manual" | "automatic">("manual")
   const [luxury, setLuxury] = useState(base.furnishingLuxury === true)
   const [room, setRoom] = useState<StudioImageArtifact["roomType"]>(base.roomType && base.roomType !== "auto" ? base.roomType : "living-room")
+  const slidesRef = useRef<HTMLDivElement>(null)
+  const [slideEdges, setSlideEdges] = useState({ start: true, end: false })
+  const updateSlideEdges = () => {
+    const rail = slidesRef.current
+    if (rail) setSlideEdges({ start: rail.scrollLeft < 2, end: rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2 })
+  }
+  const moveSlides = (direction: number) => {
+    const rail = slidesRef.current
+    if (rail) rail.scrollBy({ left: direction * Math.max(92, rail.clientWidth - 92), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" })
+  }
+  useEffect(() => {
+    const rail = slidesRef.current
+    if (!rail) return
+    rail.scrollLeft = 0
+    updateSlideEdges()
+    const observer = new ResizeObserver(updateSlideEdges)
+    observer.observe(rail)
+    for (const child of rail.children) observer.observe(child)
+    return () => observer.disconnect()
+  }, [preset, open, loading, sku, room, furnitureMode, items])
   const catalogRef = useRef<HTMLElement>(null)
   const requestIds = useRef(new Map<string, string>())
   const submittingLock = useRef(false)
@@ -213,12 +233,16 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
         {furnitureMode === "manual" && <label>Buscar produto por SKU ou nome<Input value={sku} onChange={event => setSku(event.target.value)} /></label>}
         {furnitureMode === "automatic" && <p>Até 5 itens compatíveis com o cômodo são sorteados automaticamente. Revise a seleção antes de aplicar.</p>}
       </>}
-      {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError} Tentaremos novamente automaticamente.</p> : visibleItems.length === 0 ? <p>Nenhum item ativo compatível com {presetLabel.toLowerCase()} neste catálogo. <Link href={`/tenant/${slug}/catalog`}>Abrir catálogo</Link></p> : <div className={styles.paintItems} tabIndex={0} role="group" aria-label={`Amostras de ${presetLabel}; role horizontalmente para ver mais opções`}>
+      {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError} Tentaremos novamente automaticamente.</p> : visibleItems.length === 0 ? <p>Nenhum item ativo compatível com {presetLabel.toLowerCase()} neste catálogo. <Link href={`/tenant/${slug}/catalog`}>Abrir catálogo</Link></p> : <div className={styles.paintSlider}>
+        <button type="button" className={styles.slideArrow} aria-label="Amostras anteriores" disabled={slideEdges.start} onClick={() => moveSlides(-1)}><ChevronLeft size={18} /></button>
+        <div ref={slidesRef} onScroll={updateSlideEdges} className={styles.paintItems} tabIndex={0} role="group" aria-label={`Amostras de ${presetLabel}`} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); moveSlides(event.key === "ArrowRight" ? 1 : -1) } }}>
         {visibleItems.map(item => <button key={item.id} type="button" aria-label={`${item.name}${item.sku ? ` · SKU ${item.sku}` : ""}`} title={`${item.name}${item.sku ? ` · SKU ${item.sku}` : ""}`} disabled={disabled || submitting || pending || (preset === "furnish" && furnitureMode === "automatic")} aria-pressed={preset === "furnish" && selectedFurniture.includes(item.id)} onClick={() => { if (preset === "furnish") setSelectedFurniture(current => current.includes(item.id) ? current.filter(id => id !== item.id) : current.length < 5 ? [...current, item.id] : current); else confirm(item) }}>
           {getStudioPaintPreviewSource(item, slug) ? <SafeImage src={getStudioPaintPreviewSource(item, slug)} alt={item.name} loading="lazy" decoding="async" className={styles.paintThumbnail} /> : getStudioPaintSwatch(item) ? <span className={styles.paintSwatch} style={{ backgroundColor: getStudioPaintSwatch(item) }} aria-label={`Amostra ${getStudioPaintSwatch(item)}`} /> : <Paintbrush size={24} aria-hidden="true" />}
         </button>)}
+        </div>
+        <button type="button" className={styles.slideArrow} aria-label="Próximas amostras" disabled={slideEdges.end} onClick={() => moveSlides(1)}><ChevronRight size={18} /></button>
       </div>}
-      {preset === "furnish" && <><p>{selectedFurniture.length} de 5 itens selecionados</p><Button variant="outline" type="button" disabled={!selectedFurniture.length || loading || Boolean(catalogError) || disabled || submitting || pending} onClick={() => confirm(undefined, selectedFurniture.flatMap(id => { const item = items.find(candidate => candidate.id === id); return item ? [item] : [] }))}>Revisar aplicação</Button></>}
+      {preset === "furnish" && <><p>{selectedFurniture.length} de 5 itens selecionados</p><button className={styles.reviewApplication} type="button" disabled={!selectedFurniture.length || loading || Boolean(catalogError) || disabled || submitting || pending} onClick={() => confirm(undefined, selectedFurniture.flatMap(id => { const item = items.find(candidate => candidate.id === id); return item ? [item] : [] }))}>Revisar aplicação</button></>}
       {applyError && !selection && <p role="alert">{applyError}</p>}
     </section>
     <Dialog.Root open={Boolean(selection)} onOpenChange={opened => { if (!opened && !submitting) { setSelection(null); onClose() } }}>
