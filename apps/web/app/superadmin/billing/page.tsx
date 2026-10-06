@@ -344,15 +344,15 @@ export default function SuperadminBillingPage() {
           <div className="flex h-full items-center justify-center rounded-md border border-border bg-card">
             <div className="text-center">
               <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Carregando AbacatePay...</p>
+              <p className="text-sm text-muted-foreground">Carregando pagamentos...</p>
             </div>
           </div>
         ) : settings && stripeSettings ? (
           <div className="mx-auto max-w-6xl space-y-6">
-            <div className="rounded-md border border-border bg-card">
+            <section aria-labelledby="abacatepay-heading" className="overflow-hidden rounded-md border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                 <CreditCard className="h-4 w-4 text-primary" />
-                <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider AbacatePay</h2>
+                <h2 id="abacatepay-heading" className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">AbacatePay</h2>
               </div>
               <div className="grid gap-4 p-6 md:grid-cols-2">
                 <label className="flex h-11 items-center gap-3 rounded-md border border-input bg-muted/20 px-4 text-sm">
@@ -423,20 +423,90 @@ export default function SuperadminBillingPage() {
                   </div>
                 </div>
               </div>
+              <div className="border-t border-border p-4 sm:p-6">
+                <h3 className="mb-1 text-sm font-semibold">Planos do AbacatePay</h3>
+                <p className="mb-4 text-xs text-muted-foreground">Estes planos usam exclusivamente o AbacatePay. Salvar atualiza as configurações e os planos deste provedor.</p>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {planCodes.map((planCode) => {
+                    const plan = settings.plans[planCode]
+                    return (
+                      <div key={planCode} className="rounded-md border border-border bg-card p-5">
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano AbacatePay</p>
+                            <h3 className="font-display text-lg font-bold text-foreground">{planLabels[planCode]}</h3>
+                          </div>
+                          <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", plan.productId ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                            {plan.productId ? "produto ok" : "sem produto"}
+                          </span>
+                        </div>
+                        <div className="space-y-3">
+                          <Field label="Nome">
+                            <Input value={plan.productName} onChange={(event) => updatePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </Field>
+                          <Field label="Descrição">
+                            <Textarea value={plan.description} rows={3} onChange={(event) => updatePlan(planCode, { description: event.target.value })} className="w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </Field>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Preço em centavos">
+                              <Input type="number" value={plan.priceCents} onChange={(event) => updatePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                            </Field>
+                            <Field label="Tokens">
+                              <Input type="number" value={plan.tokensIncluded} onChange={(event) => updatePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                            </Field>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Ciclo">
+                              <NativeSelect value={plan.cycle} onChange={(event) => updatePlan(planCode, { cycle: event.target.value as typeof plan.cycle })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                                <option value="WEEKLY">Semanal</option>
+                                <option value="MONTHLY">Mensal</option>
+                                <option value="SEMIANNUALLY">Semestral</option>
+                                <option value="ANNUALLY">Anual</option>
+                              </NativeSelect>
+                            </Field>
+                            <Field label="Valor">
+                              <div className="flex h-10 items-center rounded-md border border-border bg-muted/20 px-3 text-sm font-semibold">
+                                {formatMoney(plan.priceCents)}
+                              </div>
+                            </Field>
+                          </div>
+                          <Field label="Product ID">
+                            <Input value={plan.productId ?? ""} onChange={(event) => updatePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </Field>
+                          <div className="grid gap-2">
+                            <Button variant="outline" onClick={() => void createPlanProduct(planCode)} disabled={creatingProduct === planCode || !settings.enabled}>
+                              {creatingProduct === planCode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}
+                              Criar produto recorrente
+                            </Button>
+                            {plan.productId ? (
+                              <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Product ID pronto para checkouts.
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">Salve o provedor e crie o produto, ou cole um productId existente.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="flex justify-end border-t border-border px-6 py-4">
                 <Button onClick={saveSettings} disabled={isSaving}>
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Salvar AbacatePay
                 </Button>
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-md border border-border bg-card">
+            <section aria-labelledby="stripe-heading" className="overflow-hidden rounded-md border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                 <CreditCard className="h-4 w-4 text-primary" />
                 <div>
-                  <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Provider Stripe</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">Fallback opcional para checkout recorrente via Stripe Billing.</p>
+                  <h2 id="stripe-heading" className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Stripe</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">Configurações e planos para assinaturas pelo Stripe Billing.</p>
                 </div>
               </div>
               <div className="grid gap-4 p-6 md:grid-cols-2">
@@ -446,7 +516,7 @@ export default function SuperadminBillingPage() {
                     checked={stripeSettings.enabled}
                     onChange={(event) => setStripeSettings((current) => current ? { ...current, enabled: event.target.checked } : current)}
                   />
-                  <span>Habilitar Stripe como fallback</span>
+                  <span>Habilitar pagamentos por Stripe</span>
                 </label>
                 <Field label="Versão da API">
                   <Input
@@ -509,150 +579,86 @@ export default function SuperadminBillingPage() {
                   </div>
                 </div>
               </div>
+              <div className="border-t border-border p-4 sm:p-6">
+                <h3 className="mb-1 text-sm font-semibold">Planos do Stripe</h3>
+                <p className="mb-4 text-xs text-muted-foreground">Estes planos usam exclusivamente o Stripe. Salvar atualiza as configurações e os planos deste provedor.</p>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {planCodes.map((planCode) => {
+                    const plan = stripeSettings.plans[planCode]
+                    return (
+                      <div key={planCode} className="rounded-md border border-border bg-card p-5">
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano Stripe</p>
+                            <h3 className="font-display text-lg font-bold text-foreground">{planLabels[planCode]}</h3>
+                          </div>
+                          <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", plan.priceId ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+                            {plan.priceId ? "price ok" : "sem price"}
+                          </span>
+                        </div>
+                        <div className="space-y-3">
+                          <Field label="Nome">
+                            <Input value={plan.productName} onChange={(event) => updateStripePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </Field>
+                          <Field label="Descrição">
+                            <Textarea value={plan.description} rows={3} onChange={(event) => updateStripePlan(planCode, { description: event.target.value })} className="w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </Field>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Preço em centavos">
+                              <Input type="number" value={plan.priceCents} onChange={(event) => updateStripePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                            </Field>
+                            <Field label="Tokens">
+                              <Input type="number" value={plan.tokensIncluded} onChange={(event) => updateStripePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                            </Field>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Intervalo">
+                              <NativeSelect value={plan.interval} onChange={(event) => updateStripePlan(planCode, { interval: event.target.value as typeof plan.interval })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                                <option value="day">Diário</option>
+                                <option value="week">Semanal</option>
+                                <option value="month">Mensal</option>
+                                <option value="year">Anual</option>
+                              </NativeSelect>
+                            </Field>
+                            <Field label="Valor">
+                              <div className="flex h-10 items-center rounded-md border border-border bg-muted/20 px-3 text-sm font-semibold">
+                                {formatMoney(plan.priceCents)}
+                              </div>
+                            </Field>
+                          </div>
+                          <Field label="Product ID">
+                            <Input value={plan.productId ?? ""} onChange={(event) => updateStripePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </Field>
+                          <Field label="Price ID">
+                            <Input value={plan.priceId ?? ""} onChange={(event) => updateStripePlan(planCode, { priceId: event.target.value || undefined })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </Field>
+                          <div className="grid gap-2">
+                            <Button variant="outline" onClick={() => void createStripePlanProduct(planCode)} disabled={creatingStripeProduct === planCode || !stripeSettings.enabled}>
+                              {creatingStripeProduct === planCode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}
+                              Criar Product + Price
+                            </Button>
+                            {plan.priceId ? (
+                              <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Price ID pronto para checkouts Stripe.
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">Crie Product/Price ou cole IDs existentes do Stripe.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="flex justify-end border-t border-border px-6 py-4">
                 <Button onClick={saveStripeSettings} disabled={isSaving}>
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Salvar Stripe
                 </Button>
               </div>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-3">
-              {planCodes.map((planCode) => {
-                const plan = settings.plans[planCode]
-                return (
-                  <div key={planCode} className="rounded-md border border-border bg-card p-5">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano</p>
-                        <h3 className="font-display text-lg font-bold text-foreground">{planLabels[planCode]}</h3>
-                      </div>
-                      <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", plan.productId ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
-                        {plan.productId ? "produto ok" : "sem produto"}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      <Field label="Nome">
-                        <Input value={plan.productName} onChange={(event) => updatePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </Field>
-                      <Field label="Descrição">
-                        <Textarea value={plan.description} rows={3} onChange={(event) => updatePlan(planCode, { description: event.target.value })} className="w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </Field>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Preço em centavos">
-                          <Input type="number" value={plan.priceCents} onChange={(event) => updatePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                        </Field>
-                        <Field label="Tokens">
-                          <Input type="number" value={plan.tokensIncluded} onChange={(event) => updatePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                        </Field>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Ciclo">
-                          <NativeSelect value={plan.cycle} onChange={(event) => updatePlan(planCode, { cycle: event.target.value as typeof plan.cycle })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                            <option value="WEEKLY">Semanal</option>
-                            <option value="MONTHLY">Mensal</option>
-                            <option value="SEMIANNUALLY">Semestral</option>
-                            <option value="ANNUALLY">Anual</option>
-                          </NativeSelect>
-                        </Field>
-                        <Field label="Valor">
-                          <div className="flex h-10 items-center rounded-md border border-border bg-muted/20 px-3 text-sm font-semibold">
-                            {formatMoney(plan.priceCents)}
-                          </div>
-                        </Field>
-                      </div>
-                      <Field label="Product ID">
-                        <Input value={plan.productId ?? ""} onChange={(event) => updatePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </Field>
-                      <div className="grid gap-2">
-                        <Button variant="outline" onClick={() => void createPlanProduct(planCode)} disabled={creatingProduct === planCode || !settings.enabled}>
-                          {creatingProduct === planCode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}
-                          Criar produto recorrente
-                        </Button>
-                        {plan.productId ? (
-                          <div className="flex items-center gap-2 text-xs font-medium text-primary">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Product ID pronto para checkouts.
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Salve o provider e crie o produto, ou cole um productId existente.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-3">
-              {planCodes.map((planCode) => {
-                const plan = stripeSettings.plans[planCode]
-                return (
-                  <div key={planCode} className="rounded-md border border-border bg-card p-5">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Stripe fallback</p>
-                        <h3 className="font-display text-lg font-bold text-foreground">{planLabels[planCode]}</h3>
-                      </div>
-                      <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase", plan.priceId ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
-                        {plan.priceId ? "price ok" : "sem price"}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      <Field label="Nome">
-                        <Input value={plan.productName} onChange={(event) => updateStripePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </Field>
-                      <Field label="Descrição">
-                        <Textarea value={plan.description} rows={3} onChange={(event) => updateStripePlan(planCode, { description: event.target.value })} className="w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </Field>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Preço em centavos">
-                          <Input type="number" value={plan.priceCents} onChange={(event) => updateStripePlan(planCode, { priceCents: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                        </Field>
-                        <Field label="Tokens">
-                          <Input type="number" value={plan.tokensIncluded} onChange={(event) => updateStripePlan(planCode, { tokensIncluded: Number(event.target.value) })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-                        </Field>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Intervalo">
-                          <NativeSelect value={plan.interval} onChange={(event) => updateStripePlan(planCode, { interval: event.target.value as typeof plan.interval })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                            <option value="day">Diário</option>
-                            <option value="week">Semanal</option>
-                            <option value="month">Mensal</option>
-                            <option value="year">Anual</option>
-                          </NativeSelect>
-                        </Field>
-                        <Field label="Valor">
-                          <div className="flex h-10 items-center rounded-md border border-border bg-muted/20 px-3 text-sm font-semibold">
-                            {formatMoney(plan.priceCents)}
-                          </div>
-                        </Field>
-                      </div>
-                      <Field label="Product ID">
-                        <Input value={plan.productId ?? ""} onChange={(event) => updateStripePlan(planCode, { productId: event.target.value || undefined })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </Field>
-                      <Field label="Price ID">
-                        <Input value={plan.priceId ?? ""} onChange={(event) => updateStripePlan(planCode, { priceId: event.target.value || undefined })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </Field>
-                      <div className="grid gap-2">
-                        <Button variant="outline" onClick={() => void createStripePlanProduct(planCode)} disabled={creatingStripeProduct === planCode || !stripeSettings.enabled}>
-                          {creatingStripeProduct === planCode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}
-                          Criar Product + Price
-                        </Button>
-                        {plan.priceId ? (
-                          <div className="flex items-center gap-2 text-xs font-medium text-primary">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Price ID pronto para checkouts Stripe.
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Crie Product/Price ou cole IDs existentes do Stripe.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            </section>
 
             <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
               <div className="rounded-md border border-border bg-card">
