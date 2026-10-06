@@ -1,3 +1,4 @@
+import { DEFAULT_STUDIO_SETTINGS } from "@/lib/tenant-settings-types"
 import type {
   TenantSegmentationProfile,
   TenantSettings,
@@ -190,6 +191,7 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
 
   return {
     tenantSlug,
+    studio: structuredClone(DEFAULT_STUDIO_SETTINGS),
     general: {
       companyName: tenantSlug,
       description: "",
@@ -254,6 +256,7 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
 function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInput): TenantSettings {
   const next: TenantSettings = {
     ...existing,
+    studio: { ...DEFAULT_STUDIO_SETTINGS, ...existing.studio, ...input.studio },
     general: {
       ...existing.general,
       ...input.general,
@@ -298,6 +301,11 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
 
   return {
     ...next,
+    studio: {
+      catalogEnabled: normalizeBoolean(next.studio.catalogEnabled, existing.studio?.catalogEnabled ?? false),
+      environmentTypes: normalizeUniqueList(next.studio.environmentTypes).slice(0, 30).map(value => value.slice(0, 80)),
+      propertyContexts: normalizeUniqueList(next.studio.propertyContexts).slice(0, 30).map(value => value.slice(0, 80)),
+    },
     general: {
       companyName: normalizeText(next.general.companyName) || existing.tenantSlug,
       description: normalizeText(next.general.description),
