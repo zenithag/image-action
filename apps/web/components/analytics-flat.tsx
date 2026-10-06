@@ -5,8 +5,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
+  Area,
+  AreaChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -15,7 +15,9 @@ import {
   YAxis,
 } from "recharts"
 
-import { Empty, Metric, MetricStrip, Section } from "@/components/molecules/flat-blocks"
+import { Empty, Metric, Section } from "@/components/molecules/flat-blocks"
+import styles from "./analytics-layout.module.css"
+import { MessageSquare, Image, Users, CheckCircle2, Inbox } from "@/components/spectrum/icons"
 import { Pill } from "@/components/spectrum"
 import type { AnalyticsPayload } from "@/components/tenant-analytics-view"
 
@@ -38,10 +40,6 @@ const statusLabel: Record<AnalyticsPayload["reviewQueue"][number]["status"], str
   done: "Concluída",
 }
 
-/**
- * Analytics, flat: no cards. Blocks sit on the page background and are separated by rules, like the
- * inbox, so charts and lists get the full width.
- */
 export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
   const hasTimeline = data.conversationData.some((item) => item.conversas > 0 || item.composicoes > 0 || item.contatos > 0)
   const hasHourly = data.hourlyData.some((item) => item.mensagens > 0 || item.ia > 0 || item.operador > 0)
@@ -52,21 +50,21 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
   ]
 
   return (
-    <div className="space-y-8 px-8 py-6">
-      <MetricStrip>
-        <Metric label="Conversas" value={number.format(data.stats.conversations)} delta={data.deltas.conversations} />
-        <Metric label="Mensagens" value={number.format(data.stats.messages)} delta={data.deltas.messages} />
-        <Metric label="Composições" value={number.format(data.stats.compositions)} delta={data.deltas.compositions} />
-        <Metric label="Contatos" value={number.format(data.stats.contacts)} delta={data.deltas.contacts} />
-        <Metric
+    <div className={styles.dashboard}>
+      <div className={styles.metrics}>
+        <div className={styles.metric}><span className={styles.metricIcon}><MessageSquare aria-hidden="true" /></span><Metric label="Conversas" value={number.format(data.stats.conversations)} delta={data.deltas.conversations} /></div>
+        <div className={styles.metric}><span className={styles.metricIcon}><MessageSquare aria-hidden="true" /></span><Metric label="Mensagens" value={number.format(data.stats.messages)} delta={data.deltas.messages} /></div>
+        <div className={styles.metric}><span className={styles.metricIcon}><Image aria-hidden="true" /></span><Metric label="Composições" value={number.format(data.stats.compositions)} delta={data.deltas.compositions} /></div>
+        <div className={styles.metric}><span className={styles.metricIcon}><Users aria-hidden="true" /></span><Metric label="Contatos" value={number.format(data.stats.contacts)} delta={data.deltas.contacts} /></div>
+        <div className={styles.metric}><span className={styles.metricIcon}><CheckCircle2 aria-hidden="true" /></span><Metric
           label="Conclusão"
           value={data.stats.compositions > 0 ? `${data.stats.completionRate}%` : "—"}
           delta={data.stats.compositions > 0 ? data.deltas.completionRate : null}
           hint={`${number.format(data.stats.completedCompositions)} concluídas · ${number.format(data.stats.failedCompositions)} falhas`}
-        />
-      </MetricStrip>
+        /></div>
+      </div>
 
-      <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className={styles.chartRow}>
         <Section
           title="Atividade"
           aside={
@@ -83,15 +81,15 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
           <div className="h-64">
             {hasTimeline ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <LineChart data={data.conversationData} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+                <AreaChart data={data.conversationData} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
                   <CartesianGrid strokeDasharray="3 4" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="name" tickLine={false} axisLine={false} tick={axis} tickMargin={10} />
                   <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={axis} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" name="Composições" dataKey="composicoes" stroke={chartColors[0]} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                  <Line type="monotone" name="Conversas" dataKey="conversas" stroke={chartColors[1]} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                  <Line type="monotone" name="Contatos" dataKey="contatos" stroke={chartColors[2]} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                </LineChart>
+                  <Area fillOpacity={0.06} fill={chartColors[0]} type="monotone" name="Composições" dataKey="composicoes" stroke={chartColors[0]} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                  <Area fillOpacity={0.06} fill={chartColors[1]} type="monotone" name="Conversas" dataKey="conversas" stroke={chartColors[1]} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                  <Area fillOpacity={0.06} fill={chartColors[2]} type="monotone" name="Contatos" dataKey="contatos" stroke={chartColors[2]} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                </AreaChart>
               </ResponsiveContainer>
             ) : (
               <Empty>Sem atividade em {data.meta.label.toLowerCase()}.</Empty>
@@ -101,8 +99,8 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
 
         <Section title="Composições por modo">
           {modes.length > 0 ? (
-            <div className="flex items-center gap-6">
-              <div className="h-44 w-44 shrink-0">
+            <div className={styles.modes}>
+              <div className={styles.donut}>
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie data={modes} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={3} stroke="none" isAnimationActive={false}>
@@ -114,7 +112,7 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <ul className="min-w-0 flex-1 space-y-2 text-sm">
+              <ul className="w-full min-w-0 space-y-2 text-sm">
                 {modes.map((entry, index) => (
                   <li key={entry.name} className="flex items-center justify-between gap-3">
                     <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
@@ -132,7 +130,7 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
         </Section>
       </div>
 
-      <div className="grid gap-x-10 gap-y-8 border-t border-border pt-8 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className={styles.chartRow}>
         <Section
           title="Atendimento por hora"
           aside={
@@ -165,12 +163,12 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
         </Section>
 
         <Section title="Tempos de resposta">
-          <div className="space-y-5">
+          <div className={styles.responses}>
             {responses.map((response) => (
               <div key={response.label}>
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-muted-foreground">{response.label}</span>
-                  <span className="text-xl font-extrabold tabular-nums text-foreground">{response.value ?? "n/d"}</span>
+                  <span className="text-xl font-semibold tabular-nums text-foreground">{response.value ?? "n/d"}</span>
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--cf-chart-track,var(--muted))]">
                   <div className="h-full rounded-full bg-primary" style={{ width: `${response.rate ?? 0}%` }} />
@@ -182,7 +180,7 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
         </Section>
       </div>
 
-      <div className="grid gap-x-10 gap-y-8 border-t border-border pt-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <div className={styles.bottomRow}>
         <Section title="Fila de revisão" aside={<span className="text-xs text-muted-foreground">{data.reviewQueue.length} {data.reviewQueue.length === 1 ? "item" : "itens"}</span>}>
           {data.reviewQueue.length > 0 ? (
             <ul className="divide-y divide-border">
@@ -197,7 +195,7 @@ export function AnalyticsFlat({ data }: { data: AnalyticsPayload }) {
               ))}
             </ul>
           ) : (
-            <Empty>Nenhuma composição aguardando revisão.</Empty>
+            <div className={styles.empty}><Inbox aria-hidden="true" /><Empty>Nenhuma composição aguardando revisão.</Empty></div>
           )}
         </Section>
 

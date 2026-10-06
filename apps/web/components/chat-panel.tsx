@@ -1,5 +1,7 @@
 "use client"
 
+import styles from "./inbox-layout.module.css"
+
 import { NativeSelect, Textarea } from "@/components/spectrum/fields"
 import type { ReactNode } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
@@ -266,12 +268,13 @@ const MessageBubble = memo(function MessageBubble({ msg, tenantSlug, onSendToStu
       ) : (
         <div
           className={cn(
-            "relative max-w-[85%] px-3 py-1.5",
+            styles.bubble,
+            "relative max-w-[85%] px-4 py-3",
             msg.direction === "inbound"
               ? "bg-[var(--chat-bubble-in)] text-[var(--chat-bubble-in-foreground)]"
               : "bg-[var(--chat-bubble-out)] text-[var(--chat-bubble-out-foreground)]"
           )}
-          style={{ borderRadius: msg.direction === "inbound" ? "0 6px 6px 6px" : "6px 0 6px 6px" }}
+          style={{ borderRadius: 12 }}
         >
           {msg.direction === "outbound" && (
             <div className="mb-0.5 flex items-center gap-1.5 text-xs font-bold text-current/80 font-sans">
@@ -791,7 +794,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
 
   if (!hasConversation) {
     return (
-      <div className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center overflow-hidden bg-background">
+      <div className={`${styles.chatEmpty} flex h-full min-h-0 min-w-0 flex-col items-center justify-center overflow-hidden bg-background`}>
         <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-muted">
           <Bot className="h-5 w-5 text-muted-foreground" />
         </div>
@@ -804,8 +807,8 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
   }
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
-      <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+    <div className={`${styles.chat} flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background`}>
+      <div className={`${styles.chatHeader} flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3`}>
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {onBackToList && (
             <Button
@@ -823,7 +826,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
             {getInitials(currentContactName)}
           </div>
           <div className="min-w-0">
-            <h3 className="truncate text-xs font-medium text-foreground">{currentContactName}</h3>
+            <h3 className="truncate text-base font-semibold text-foreground">{currentContactName}</h3>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {currentPhone && (
                 <span className="flex items-center gap-1">
@@ -976,7 +979,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-hide"
+        className={`${styles.messages} min-h-0 flex-1 overflow-y-auto p-5 scrollbar-hide`}
         style={{ backgroundColor: "var(--chat-bg)" }}
       >
         <div className="mx-auto w-full max-w-4xl space-y-4">
@@ -1002,7 +1005,7 @@ export function ChatPanel({ tenantSlug, conversationId, onBackToList, onConversa
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-border bg-background p-4">
+      <div className={`${styles.composer} shrink-0 border-t border-border bg-background p-4`}>
         {isChannelInstanceRemoved && (
           <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-md border border-warning/25 bg-warning/10 px-3 py-2 text-xs text-warning-ink dark:text-warning">
             <AlertCircle className="h-4 w-4 shrink-0" />

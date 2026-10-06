@@ -1,0 +1,93 @@
+.header {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.header > :global([data-slot=search]) {
+  display: none;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+  align-items: start;
+  scrollbar-width: thin;
+}
+
+.instances, .card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--cf-chrome-bg, var(--card));
+  box-shadow: 0 2px 6px rgb(15 23 42 / .03);
+}
+
+.instances {
+  overflow: hidden;
+}
+
+.instancesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.instancesHeader h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.instancesHeader > :global(sp-button) { flex-shrink: 0; }
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.empty > svg {
+  width: 52px;
+  height: 52px;
+  padding: 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  color: var(--primary);
+}
+
+.main { min-width: 0; }
+.cards { display: grid; gap: 20px; max-width: 900px; margin-inline: auto; }
+.card { padding: 24px; }
+.card h2 { font-size: 18px; font-weight: 600; }
+.card p { line-height: 1.6; font-size: 13px; }
+.card label, .card dt, .card dd { font-weight: 400; }
+.card input { min-height: 40px; border-radius: 8px; }
+.card dl { padding-top: 20px; border-top: 1px solid var(--border); }
+
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: 220px minmax(0, 1fr); gap: 16px; padding: 20px; }
+  .card { padding: 20px; }
+}
+
+@media (max-width: 760px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .empty { padding: 20px; flex-direction: row; text-align: left; }
+  .empty > svg { flex-shrink: 0; }
+  .header { grid-template-columns: minmax(0, 1fr); }
+}

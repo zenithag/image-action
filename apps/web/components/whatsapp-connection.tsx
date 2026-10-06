@@ -10,6 +10,8 @@ import { SafeImage } from "@/components/safe-image"
 import { PageHeader } from "@/components/organisms/page-header"
 import { Pill } from "@/components/spectrum"
 import { cn } from "@/lib/utils"
+import management from "./management-layout.module.css"
+import styles from "./whatsapp-layout.module.css"
 import { ArrowRight, CheckCircle2, Loader2, Plus, QrCode, RefreshCw, Smartphone, Trash2, Unlink, XCircle } from "@/components/spectrum/icons"
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error"
@@ -315,29 +317,29 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
   const isConnected = activeInstance?.status === "connected"
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background">
+    <div className={management.page}>
       <PageHeader
-        title="whatsapp"
-        subtitle={`canal · ${isConnected ? "conectado" : "sem instância"}`}
+        className={cn(management.header, styles.header)}
+        title="WhatsApp"
+        subtitle="Gerencie os números e as conexões da sua empresa."
         actions={statusPill}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
-        {/* Instances: same pattern as the inbox list */}
-        <aside className="flex min-h-0 flex-col border-b border-border lg:border-b-0 lg:border-r">
-          <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+      <div className={styles.workspace}>
+        {/* Instance list */}
+        <aside className={styles.instances}>
+          <div className={styles.instancesHeader}>
             <h2 className="text-sm font-bold text-foreground">
               Instâncias <span className="cf-count">{instances.length}</span>
             </h2>
             <Button variant="ghost" onClick={startNewConnection}>
-              <Plus className="h-4 w-4" />
-              Nova
+              <span className={management.actionLabel}><Plus className="h-4 w-4" />Nova</span>
             </Button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             {instances.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground">Nenhuma instância conectada ainda.</p>
+              <div className={styles.empty}><Smartphone aria-hidden="true" /><p>Nenhuma instância conectada ainda.</p></div>
             ) : (
               instances.map((instance) => (
                 <div
@@ -379,10 +381,10 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
           </div>
         </aside>
 
-        <main className="min-h-0 min-w-0 overflow-y-auto">
-          <div className="mx-auto max-w-3xl divide-y divide-border px-8">
+        <main className={styles.main}>
+          <div className={styles.cards}>
             {/* Selected instance, or the first step of connecting one */}
-            <section className="py-6">
+            <section className={styles.card}>
               {isConnected && activeInstance ? (
                 <>
                   <div className="flex flex-wrap items-center gap-4">
@@ -399,12 +401,10 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" onClick={() => refreshStatus(activeInstance.id)} disabled={isLoading}>
-                        <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-                        Atualizar
+                        <span className={management.actionLabel}><RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />Atualizar</span>
                       </Button>
                       <Button variant="outline" onClick={() => deleteInstance(activeInstance)} disabled={deletingInstanceId === activeInstance.id}>
-                        {deletingInstanceId === activeInstance.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        Remover
+                        <span className={management.actionLabel}>{deletingInstanceId === activeInstance.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}Remover</span>
                       </Button>
                     </div>
                   </div>
@@ -451,7 +451,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                         />
                       </div>
                       <Button onClick={handleSaveName} disabled={!connectionName.trim()}>
-                        Continuar <ArrowRight className="h-4 w-4" />
+                        <span className={management.actionLabel}>Continuar <ArrowRight className="h-4 w-4" /></span>
                       </Button>
                     </div>
                   )}
@@ -460,7 +460,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
             </section>
 
             {/* New instance / QR code */}
-            <section className="py-6">
+            <section className={styles.card}>
               <h2 className="text-lg font-bold text-foreground">Adicionar nova instância</h2>
               <p className="mt-1 text-sm text-muted-foreground">Escaneie o QR Code com o WhatsApp do aparelho.</p>
 
@@ -488,10 +488,10 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                     </div>
                     <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                       <Button variant="outline" onClick={generateQRCode} disabled={isLoading}>
-                        <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} /> Atualizar QR
+                        <span className={management.actionLabel}><RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />Atualizar QR</span>
                       </Button>
                       <Button onClick={() => refreshStatus()} disabled={isLoading}>
-                        <CheckCircle2 className="h-4 w-4" /> Verificar
+                        <span className={management.actionLabel}><CheckCircle2 className="h-4 w-4" />Verificar</span>
                       </Button>
                     </div>
                   </>
@@ -511,7 +511,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                       />
                     </div>
                     <Button onClick={handleSaveName} disabled={!connectionName.trim()}>
-                      Continuar <ArrowRight className="h-4 w-4" />
+                      <span className={management.actionLabel}>Continuar <ArrowRight className="h-4 w-4" /></span>
                     </Button>
                   </div>
                 ) : (
@@ -523,8 +523,7 @@ export function WhatsAppConnection({ tenantSlug }: WhatsAppConnectionProps) {
                       {savedName ? "Clique abaixo para gerar o QR Code da nova instância." : "Informe o nome da instância primeiro."}
                     </p>
                     <Button className="mt-4" onClick={generateQRCode} disabled={isLoading || !savedName}>
-                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
-                      Gerar QR Code
+                      <span className={management.actionLabel}>{isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Gerar QR Code</span>
                     </Button>
                   </div>
                 )}

@@ -90,6 +90,11 @@
 }
 
 /* Icons are slotted SVGs (lucide); Spectrum lays items out with flex but does not centre them. */
+/* Spectrum fills slotted SVGs by default; outline icons must keep their interiors empty. */
+.cf-panel svg.lucide[data-icon] {
+  fill: none;
+}
+
 .cf-panel sp-sidenav-item > [slot="icon"],
 .cf-panel sp-button > [slot="icon"],
 .cf-panel sp-action-button > [slot="icon"] {
@@ -267,84 +272,56 @@ sp-tab[selected] .cf-count {
   justify-content: flex-start;
 }
 
-/*
- * Sidebar: the selected item is marked by a soft accent box around its label and an accent-coloured
- * icon; the row itself stays flat. (The row background Spectrum draws is the same grey as this bar.)
- */
+/* Sidebar rows share one soft selection surface, including the icon and label. */
 .cf-panel sp-sidenav-item {
   --mod-sidenav-background-default: transparent;
-  --mod-sidenav-background-hover: transparent;
+  --mod-sidenav-background-hover: var(--muted);
   --mod-sidenav-item-background-default-selected: transparent;
   --mod-sidenav-background-hover-selected: transparent;
   --mod-sidenav-background-key-focus-selected: transparent;
-  --mod-sidenav-item-background-down: transparent;
+  --mod-sidenav-item-background-down: var(--muted);
   --mod-sidenav-item-background-down-selected: transparent;
-  --mod-sidenav-content-color-default-selected: var(--cf-on-accent, #fff);
-  --mod-sidenav-content-color-hover-selected: var(--cf-on-accent, #fff);
-  --mod-sidenav-content-color-key-focus-selected: var(--cf-on-accent, #fff);
-  --mod-sidenav-content-color-down-selected: var(--cf-on-accent, #fff);
-}
-
-/* Every item reserves the same icon square, so labels stay aligned whether selected or not. */
-.cf-panel sp-sidenav-item {
-  position: relative;
-  isolation: isolate;
-  margin-block: 2px;
-  /* Spectrum pads the label 6px above and 8px below, which pushes it off the icon's centre line. */
+  --mod-sidenav-content-color-default-selected: var(--foreground);
+  --mod-sidenav-content-color-hover-selected: var(--foreground);
+  --mod-sidenav-content-color-key-focus-selected: var(--foreground);
+  --mod-sidenav-content-color-down-selected: var(--foreground);
   --mod-sidenav-top-to-label: 0px;
   --mod-sidenav-bottom-to-label: 0px;
-  --mod-sidenav-min-height: 32px;
+  --mod-sidenav-min-height: 44px;
+  position: relative;
+  isolation: isolate;
+  margin-block: 3px;
+  border-radius: 7px;
 }
 
 .cf-panel sp-sidenav-item > [slot="icon"] {
-  box-sizing: content-box;
+  box-sizing: border-box;
   width: 20px;
   height: 20px;
-  padding: 6px;
-  margin-inline: -6px 6px;
-  border-radius: 8px;
-  transition: background-color 130ms ease, color 130ms ease;
+  padding: 0;
+  margin-inline: 0 6px;
+  color: var(--muted-foreground);
 }
 
-/* Icon square, label and box share one 32px band, so their vertical centres coincide. */
 .cf-nav-label {
   display: inline-block;
   vertical-align: middle;
-  padding-inline-start: 14px;
-  line-height: 32px;
+  padding-inline-start: 6px;
+  line-height: 44px;
 }
 
-/* The label's box is drawn on the item itself so it can run to the right edge of the menu. */
-.cf-panel sp-sidenav-item::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset-block-start: 0;
-  block-size: 32px;
-  inset-inline: 44px 0;
-  border-radius: 8px 0 0 8px;
-  background: transparent;
-  pointer-events: none;
-  transition: background-color 130ms ease;
-}
-
-.cf-panel sp-sidenav-item:hover::before {
-  background: var(--spectrum-gray-300);
-}
-
-.cf-panel sp-sidenav-item[selected]::before {
-  background: var(--cf-accent, var(--spectrum-accent-visual-color, var(--spectrum-blue-800)));
+.cf-panel sp-sidenav-item[selected] {
+  background: color-mix(in srgb, var(--cf-accent, var(--primary)) 13%, transparent);
 }
 
 .cf-panel sp-sidenav-item[selected] .cf-nav-label {
-  color: var(--cf-on-accent, #fff);
+  color: var(--foreground);
   font-weight: 700;
 }
 
-/* Selected icon: inverted, on a square in the system (brand) colour. */
 .cf-panel sp-sidenav-item[selected] > [slot="icon"] {
-  background: var(--cf-accent, var(--spectrum-accent-visual-color, var(--spectrum-blue-800)));
-  color: var(--cf-on-accent, #fff);
+  background: transparent;
+  color: var(--cf-accent-ink, var(--primary));
 }
 
 /* Fields placed in a narrow row next to a button opt out of the width floor with `min-w-0`. */

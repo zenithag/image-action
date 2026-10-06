@@ -1,0 +1,48 @@
+.inbox {
+  --chat-bubble-in: var(--card);
+  --chat-bubble-in-foreground: var(--foreground);
+  --chat-bubble-out: color-mix(in srgb, var(--primary) 14%, var(--card));
+  --chat-bubble-out-foreground: var(--foreground);
+  background: var(--card);
+}
+.workspace { background: var(--card); }
+.list { background: var(--card); }
+.list > :first-child { padding: 16px; border-bottom: 0; }
+.filters { display: flex; flex-shrink: 0; gap: 4px; padding: 8px 12px 14px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.filters > sp-action-button {
+  flex: 1;
+  min-width: max-content;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 18px;
+  --mod-actionbutton-background-color-default: transparent;
+  --mod-actionbutton-background-color-default-selected: transparent;
+  --mod-actionbutton-background-color-hover-selected: transparent;
+}
+.filters > sp-action-button[selected] { background: color-mix(in srgb, var(--primary) 12%, var(--card)); color: var(--cf-accent-ink, var(--primary)); font-weight: 600; }
+.conversation { min-height: 100px; }
+.selected { background: color-mix(in srgb, var(--primary) 8%, var(--card)); }
+.conversation > button:first-of-type { min-height: 108px; padding: 20px 44px 20px 20px; }
+.conversation { border-bottom-color: color-mix(in srgb, var(--border) 40%, transparent); }
+.conversation > span { top: 0; bottom: 0; border-radius: 0; }
+.chat { background: color-mix(in srgb, var(--background) 30%, var(--card)); }
+.chatHeader { min-height: 88px; flex-wrap: wrap; background: color-mix(in srgb, var(--background) 24%, var(--card)); border-radius: 0 0 12px 12px; box-shadow: 0 2px 5px rgb(20 40 60 / 4%); z-index: 1; }
+.chatHeader > :first-child { min-width: 160px; }
+.chatHeader > :first-child > div:first-of-type { width: 44px; height: 44px; font-size: 14px; }
+.chatHeader > :last-child { flex-wrap: wrap; }
+.messages, .chatEmpty {
+  background-color: color-mix(in srgb, var(--background) 32%, var(--card));
+  background-image: radial-gradient(color-mix(in srgb, var(--muted-foreground) 9%, transparent) 0.7px, transparent 0.7px);
+  background-size: 18px 18px;
+}
+.messages { padding: 28px 24px; }
+.bubble { border: 1px solid color-mix(in srgb, var(--border) 35%, transparent); font-size: 14px; line-height: 1.65; box-shadow: 0 2px 4px rgb(20 40 60 / 4%); }
+.composer { background: var(--card); padding: 20px 24px; border-radius: 12px 12px 0 0; }
+.composer textarea { min-height: 48px; }
+.composer form > button { min-width: 44px; height: 46px; border: 1px solid var(--border); border-radius: 9px; }
+.composer form > button[type="submit"] { border-color: transparent; }
+@media (max-width: 640px) {
+  .chatHeader { padding: 12px; }
+  .messages { padding: 12px; }
+  .bubble { max-width: 94%; }
+}

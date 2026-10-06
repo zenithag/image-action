@@ -213,7 +213,7 @@ export function AppSidebar({
               title="Recolher"
               aria-label="Recolher menu"
             >
-              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
+              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
             </button>
           )}
         </div>
@@ -222,7 +222,7 @@ export function AppSidebar({
             {variant === "tenant" && tenantLogoUrl ? (
               <img src={tenantLogoUrl} alt="" className="h-5 w-5 shrink-0 rounded object-contain" />
             ) : null}
-            <span className="min-w-0 truncate text-sm font-bold leading-snug text-sidebar-foreground">{tenantName}</span>
+            <span className="min-w-0 truncate text-sm font-medium leading-snug text-sidebar-foreground">{tenantName}</span>
           </div>
         )}
       </div>
@@ -257,7 +257,7 @@ export function AppSidebar({
                 >
                 <item.icon
                   className={cn(variant === "tenant" ? "h-5 w-5 shrink-0" : "h-[17px] w-[17px] shrink-0", collapsed ? "" : "ml-0.5")}
-                  strokeWidth={isActive ? 2.2 : 1.8}
+                  strokeWidth={1.5}
                 />
                 </span>
                 {!collapsed && (
@@ -287,14 +287,14 @@ export function AppSidebar({
           })}
         </nav>
       ) : (
-        <nav className="flex flex-1 flex-col overflow-y-auto py-2 pl-3 pr-0" aria-label={variant === "superadmin" ? "Administração" : "Painel da empresa"}>
+        <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-2" aria-label={variant === "superadmin" ? "Administração" : "Painel da empresa"}>
           <SideNav
             label={variant === "superadmin" ? "Administração" : "Painel da empresa"}
             activeHref={activeNavHref}
             items={navItems.map((item) => ({
               href: tenantSlug ? item.href.replace("/tenant", `/tenant/${tenantSlug}`) : item.href,
               label: item.label,
-              icon: <item.icon className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />,
+              icon: <item.icon className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />,
               badge: item.label === "Inbox" ? inboxUnreadCount : 0,
               hot: item.hot,
             }))}
@@ -313,7 +313,7 @@ export function AppSidebar({
             collapsed ? "justify-center" : "",
           )}
         >
-          <LogOut className="h-[17px] w-[17px] shrink-0" strokeWidth={1.8} />
+          <LogOut className="h-[17px] w-[17px] shrink-0" strokeWidth={1.5} />
           {!collapsed && <span className={variant === "tenant" ? "text-sm font-medium" : "text-xs font-medium"}>Sair</span>}
         </button>
 
