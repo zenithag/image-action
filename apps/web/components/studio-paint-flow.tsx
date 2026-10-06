@@ -1,37 +1,40 @@
 "use client"
 
-import { getThemeContainer } from "@/components/spectrum/theme-container"
+import type { TenantSettings } from "@/lib/tenant-settings-types"
+
 import { Button } from "@/components/ui/button"
 import { Input, NativeSelect } from "@/components/spectrum/fields"
 import { useEffect, useRef, useState } from "react"
 import type { CSSProperties, MutableRefObject } from "react"
-import { Dialog } from "radix-ui"
 import { Check, Loader2, Paintbrush, Save, X } from "@/components/spectrum/icons"
-import Link from "next/link"
 import { SafeImage } from "@/components/safe-image"
 import type { CatalogItem } from "@/lib/catalog-types"
 import type { CompositionJob } from "@/lib/composition-types"
 import type { StudioImageArtifact, StudioPresetId } from "@/lib/studio-draft"
 import { getStudioArtifactKey } from "@/lib/studio-draft"
-import { buildStudioPresetInput, recordStudioPresetResult, removeStudioPresetVersion, chooseStudioFurniture, getStudioFurniture, getStudioWorkingBase, isStudioMaterialPreset, STUDIO_PRESETS, getStudioPaintSwatch, getStudioPaintPreviewSource, getStudioMaterials, readStudioPaintJob, submitStudioPaintJob } from "@/lib/studio-v1"
+import { buildStudioPresetsInput, STUDIO_PRESET_ORDER, recordStudioPresetResult, removeStudioPresetVersion, getStudioFurniture, getStudioWorkingBase, isStudioMaterialPreset, STUDIO_PRESETS, getStudioPaintPreviewSource, getStudioMaterials, readStudioPaintJob, submitStudioPaintJob } from "@/lib/studio-v1"
+import { fileToOptimizedWebpDataUrl } from "@/lib/studio-upload"
 import { cn } from "@/lib/utils"
 import styles from "./studio-batch.module.css"
 import overviewStyles from "./tenant-overview.module.css"
 
-type Selection = { item?: CatalogItem; furniture?: CatalogItem[]; base: StudioImageArtifact; key: string; strength: number; preset: StudioPresetId }
+type Selection = { item?: CatalogItem; furniture?: CatalogItem[]; base: StudioImageArtifact; key: string; strength: number; preset: StudioPresetId; presets?: StudioPresetId[] }
 const jobLabels = { queued: "Na fila", processing: "Aplicando alteração", done: "Alteração aplicada", failed: "A aplicação falhou" }
 
 const SIDE_BUTTON: CSSProperties = { width: 22, height: 22, minWidth: 0, padding: 0 }
 
-export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open, onClose, onUpdate, operationLock, onBusy, disabled }: {
-  slug: string; base: StudioImageArtifact; manual: string; strength: number; preset: StudioPresetId; catalogId: string; open: boolean
+export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open, onClose, onUpdate, operationLock, onBusy, disabled, studioSettings, applyRequest }: {
+  studioSettings: TenantSettings["studio"]; applyRequest: number
+  slug: string; base: StudioImageArtifact; strength: number; preset: StudioPresetId; catalogId: string; open: boolean
   onClose: () => void; onUpdate: (key: string, patch: Partial<StudioImageArtifact>) => void
   operationLock: MutableRefObject<boolean>; onBusy: (busy: boolean) => void; disabled: boolean
 }) {
+  const [useCatalog, setUseCatalog] = useState(false)
+  const [catalogSelections, setCatalogSelections] = useState<Partial<Record<StudioPresetId, CatalogItem[]>>>({})
+  const catalogActive = studioSettings.catalogEnabled && useCatalog
   const [items, setItems] = useState<CatalogItem[]>([])
   const [loading, setLoading] = useState(false)
   const [catalogError, setCatalogError] = useState<string | null>(null)
-  const [selection, setSelection] = useState<Selection | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [jobs, setJobs] = useState<Record<string, CompositionJob>>({})
@@ -40,13 +43,10 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
   const [saveNote, setSaveNote] = useState<string | null>(null)
   const [removeFixedFurniture, setRemoveFixedFurniture] = useState(false)
   const [includeCeiling, setIncludeCeiling] = useState(false)
-  const [aggregate, setAggregate] = useState(true)
-  const [placement, setPlacement] = useState("")
-  const [sku, setSku] = useState("")
-  const [selectedFurniture, setSelectedFurniture] = useState<string[]>([])
-  const [furnitureMode, setFurnitureMode] = useState<"manual" | "automatic">("manual")
-  const [luxury, setLuxury] = useState(base.furnishingLuxury === true)
-  const [room, setRoom] = useState<StudioImageArtifact["roomType"]>(base.roomType && base.roomType !== "auto" ? base.roomType : "living-room")
+  const aggregate = true
+  const placement = ""
+  const [uploadingReference, setUploadingReference] = useState(false)
+  const [room, setRoom] = useState<StudioImageArtifact["roomType"]>(base.roomType && base.roomType !== "auto" ? base.roomType : "auto")
   const catalogRef = useRef<HTMLElement>(null)
   const requestIds = useRef(new Map<string, string>())
   const submittingLock = useRef(false)
@@ -56,26 +56,27 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
   updateRef.current = onUpdate
   const key = getStudioArtifactKey(base)
   const job = base.paintJobId && jobs[base.paintJobId]?.tenantSlug === slug ? jobs[base.paintJobId] : undefined
-  const visibleItems = isStudioMaterialPreset(preset) ? getStudioMaterials(items, slug, preset) : getStudioFurniture(items, slug).filter(item => furnitureMode === "automatic" ? selectedFurniture.includes(item.id) : !sku.trim() || `${item.sku || ""} ${item.name}`.toLowerCase().includes(sku.trim().toLowerCase()))
+  const visibleItems = isStudioMaterialPreset(preset) ? getStudioMaterials(items, slug, preset) : getStudioFurniture(items, slug)
+  const activePresets = base.combinePresets ? STUDIO_PRESET_ORDER.filter(id => base.presetIds?.includes(id)) : [preset]
+  const contextualPresets = activePresets.filter(id => !["remove-furniture", "renovate"].includes(id))
   const presetLabel = STUDIO_PRESETS.find(item => item.id === preset)!.label
   const pending = Boolean(base.paintJobId && (!job || job.status === "queued" || job.status === "processing"))
   const working = getStudioWorkingBase(base)
   const selectedVersion = base.presetVersions?.find(version => version.jobId === base.selectedPresetVersionId)
+  const pendingVersion = base.presetVersions?.find(version => version.jobId === base.paintJobId && (version.status === "queued" || version.status === "processing"))
 
-  useEffect(() => { onBusy(pending || submitting); return () => onBusy(false) }, [pending, submitting, onBusy])
+  useEffect(() => { onBusy(pending || submitting || uploadingReference); return () => onBusy(false) }, [pending, submitting, uploadingReference, onBusy])
   useEffect(() => { if (open) catalogRef.current?.focus() }, [open, preset])
   useEffect(() => {
-    setSelection(null); setSelectedFurniture([]); setSku(""); setPlacement("")
-    setRoom(baseRef.current.roomType && baseRef.current.roomType !== "auto" ? baseRef.current.roomType : "living-room")
-    setLuxury(baseRef.current.furnishingLuxury === true)
+    setCatalogSelections({}); setIncludeCeiling(baseRef.current.paintCeiling === true); setRemoveFixedFurniture(baseRef.current.removeFixedFurniture === true)
+    setRoom(baseRef.current.roomType && baseRef.current.roomType !== "auto" ? baseRef.current.roomType : "auto")
   }, [slug, key, base.selectedPresetVersionId])
   useEffect(() => {
     if (!open) return
-    setApplyError(null); setIncludeCeiling(false); setRemoveFixedFurniture(false); setAggregate(true)
-    if (preset === "remove-furniture" || preset === "renovate") setSelection({ base: structuredClone(baseRef.current), key, strength, preset })
+    setApplyError(null)
   }, [open, preset, key, strength])
   useEffect(() => {
-    if (!open || (!isStudioMaterialPreset(preset) && preset !== "furnish")) return
+    if (!catalogActive || !open || (!isStudioMaterialPreset(preset) && preset !== "furnish")) return
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout>
     let refreshing = false
@@ -99,15 +100,8 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
     const onVisibility = () => { if (document.visibilityState === "visible") void refresh() }
     window.addEventListener("focus", onFocus); document.addEventListener("visibilitychange", onVisibility); void refresh()
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVisibility) }
-  }, [open, slug, preset])
+  }, [open, slug, preset, catalogActive])
 
-  useEffect(() => {
-    if (!open || preset !== "furnish" || furnitureMode !== "automatic") return
-    if (loading || catalogError) { setSelectedFurniture([]); setApplyError(null); return }
-    const chosen = chooseStudioFurniture(items, slug, room || "living-room")
-    setSelectedFurniture(chosen.map(item => item.id))
-    setApplyError(chosen.length || loading || catalogError ? null : "Não há móveis ou decoração ativos classificados para este cômodo no catálogo.")
-  }, [open, preset, furnitureMode, room, items, slug, key, loading, catalogError])
 
   useEffect(() => {
     const id = base.paintJobId
@@ -137,29 +131,54 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
     return () => { controller.abort(); clearTimeout(timer) }
   }, [slug, base.paintJobId, key])
 
-  function confirm(item?: CatalogItem, furniture?: CatalogItem[]) {
-    setApplyError(null); setIncludeCeiling(false); setPlacement("")
-    setSelection({ item, furniture, base: structuredClone(base), key, strength, preset })
+  function updatePresetOption(id: StudioPresetId, patch: NonNullable<StudioImageArtifact["presetOptions"]>[StudioPresetId]) {
+    onUpdate(key, { presetOptions: { ...base.presetOptions, [id]: { ...base.presetOptions?.[id], ...patch } } })
   }
-  async function apply() {
-    if (!selection || operationLock.current || submittingLock.current || pending) return
-    const target = selection
+
+  async function uploadReference(id: StudioPresetId, file: File) {
+    if (uploadingReference || submitting || pending || disabled) return
+    const targetKey = key
+    setUploadingReference(true); setApplyError(null)
+    try {
+      const mediaUrl = await fileToOptimizedWebpDataUrl(file)
+      const current = baseRef.current
+      if (getStudioArtifactKey(current) !== targetKey) return
+      onUpdate(targetKey, { presetOptions: { ...current.presetOptions, [id]: { ...current.presetOptions?.[id], reference: { source: "upload", mediaUrl, caption: file.name, createdAt: new Date().toISOString() } } } })
+    } catch (error) { setApplyError(error instanceof Error ? error.message : "Não foi possível carregar a referência.") }
+    finally { setUploadingReference(false) }
+  }
+
+  async function apply(target: Selection) {
+    if (disabled || uploadingReference || !target || operationLock.current || submittingLock.current || pending) return
     operationLock.current = true; submittingLock.current = true; setSubmitting(true); setApplyError(null)
     try {
-      const targetBase = { ...target.base, roomType: room, furnishingLuxury: luxury, selectedSurfaceIds: [] }
-      const body = buildStudioPresetInput(slug, targetBase, target.preset, { item: target.item, furniture: target.furniture, strength: target.strength, includeCeiling, removeFixedFurniture, aggregate, placement })
+      const targetBase = { ...target.base, roomType: room, presetOptions: { ...target.base.presetOptions, "fresh-paint": { color: "#ffffff", ...target.base.presetOptions?.["fresh-paint"] } }, selectedSurfaceIds: [] }
+      const presets = target.presets || [target.preset]
+      const materials = Object.fromEntries(presets.filter(isStudioMaterialPreset).flatMap(id => {
+        const item = target.item && id === target.preset ? target.item : catalogSelections[id]?.[0]
+        return item ? [[id, item]] : []
+      }))
+      const body = buildStudioPresetsInput(slug, targetBase, presets, { strength: target.strength, includeCeiling, removeFixedFurniture, aggregate, placement, materials: catalogActive ? materials : undefined, furniture: catalogActive ? target.furniture || catalogSelections.furnish : undefined })
       const signature = JSON.stringify(body)
       if (!requestIds.current.has(signature)) requestIds.current.set(signature, `studio-preset:${crypto.randomUUID()}`)
       const created = await submitStudioPaintJob(slug, { ...body, sourceMessageId: requestIds.current.get(signature) })
       setJobs(current => ({ ...current, [created.id]: created }))
-      const label = `${STUDIO_PRESETS.find(entry => entry.id === target.preset)!.label}${target.item ? ` · ${target.item.name}` : ""}`
+      const label = STUDIO_PRESET_ORDER.filter(id => presets.includes(id)).map(id => STUDIO_PRESETS.find(entry => entry.id === id)!.label).join(" + ")
       const parentVersionId = aggregate ? target.base.selectedPresetVersionId : undefined
-      const version = { jobId: created.id, preset: target.preset, label, parentVersionId, manualTarget: placement.trim() || undefined, status: created.status, createdAt: created.createdAt, resultImageUrl: created.resultImageUrl }
+      const version = { jobId: created.id, preset: target.preset, presetIds: body.presetIds, label, parentVersionId, manualTarget: placement.trim() || undefined, status: created.status, createdAt: created.createdAt, resultImageUrl: created.resultImageUrl }
       onUpdate(target.key, { paintJobId: created.id, pendingPresetId: target.preset, pendingPresetLabel: label, pendingParentVersionId: parentVersionId, presetVersions: [...(target.base.presetVersions || []), version], ...(created.status === "done" && created.resultImageUrl ? { selectedPresetVersionId: created.id } : {}) })
-      requestIds.current.delete(signature); setSelection(null); onClose()
+      requestIds.current.delete(signature); onClose()
     } catch (error) { setApplyError(error instanceof Error ? error.message : "Não foi possível aplicar. Tente novamente.") }
     finally { operationLock.current = false; submittingLock.current = false; setSubmitting(false) }
   }
+
+  useEffect(() => {
+    if (!applyRequest || !baseRef.current.combinePresets || !baseRef.current.presetIds?.length) return
+    const snapshot = structuredClone(baseRef.current)
+    void apply({ base: snapshot, key: getStudioArtifactKey(snapshot), strength, preset: snapshot.presetIds![0], presets: snapshot.presetIds })
+    // Only an explicit toolbar click submits a job, never a selection or scene switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyRequest])
 
   // Saves a preset result into Compositions (preset images are hidden from that list until saved).
   async function saveVersionAsComposition(versionId: string) {
@@ -196,47 +215,54 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
       {job?.status === "failed" && <span>{job.errorMessage || "A aplicação falhou. Abra o preset para tentar novamente; suas versões foram preservadas."}</span>}
       <div className={styles.presetVersions} role="group" aria-label="Versões deste ambiente; a selecionada será a base da composição">
         <button type="button" aria-label="Usar imagem original como principal" aria-pressed={!base.selectedPresetVersionId} onClick={() => onUpdate(key, { selectedPresetVersionId: undefined })}><SafeImage src={base.mediaUrl} alt="Original" /></button>
+        {pendingVersion && <div className={styles.presetVersion} data-glass="">
+          <div className={styles.presetVersionPending} role="img" aria-label={`${pendingVersion.label} — imagem em geração`} aria-busy="true">
+            <SafeImage src={job?.baseImageUrl || base.presetVersions?.find(version => version.jobId === pendingVersion.parentVersionId)?.resultImageUrl || base.mediaUrl} alt="" />
+            <span className={styles.presetThumbnailLoader} aria-hidden="true"><span className={styles.presetThumbnailSpinner} /></span>
+          </div>
+        </div>}
         {base.presetVersions?.filter(version => version.status === "done" && version.resultImageUrl).map(version => <div key={version.jobId} className={styles.presetVersion} data-glass="">
           <button type="button" title={version.label} aria-label={`Usar ${version.label} como principal`} aria-pressed={base.selectedPresetVersionId === version.jobId} onClick={() => onUpdate(key, { selectedPresetVersionId: version.jobId })}><SafeImage src={version.resultImageUrl} alt={version.label} /></button>
           <div className={styles.presetVersionActions}>
-          <Button variant="ghost" size="icon" type="button" style={SIDE_BUTTON} title="Excluir variação do Estúdio" aria-label={`Excluir variação ${version.label}`} disabled={pending || submitting || Boolean(selection)} onClick={() => { const patch = removeStudioPresetVersion(baseRef.current, version.jobId); if (patch) onUpdate(key, patch) }}><X size={11} aria-hidden="true" /></Button>
+          <Button variant="ghost" size="icon" type="button" style={SIDE_BUTTON} title="Excluir variação do Estúdio" aria-label={`Excluir variação ${version.label}`} disabled={pending || submitting} onClick={() => { const patch = removeStudioPresetVersion(baseRef.current, version.jobId); if (patch) onUpdate(key, patch) }}><X size={11} aria-hidden="true" /></Button>
           <Button variant="ghost" size="icon" type="button" style={SIDE_BUTTON} title={version.savedAsComposition ? "Salva em Composições" : "Salvar em Composições"} aria-label={version.savedAsComposition ? `${version.label} já está salva em Composições` : `Salvar ${version.label} em Composições`} disabled={version.savedAsComposition === true || savingVersionId !== null || pending} onClick={() => void saveVersionAsComposition(version.jobId)}>{savingVersionId === version.jobId ? <Loader2 size={11} aria-hidden="true" /> : version.savedAsComposition ? <Check size={11} aria-hidden="true" /> : <Save size={11} aria-hidden="true" />}</Button>
           </div>
         </div>)}
       </div>
     </div>
-    <section ref={catalogRef} id={catalogId} tabIndex={-1} inert={!open} aria-hidden={!open} data-state={open && preset !== "renovate" && preset !== "remove-furniture" ? "open" : "closed"} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose() } }} className={cn(styles.paintCatalog, preset === "furnish" && styles.furnishOptions)} style={{ "--paint-visible-count": Math.min(6, Math.max(1, visibleItems.length)) } as CSSProperties} aria-label={`${presetLabel} do catálogo`}>
-      {preset === "furnish" && <>
-        <label>Modo<NativeSelect value={furnitureMode} onChange={event => { setFurnitureMode(event.target.value as typeof furnitureMode); setSelectedFurniture([]) }}><option value="manual">Selecionar itens</option><option value="automatic">Mobiliar automaticamente</option></NativeSelect></label>
-        <label>Cômodo<NativeSelect value={room} onChange={event => { setRoom(event.target.value as typeof room); setSelectedFurniture([]) }}><option value="living-room">Sala</option><option value="kitchen">Cozinha</option><option value="bedroom">Quarto</option><option value="bathroom">Banheiro</option></NativeSelect></label>
-        <Input type="checkbox" checked={luxury} onChange={event => setLuxury(event.target.checked)} style={{ alignItems:"flex-start" }}>Alto padrão visual</Input>
-        {furnitureMode === "manual" && <label>Buscar produto por SKU ou nome<Input value={sku} onChange={event => setSku(event.target.value)} /></label>}
-        {furnitureMode === "automatic" && <p>Até 5 itens compatíveis com o cômodo são sorteados automaticamente. Revise a seleção antes de aplicar.</p>}
+    <section ref={catalogRef} id={catalogId} tabIndex={-1} inert={!open} aria-hidden={!open} data-state={open ? "open" : "closed"} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); onClose() } }} className={cn(styles.paintCatalog, styles.furnishOptions)} aria-label="Opções dos presets">
+      <strong>{base.combinePresets ? "Combinar presets" : presetLabel}</strong>
+      {base.combinePresets && <p>Ordem: {STUDIO_PRESET_ORDER.filter(id => base.presetIds?.includes(id)).map(id => STUDIO_PRESETS.find(value => value.id === id)!.label).join(" → ") || "Selecione os presets na barra abaixo."}</p>}
+      {contextualPresets.length > 0 && <>
+      <label>Tipo de ambiente<NativeSelect aria-label="Tipo de ambiente" value={room || "auto"} onChange={event => { setRoom(event.target.value); onUpdate(key, { roomType: event.target.value }) }}><option value="auto">Conforme a imagem</option>{[...new Set([...(studioSettings.environmentTypes || []), ...(room && room !== "auto" ? [room] : [])])].map(value => <option key={value} value={value}>{value}</option>)}</NativeSelect></label>
+      <fieldset><legend>Contexto do imóvel</legend><div className={styles.contextTags}>{studioSettings.propertyContexts.map(value => <label key={value}><Input type="checkbox" checked={base.propertyContexts?.includes(value) === true} onChange={event => onUpdate(key, { propertyContexts: event.target.checked ? [...(base.propertyContexts || []), value] : base.propertyContexts?.filter(item => item !== value) })} />{value}</label>)}</div></fieldset>
+      <label className={styles.sceneDescription}>Descrição do cenário (opcional)<textarea aria-label="Descrição do cenário" rows={2} maxLength={1000} value={base.sceneDescription || ""} placeholder="Ex.: apartamento compacto com luz natural" onChange={event => onUpdate(key, { sceneDescription: event.target.value })} /></label>
       </>}
-      {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError} Tentaremos novamente automaticamente.</p> : visibleItems.length === 0 ? <p>Nenhum item ativo compatível com {presetLabel.toLowerCase()} neste catálogo. <Link href={`/tenant/${slug}/catalog`}>Abrir catálogo</Link></p> : <div className={styles.paintItems} tabIndex={0} role="group" aria-label={`Amostras de ${presetLabel}; role horizontalmente para ver mais opções`}>
-        {visibleItems.map(item => <button key={item.id} type="button" aria-label={`${item.name}${item.sku ? ` · SKU ${item.sku}` : ""}`} title={`${item.name}${item.sku ? ` · SKU ${item.sku}` : ""}`} disabled={disabled || submitting || pending || (preset === "furnish" && furnitureMode === "automatic")} aria-pressed={preset === "furnish" && selectedFurniture.includes(item.id)} onClick={() => { if (preset === "furnish") setSelectedFurniture(current => current.includes(item.id) ? current.filter(id => id !== item.id) : current.length < 5 ? [...current, item.id] : current); else confirm(item) }}>
-          {getStudioPaintPreviewSource(item, slug) ? <SafeImage src={getStudioPaintPreviewSource(item, slug)} alt={item.name} loading="lazy" decoding="async" className={styles.paintThumbnail} /> : getStudioPaintSwatch(item) ? <span className={styles.paintSwatch} style={{ backgroundColor: getStudioPaintSwatch(item) }} aria-label={`Amostra ${getStudioPaintSwatch(item)}`} /> : <Paintbrush size={24} aria-hidden="true" />}
-        </button>)}
-      </div>}
-      {preset === "furnish" && <><p>{selectedFurniture.length} de 5 itens selecionados</p><Button variant="outline" type="button" disabled={!selectedFurniture.length || loading || Boolean(catalogError) || disabled || submitting || pending} onClick={() => confirm(undefined, selectedFurniture.flatMap(id => { const item = items.find(candidate => candidate.id === id); return item ? [item] : [] }))}>Revisar aplicação</Button></>}
-      {applyError && !selection && <p role="alert">{applyError}</p>}
+      {activePresets.includes("remove-furniture") && <Input type="checkbox" checked={removeFixedFurniture} onChange={event => { setRemoveFixedFurniture(event.target.checked); onUpdate(key, { removeFixedFurniture: event.target.checked }) }}>Remover também móveis e instalações fixas</Input>}
+      {activePresets.includes("fresh-paint") && <Input type="checkbox" checked={includeCeiling} onChange={event => { setIncludeCeiling(event.target.checked); onUpdate(key, { paintCeiling: event.target.checked }) }}>Pintar o teto também</Input>}
+      {activePresets.includes("fresh-paint") && <label className={styles.paintColor}>Cor da pintura<input type="color" aria-label="Cor da pintura" value={base.presetOptions?.["fresh-paint"]?.color || "#ffffff"} onChange={event => updatePresetOption("fresh-paint", { color: event.target.value })} /><span>{base.presetOptions?.["fresh-paint"]?.color || "#ffffff"}</span></label>}
+      {activePresets.includes("flooring") && <label>Aplicar revestimento em<NativeSelect aria-label="Aplicar revestimento em" value={base.presetOptions?.flooring?.surface || "floor"} onChange={event => updatePresetOption("flooring", { surface: event.target.value as "floor" | "walls" | "both" })}><option value="floor">Piso</option><option value="walls">Paredes</option><option value="both">Piso e paredes</option></NativeSelect></label>}
+      {contextualPresets.map(id => <fieldset key={id}>
+        {base.combinePresets && <legend>{STUDIO_PRESETS.find(item => item.id === id)!.label}</legend>}
+        <label className={styles.sceneDescription}>Instruções adicionais (opcional)<textarea aria-label={base.combinePresets ? `Instruções adicionais: ${STUDIO_PRESETS.find(item => item.id === id)!.label}` : "Instruções adicionais"} rows={2} maxLength={1000} value={base.presetOptions?.[id]?.instructions || ""} placeholder="Ex.: acabamento fosco, mantendo os detalhes existentes" onChange={event => updatePresetOption(id, { instructions: event.target.value })} /></label>
+        <label className={styles.presetReference}>Referência de imagem (opcional)<input type="file" aria-label={`Referência de imagem: ${STUDIO_PRESETS.find(item => item.id === id)!.label}`} accept="image/jpeg,image/png,image/webp" disabled={disabled || submitting || pending || uploadingReference} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void uploadReference(id, file) }} /></label>
+        {base.presetOptions?.[id]?.reference && <div className={styles.presetReferencePreview}><SafeImage src={base.presetOptions[id]!.reference!.mediaUrl} alt={`Referência para ${STUDIO_PRESETS.find(item => item.id === id)!.label}`} /><button type="button" disabled={uploadingReference || submitting || pending} onClick={() => updatePresetOption(id, { reference: undefined })}>Remover referência</button></div>}
+      </fieldset>)}
+      {uploadingReference && <p role="status">Preparando referência…</p>}
+      {studioSettings.catalogEnabled && contextualPresets.length > 0 && <Input type="checkbox" checked={catalogActive} onChange={event => setUseCatalog(event.target.checked)}>Usar produtos do catálogo (opcional)</Input>}
+      {catalogActive && (isStudioMaterialPreset(preset) || preset === "furnish") && <>
+        <strong>Produtos para {presetLabel.toLowerCase()}</strong>
+        {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError}</p> : visibleItems.length === 0 ? <p>Nenhum item compatível. Você pode desmarcar o catálogo e gerar com IA.</p> : <div className={styles.paintItems} role="group" aria-label="Produtos opcionais do catálogo">
+          {visibleItems.map(item => <button key={item.id} type="button" title={item.name} aria-label={item.name} disabled={disabled || submitting || pending || uploadingReference} aria-pressed={catalogSelections[preset]?.some(value => value.id === item.id) === true} onClick={() => setCatalogSelections(current => {
+            const selected = current[preset] || []
+            return { ...current, [preset]: selected.some(value => value.id === item.id) ? selected.filter(value => value.id !== item.id) : preset === "furnish" ? [...selected, item].slice(0, 5) : [item] }
+          })}>{getStudioPaintPreviewSource(item, slug) ? <SafeImage src={getStudioPaintPreviewSource(item, slug)} alt={item.name} className={styles.paintThumbnail} /> : <Paintbrush size={24} />}<span>{item.name}</span></button>)}
+        </div>}
+      </>}
+      <p>Uma geração por aplicação. Móveis e acabamentos são criados pela IA; câmera e estrutura devem ser preservadas.</p>
+      {!base.combinePresets && <Button type="button" disabled={disabled || submitting || pending || uploadingReference} onClick={() => void apply({ base: structuredClone(baseRef.current), key, strength, preset })}>{submitting ? "Enviando…" : "Aplicar"}</Button>}
+      {applyError && <p role="alert">{applyError}</p>}
     </section>
-    <Dialog.Root open={Boolean(selection)} onOpenChange={opened => { if (!opened && !submitting) { setSelection(null); onClose() } }}>
-      <Dialog.Portal container={getThemeContainer()}><Dialog.Overlay className={styles.paintModalOverlay} /><Dialog.Content className={cn(overviewStyles.surface, styles.paintModal)}>
-        <Dialog.Title>{selection?.preset === "remove-furniture" ? "Remover os móveis deste ambiente?" : `Aplicar ${STUDIO_PRESETS.find(p => p.id === selection?.preset)?.label.toLowerCase() || "preset"}?`}</Dialog.Title>
-        <Dialog.Description>Ambiente: {selection?.base.caption || "Ambiente selecionado"}. {selection?.item?.name || selection?.furniture?.map(item => item.name).join(", ")}</Dialog.Description>
-        {selection?.preset === "remove-furniture" && <Input type="checkbox" checked={removeFixedFurniture} onChange={event => setRemoveFixedFurniture(event.target.checked)} style={{ alignItems:"flex-start" }}>Remover também móveis e instalações fixas (pias, armários e vasos sanitários), deixando paredes, piso e teto. Preservar portas, janelas e estrutura.</Input>}
-        {selection?.preset === "renovate" && <p>Restaurar a aparência de desgaste, trincas, sujeira e manchas, preservando os mesmos materiais, cores, móveis e estrutura.</p>}
-        {selection?.preset === "fresh-paint" && <Input type="checkbox" checked={includeCeiling} onChange={event => setIncludeCeiling(event.target.checked)} style={{ alignItems:"flex-start" }}>Pintar o teto também</Input>}
-        {selection && isStudioMaterialPreset(selection.preset) && <label className={styles.paintField}><span>Onde aplicar (opcional)</span><Input maxLength={500} value={placement} onChange={event => setPlacement(event.target.value)} placeholder="Ex.: somente a parede à esquerda" /><p>Descreva o local em texto. Sem indicação, a aplicação segue o padrão deste preset.</p></label>}
-        {selection?.preset === "flooring" && !placement.trim() && <p>Aplicar em todo o piso visível.</p>}{selection?.preset === "ceiling" && !placement.trim() && <p>Aplicar em todo o teto / forro, preservando luminárias.</p>}
-        {selection?.preset === "furnish" && <><Input type="checkbox" checked={aggregate} onChange={event => setAggregate(event.target.checked)} style={{ alignItems:"flex-start" }}>Agregar à versão principal, preservando as edições anteriores</Input><label className={styles.paintField}><span>Onde colocar os itens</span><Input maxLength={500} value={placement} onChange={event => setPlacement(event.target.value)} placeholder="Ex.: mesa junto à parede esquerda" /></label><p>A posição é uma instrução descritiva; não há editor de posicionamento preciso nesta etapa.</p></>}
-        <p>A aplicação gera uma versão neste Estúdio e usa créditos do plano. A imagem original é preservada. A composição geral usa a versão principal escolhida.</p>
-        <p>Preservação orientada por instruções, sem garantia de isolamento de pixels.</p>
-        {applyError && <p role="alert">{applyError}</p>}
-        <div className={styles.paintModalActions}><Dialog.Close asChild><Button variant="outline" type="button" disabled={submitting}>Cancelar</Button></Dialog.Close><Button variant="default" type="button" onClick={() => void apply()} disabled={submitting || disabled || pending}>{submitting ? "Enviando…" : "Aplicar"}</Button></div>
-        <Dialog.Close asChild><Button variant="ghost" size="icon" type="button" disabled={submitting} aria-label="Fechar confirmação" style={{ position:"absolute", top:8, right:8 }}><X size={18} /></Button></Dialog.Close>
-      </Dialog.Content></Dialog.Portal>
-    </Dialog.Root>
+
   </>
 }

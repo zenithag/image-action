@@ -1,5 +1,9 @@
 "use client"
 
+import { STUDIO_PRESETS } from "@/lib/studio-v1"
+import type { summarizeGenerationCosts } from "@/lib/generation-costs"
+import { Section } from "@/components/molecules/flat-blocks"
+
 import { UserMenu } from "@/components/molecules/user-menu"
 import { useEffect, useMemo, useState } from "react"
 import { Activity, ArrowDown, ArrowUp, Bot, Loader2, MessageSquare, RefreshCw, Smartphone, Users, Zap } from "@/components/spectrum/icons"
@@ -9,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 type UsagePayload = {
+  generationCosts: ReturnType<typeof summarizeGenerationCosts>
   totals: {
     tenants: number
     conversations: number
@@ -147,6 +152,15 @@ export default function UsagePage() {
           </div>
         ) : data ? (
           <>
+            <Section title="Custo por tipo de geração" aside={<span className="text-xs text-muted-foreground">Custos do provedor em USD, incluindo tentativas e fallbacks</span>}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm"><thead><tr className="border-b border-border"><th className="py-3">Tipo</th><th>Jobs</th><th>Concluídos</th><th>Chamadas</th><th>Custo conhecido</th><th>Média por chamada com custo</th><th>Sem custo informado</th></tr></thead><tbody>
+                  {data.generationCosts?.map(row => <tr key={row.type} className="border-b border-border"><td className="py-3">{row.type === "composition" ? "Composição" : row.type.replace("combination:", "").split(",").map(id => STUDIO_PRESETS.find(preset => preset.id === id)?.label || id).join(" + ")}</td><td>{row.jobs}</td><td>{row.completed}</td><td>{row.attempts}</td><td>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", minimumFractionDigits: 4 }).format(row.knownCostUsd)}</td><td>{row.knownCostAttempts > 0 ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", minimumFractionDigits: 4 }).format(row.knownCostUsd / row.knownCostAttempts) : "—"}</td><td>{row.unknownCosts}</td></tr>)}
+                </tbody></table>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">Valores ausentes não significam custo zero. Histórico anterior à coleta pode estar incompleto; esta visão não inclui infraestrutura nem taxas comerciais.</p>
+            </Section>
+
             <div className="grid grid-cols-[1.6fr_1fr] gap-4">
               <div className="rounded-md border border-border bg-card p-5">
                 <div className="mb-3 flex items-center justify-between">
@@ -239,7 +253,7 @@ export default function UsagePage() {
                 </div>
                 <div className="space-y-3 text-sm text-muted-foreground">
                   <p>A tela agora usa apenas dados reais dos stores de conversas, contatos, jobs, providers e instâncias.</p>
-                  <p>Custos financeiros ainda aparecem como <span className="font-medium text-foreground">n/d</span> porque o sistema não persiste cobrança operacional real.</p>
+                  <p>Custos de geração são registrados quando informados pelo provedor. Valores ausentes permanecem desconhecidos; custos de infraestrutura não estão incluídos.</p>
                   <p>Quando a base crescer, o próximo passo natural é fechar corte por período customizado e custos por provider.</p>
                 </div>
               </div>

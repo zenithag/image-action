@@ -54,7 +54,9 @@ export type AnalyticsPayload = {
     lastMessage: string
     lastMessageAt: string
   }>
+  operatorGenerationData: Array<{ id: string | null; name: string; generations: number; completed: number; failed: number }>
   reviewQueue: Array<{
+    operatorName: string
     id: string
     contactName: string
     status: "queued" | "processing" | "done" | "failed"
