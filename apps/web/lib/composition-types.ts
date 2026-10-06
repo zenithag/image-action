@@ -1,3 +1,7 @@
+import type { StudioPresetId } from "./studio-draft"
+
+export type GenerationUsage = { requestId?: string; model: string; costUsd?: number; promptTokens?: number; completionTokens?: number; createdAt: string }
+
 export type CompositionMode = "interior" | "product" | "print" | "fashion"
 export type CompositionJobStatus = "queued" | "processing" | "done" | "failed"
 export type CompositionJobSource = "ai" | "operator"
@@ -14,6 +18,8 @@ export type CompositionJobReference = {
 }
 
 export type CompositionJob = {
+  operator?: { id: string; name: string }
+  presetIds?: StudioPresetId[]
   purpose?: "composition" | "studio-preset"
   id: string
   tenantSlug: string
@@ -40,6 +46,7 @@ export type CompositionJob = {
   shareEnabledAt?: string
   archivedAt?: string
   errorMessage?: string
+  generationUsage?: GenerationUsage[]
   processingAttempts: number
   processorProvider?: "openrouter"
   processorModel?: string
@@ -50,6 +57,8 @@ export type CompositionJob = {
 }
 
 export type CompositionJobInput = {
+  operator?: { id: string; name: string }
+  presetIds?: StudioPresetId[]
   purpose?: "composition" | "studio-preset"
   studioVersion?: "v1"
   conversationId: string

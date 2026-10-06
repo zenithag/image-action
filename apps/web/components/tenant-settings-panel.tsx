@@ -23,11 +23,12 @@ type TenantSettingsPanelProps = {
   tenantSlug: string
 }
 
-type SectionId = "branding" | "domain" | "assistant" | "limits" | "team" | "billing"
+type SectionId = "branding" | "domain" | "studio" | "assistant" | "limits" | "team" | "billing"
 
 const sections: Array<{ id: SectionId; title: string }> = [
   { id: "branding", title: "Marca & dados" },
   { id: "domain", title: "Domínio" },
+  { id: "studio", title: "Estúdio & presets" },
   { id: "assistant", title: "IA & prompts" },
   { id: "limits", title: "Limites" },
   { id: "team", title: "Time" },
@@ -723,6 +724,17 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                     <Field label="Dominios permitidos" className="md:col-span-2">
                       <TextArea rows={4} value={asLines(settings.security.allowedDomains)} onChange={(event) => updateSection("security", { allowedDomains: fromLines(event.target.value) })} />
                     </Field>
+                  </div>
+                </SettingsGroup>
+              )}
+
+              {activeSection === "studio" && (
+                <SettingsGroup title="Estúdio & presets" description="A IA gera móveis e acabamentos sem exigir produtos cadastrados.">
+                  <div className="grid gap-4">
+                    <Toggle checked={settings.studio.catalogEnabled} onChange={checked => updateSection("studio", { catalogEnabled: checked })} label="Disponibilizar catálogo nos presets" />
+                    <p className="text-xs text-muted-foreground">Quando ativado, o operador pode optar por produtos do catálogo. Desativado: o catálogo fica oculto e os presets usam somente a IA.</p>
+                    <Field label="Tipos de ambiente (um por linha)"><TextArea rows={7} value={asLines(settings.studio.environmentTypes)} onChange={event => updateSection("studio", { environmentTypes: fromLines(event.target.value) })} /></Field>
+                    <Field label="Contextos do imóvel (um por linha)"><TextArea rows={6} value={asLines(settings.studio.propertyContexts)} onChange={event => updateSection("studio", { propertyContexts: fromLines(event.target.value) })} /></Field>
                   </div>
                 </SettingsGroup>
               )}

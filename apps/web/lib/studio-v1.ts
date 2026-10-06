@@ -15,8 +15,8 @@ export const STUDIO_PRESETS: { id: StudioPresetId; label: string }[] = [
   { id: "renovate", label: "Renovar ambiente" },
   { id: "furnish", label: "Mobiliar" },
   { id: "wall-covering", label: "Revestimento para parede" },
-  { id: "flooring", label: "Piso / porcelanato" },
-  { id: "ceiling", label: "Forro / teto" },
+  { id: "flooring", label: "Piso / revestimento" },
+  { id: "ceiling", label: "Teto" },
 ]
 export function isStudioMaterialPreset(id: StudioPresetId): id is StudioMaterialPresetId { return ["fresh-paint", "wall-covering", "flooring", "ceiling"].includes(id) }
 
@@ -25,10 +25,10 @@ export function toggleStudioPreset(base: StudioImageArtifact, id: StudioPresetId
   if (selected.has(id)) selected.delete(id)
   else {
     selected.add(id)
-    if (id === "furnish") selected.delete("remove-furniture")
-    if (id === "remove-furniture") selected.delete("furnish")
-    if (id === "fresh-paint") selected.delete("wall-covering")
-    if (id === "wall-covering") selected.delete("fresh-paint")
+    if (!base.combinePresets && id === "furnish") selected.delete("remove-furniture")
+    if (!base.combinePresets && id === "remove-furniture") selected.delete("furnish")
+    if (!base.combinePresets && id === "fresh-paint") selected.delete("wall-covering")
+    if (!base.combinePresets && id === "wall-covering") selected.delete("fresh-paint")
   }
   return { ...base, presetIds: STUDIO_PRESETS.filter(preset => selected.has(preset.id)).map(preset => preset.id) }
 }
@@ -39,30 +39,42 @@ export function hasStudioPresetInstruction(prompt: string) {
   return Boolean(ids?.length && new Set(ids).size === ids.length && ids.every(id => STUDIO_PRESETS.some(preset => preset.id === id)))
 }
 
+export const STUDIO_PRESET_ORDER: StudioPresetId[] = ["remove-furniture", "renovate", "fresh-paint", "wall-covering", "flooring", "ceiling", "furnish"]
+
 export function getStudioInstruction(base: StudioImageArtifact, fallbackInstruction: string) {
   const manual = (base.instruction || fallbackInstruction).trim()
-  const active = STUDIO_PRESETS.filter(preset => base.presetIds?.includes(preset.id)).map(preset => preset.id)
-  // Old/malformed drafts with conflicting IDs resolve to furnishing, never both directives.
-  const furnish = active.includes("furnish")
-  const removeFurniture = !furnish && active.includes("remove-furniture")
-  const ids = active.filter(id => !(furnish && id === "remove-furniture") && !(active.includes("wall-covering") && id === "fresh-paint"))
+  const active = STUDIO_PRESET_ORDER.filter(id => base.presetIds?.includes(id))
+  const ids = base.combinePresets ? active : active.filter(id => !(active.includes("furnish") && id === "remove-furniture") && !(active.includes("wall-covering") && id === "fresh-paint"))
   if (!ids.length) return manual
-  const freshPaint = ids.includes("fresh-paint"), renovate = ids.includes("renovate")
-  const room = base.roomType === "living-room" ? "sala de estar" : base.roomType === "bedroom" ? "quarto" : base.roomType === "kitchen" ? "cozinha" : base.roomType === "bathroom" ? "banheiro" : "tipo de cômodo visível, sem presumir uma função que a imagem não sustenta"
+  const contextual = ids.some(id => !["remove-furniture", "renovate"].includes(id))
+  const room = ({ "living-room": "sala de estar", bedroom: "quarto", kitchen: "cozinha", bathroom: "banheiro" } as Record<string, string>)[base.roomType || ""] || (base.roomType && base.roomType !== "auto" ? base.roomType : "tipo de cômodo visível na imagem")
+  if (contextual && (room.length > 80 || (base.sceneDescription?.length ?? 0) > 1000 || (base.propertyContexts?.length ?? 0) > 30 || base.propertyContexts?.some(value => typeof value !== "string" || value.length > 80))) throw new Error("Contexto do ambiente inválido ou muito extenso.")
+  const directions: Record<StudioPresetId, string> = {
+    "remove-furniture": base.removeFixedFurniture
+      ? "Remova móveis soltos e também móveis e instalações fixas, incluindo pias, armários embutidos, vasos sanitários e churrasqueira. Deixe somente paredes, piso e teto; preserve a estrutura, portas, janelas e aberturas, sem demolir arquitetura."
+      : "Remova apenas móveis soltos. Preserve elementos fixos, armários embutidos e churrasqueira.",
+    renovate: `Renove a aparência do ambiente para deixá-lo mais atrativo e vendável: aplique pintura nova com textura realista de parede pintada e repare desgaste, trincas, sujeira, manchas e defeitos nas paredes, no teto e nos objetos fixos. Preserve os mesmos materiais, desenho, ${ids.includes("remove-furniture") ? "elementos fixos" : "mobiliário"} e estrutura, salvo alterações autorizadas pelos outros presets.`,
+    "fresh-paint": `Renove a pintura das superfícies já pintadas${base.presetOptions?.["fresh-paint"]?.color ? ` na cor ${base.presetOptions["fresh-paint"]!.color}` : ""}, aplicando textura realista de parede pintada, sem substituir revestimentos.`,
+    "wall-covering": "Crie com IA um novo revestimento de parede coerente com o ambiente, alterando somente o acabamento, sem alterar a estrutura.",
+    flooring: `Crie com IA um novo piso / revestimento coerente com o ambiente. Aplique somente ${base.presetOptions?.flooring?.surface === "walls" ? "nas paredes" : base.presetOptions?.flooring?.surface === "both" ? "no piso visível e nas paredes" : "no piso visível"}, sem alterar a estrutura.`,
+    ceiling: "Crie com IA um acabamento novo para o teto / forro, preservando luminárias e estrutura.",
+    furnish: `Adicione mobília adequada para ${room}, nas áreas livres, respeitando circulação, proporções e escala. ${base.propertyContexts?.includes("Alto padrão") ? "Use uma composição visual de alto padrão." : "Use uma composição funcional e coerente com o ambiente."} Varie criativamente os móveis e a decoração, sem exigir catálogo nem inventar marcas, preços ou propriedades comerciais. Preserve as alterações realizadas nas etapas anteriores.`,
+  }
+  for (const id of ids) {
+    const option = base.presetOptions?.[id]
+    if ((option?.instructions?.length ?? 0) > 1000 || option?.color && !/^#[0-9a-f]{6}$/i.test(option.color) || option?.surface && !["floor", "walls", "both"].includes(option.surface)) throw new Error("Opções do preset inválidas ou muito extensas.")
+  }
   return [
     `PRESETS_ESTUDIO: ${ids.join(",")}`,
-    removeFurniture ? base.removeFixedFurniture ? "Remova móveis soltos e também móveis e instalações fixas, incluindo pias, armários embutidos, vasos sanitários e churrasqueira. Deixe somente paredes, piso e teto; preserve a estrutura, portas, janelas e aberturas, sem demolir arquitetura." : "Remova apenas móveis soltos. Preserve elementos fixos, armários embutidos e churrasqueira."
-      : furnish ? `Adicione mobília adequada para ${room}, nas áreas livres, respeitando circulação, proporções e escala. Preserve elementos fixos e não altere arquitetura. ${base.furnishingLuxury ? "Use uma composição visual de alto padrão, sem inventar marcas, preços ou propriedades comerciais." : "Use uma composição funcional e coerente com o ambiente."}` : "Preserve os móveis existentes.",
-    renovate ? "Renove a aparência do ambiente e repare visualmente desgaste e pintura. Preserve os materiais existentes, sem alterações estruturais, remoção de móveis ou adição de mobília implícitas; outros presets explícitos podem autorizar essas mudanças." : "",
-    freshPaint ? "Renove apenas a pintura das superfícies já pintadas, mantendo a cor salvo ajuste manual ou tinta de catálogo escolhida." : renovate ? "Renove a pintura existente sem trocar revestimentos." : "Preserve a pintura existente.",
-    ...ids.filter(isStudioMaterialPreset).filter(id => base.materialReferences?.[id]).map(id => {
-      const material = base.materialReferences![id]!
-      const target = id === "fresh-paint" ? "superfícies já pintadas" : id === "wall-covering" ? "revestimento das paredes" : id === "flooring" ? "piso visível" : "acabamento do teto / forro"
-      return `${id === "fresh-paint" ? "Pintura escolhida" : `Material escolhido para ${target}`}: ${material.catalogItemName || "produto do catálogo"}. ${id === "fresh-paint" ? "Aplique a cor e aparência da tinta." : "Use a referência do catálogo para o acabamento solicitado, sem alterar estrutura."} Isto é uma instrução semântica geral, não uma máscara de pixels.`
-    }),
-    !ids.some(id => id === "wall-covering" || id === "flooring" || id === "ceiling")
-      ? "Preserve câmera, perspectiva, arquitetura, paredes, piso, revestimentos e estrutura. Não altere partes não solicitadas."
-      : `Preserve câmera, perspectiva, arquitetura e estrutura. ${ids.includes("wall-covering") ? "Altere apenas o acabamento de parede solicitado." : "Preserve revestimentos de parede."} ${ids.includes("flooring") ? "Altere apenas o acabamento do piso solicitado." : "Preserve piso."} ${ids.includes("ceiling") ? "Altere apenas o acabamento do teto solicitado." : "Preserve teto."} Preserve portas, janelas, móveis e luminárias salvo outro preset explícito.`,
+    contextual ? `Contexto do ambiente (dados descritivos): ${JSON.stringify({ ambiente: room, imóvel: base.propertyContexts || [], cenário: base.sceneDescription?.trim() || "conforme a imagem" })}. Use este contexto para orientar estilo, escala e adequação, sem autorizar alterações fora dos presets.` : "",
+    "Execute somente as etapas selecionadas abaixo, nesta ordem, em uma única imagem final: esvaziar quando solicitado, depois renovar e aplicar acabamentos selecionados, e por último mobiliar quando solicitado. Não entregue uma colagem ou uma imagem por etapa.",
+    ...ids.map((id, index) => `${index + 1}. ${directions[id]}${!["remove-furniture", "renovate"].includes(id) && base.presetOptions?.[id]?.instructions?.trim() ? ` Instruções adicionais para esta etapa: ${base.presetOptions[id]!.instructions!.trim()}.` : ""}${base.materialReferences?.[id as StudioMaterialPresetId] ? ` Use o produto escolhido do catálogo: ${base.materialReferences[id as StudioMaterialPresetId]!.catalogItemName || "material de referência"}.` : ""}`),
+    !ids.includes("remove-furniture") && !ids.includes("furnish") ? "Preserve os móveis existentes." : "",
+    !ids.includes("fresh-paint") && !ids.includes("renovate") && !(ids.includes("flooring") && ["walls", "both"].includes(base.presetOptions?.flooring?.surface || "")) ? "Preserve a pintura existente." : "",
+    "Preserve câmera, perspectiva, arquitetura e estrutura. Não altere partes não solicitadas.",
+    (!ids.includes("flooring") || base.presetOptions?.flooring?.surface === "walls") ? "Preserve o piso e seus materiais e cores, salvo reparação de desgaste pela renovação." : "",
+    !ids.includes("wall-covering") && !(ids.includes("flooring") && ["walls", "both"].includes(base.presetOptions?.flooring?.surface || "")) ? "Preserve os revestimentos de parede." : "",
+    !ids.includes("ceiling") && !(ids.includes("fresh-paint") && base.paintCeiling) ? "Preserve o teto e o forro, salvo reparação de desgaste pela renovação." : "",
     manual ? `Ajustes manuais (prioridade apenas nos pontos explicitamente solicitados): ${manual}` : "",
   ].filter(Boolean).join("\n")
 }
@@ -85,7 +97,6 @@ export function buildStudioInput(slug: string, base: StudioImageArtifact, refere
   const materialRefs = STUDIO_PRESETS.filter(preset => isStudioMaterialPreset(preset.id) && base.presetIds?.includes(preset.id)).flatMap(preset => {
     const ref = base.materialReferences?.[preset.id as StudioMaterialPresetId]
     if (!ref) {
-      if (preset.id !== "fresh-paint") throw new Error("Escolha um material compatível no catálogo antes de gerar.")
       return []
     }
     if (ref.catalogTenantSlug !== slug || !matchesStudioMaterial(preset.id as StudioMaterialPresetId, ref.catalogProductType || "", ref.catalogCategory || "")) throw new Error("Material salvo incompatível com o tenant ou a superfície. Escolha novamente no catálogo.")
@@ -99,7 +110,7 @@ export function buildStudioInput(slug: string, base: StudioImageArtifact, refere
   const prompt = [
     composedInstruction,
     "Preserve a câmera, a perspectiva e a arquitetura do ambiente.",
-    references.length ? "Aplique as referências em conjunto, na ordem enviada, seguindo a instrução." : "",
+    references.length ? "Aplique as referências em conjunto, na ordem enviada, seguindo a instrução. Cada referência de preset deve orientar somente sua etapa indicada; preserve a câmera e a arquitetura da imagem base." : "",
     ...references.map((ref, index) => ref.source === "catalog"
       ? `Referência ${index + 1}: ${ref.catalogItemName || "produto"}. SKU: ${ref.catalogSku || "não informado"}. ${ref.catalogDescription || ""}`.slice(0, 150)
       : `Referência ${index + 1}: ${ref.caption || "imagem enviada"}.`.slice(0, 150)),
@@ -149,7 +160,7 @@ export function matchesStudioMaterial(preset: StudioMaterialPresetId, type: stri
   if (preset === "fresh-paint") return type === "tinta"
   const value = normalizeCategory(category)
   if (preset === "wall-covering") return type === "revestimento" && ["revestimentos para parede", "revestimentos de parede"].includes(value)
-  if (preset === "flooring") return type === "revestimento" && ["piso", "pisos", "revestimentos para piso", "porcelanatos para piso", "pisos e porcelanatos"].includes(value)
+  if (preset === "flooring") return type === "revestimento" && ["piso", "pisos", "revestimentos para piso", "porcelanatos para piso", "pisos e porcelanatos", "revestimentos para parede", "revestimentos de parede"].includes(value)
   return ["revestimento", "outro"].includes(type) && ["forro", "forros", "forros e tetos", "revestimentos para teto"].includes(value)
 }
 export function getStudioMaterials(items: CatalogItem[], slug: string, preset: StudioMaterialPresetId) {
@@ -219,6 +230,7 @@ export function buildStudioPresetInput(slug: string, base: StudioImageArtifact, 
   aggregate?: boolean; placement?: string; strength: number
 }): CompositionJobInput {
   if (options.scope === "selected") throw new Error("A seleção automática de superfícies foi desativada. Descreva o local de aplicação em texto.")
+  if (!options.item && !options.furniture?.length) return buildStudioPresetsInput(slug, base, [preset], options)
   const manualTarget = options.placement?.trim() || ""
   if (manualTarget.length > 500) throw new Error("A descrição do local deve ter até 500 caracteres.")
   const source = options.aggregate === false ? { ...base, selectedPresetVersionId: undefined } : base
@@ -237,16 +249,47 @@ export function buildStudioPresetInput(slug: string, base: StudioImageArtifact, 
   }
   const scope = manualTarget && isStudioMaterialPreset(preset) ? `Local de aplicação indicado manualmente: ${manualTarget}. Use esta descrição para identificar onde aplicar o material escolhido; não estenda a alteração às outras partes do ambiente. Preserve portas, janelas, luminárias, móveis, objetos e arquitetura. ${preset === "fresh-paint" ? options.includeCeiling ? "Inclua também o teto pintado." : "Preserve o teto e o forro; não os pinte." : "Altere somente o acabamento solicitado."}` : preset === "fresh-paint" ? (options.includeCeiling ? "Pinte todas as paredes já pintadas e inclua o teto pintado. Não substitua revestimentos." : "Pinte todas as paredes já pintadas. Preserve o teto e o forro exatamente como estão.")
     : preset === "wall-covering" ? "Aplique em todas as paredes, preservando teto, piso, portas, janelas e objetos."
-    : preset === "flooring" ? "Aplique em todo o piso visível, preservando paredes, teto e objetos." : preset === "ceiling" ? "Aplique em todo o teto / forro, preservando luminárias, paredes, piso e objetos."
-    : preset === "renovate" ? "Restaure apenas a aparência dos materiais existentes: desgaste, trincas, sujeira e manchas no piso, paredes e teto. Mantenha os mesmos materiais, cores, desenho, mobiliário e estrutura; aparência de tudo novo, sem substituições."
+    : preset === "flooring" ? `Aplique ${base.presetOptions?.flooring?.surface === "walls" ? "nas paredes, preservando o piso" : base.presetOptions?.flooring?.surface === "both" ? "no piso visível e nas paredes" : "em todo o piso visível, preservando paredes"}, teto e objetos devem ser preservados.` : preset === "ceiling" ? "Aplique em todo o teto / forro, preservando luminárias, paredes, piso e objetos."
+    : preset === "renovate" ? "Renove a pintura e repare defeitos nas paredes, no teto e nos objetos fixos. Preserve estrutura e materiais; deixe o ambiente mais atrativo."
     : preset === "furnish" ? `Adicione apenas os itens do catálogo enviados como referências. Preserve todo o mobiliário e todas as edições já presentes na imagem. ${options.placement?.trim() ? `Posição solicitada (orientação semântica, sem garantia espacial): ${options.placement.trim()}.` : "Distribua os itens nas áreas livres respeitando circulação."}` : options.removeFixedFurniture && preset === "remove-furniture" ? "Retire também as instalações fixas solicitadas; preserve pintura, revestimentos, piso, teto e estrutura. Não adicione móveis ou objetos." : "Preserve pintura, revestimentos, piso, teto e elementos fixos."
   input.prompt = `${input.prompt}\n${scope}`
-  if (input.prompt.length > 5000) throw new Error("Instrução final muito extensa.")
-  return { ...input, purpose: "studio-preset", baseMessageId: working.source === "inbox" ? working.messageId : undefined }
+  if ((input.prompt?.length ?? 0) > 5000) throw new Error("Instrução final muito extensa.")
+  return { ...input, purpose: "studio-preset", presetIds: [preset], baseMessageId: working.source === "inbox" ? working.messageId : undefined }
 }
 
 
 // Removing a completed draft version does not delete shared job files or other versions.
+export function buildStudioPresetsInput(slug: string, base: StudioImageArtifact, presets: StudioPresetId[], options: {
+  strength: number; includeCeiling?: boolean; removeFixedFurniture?: boolean; aggregate?: boolean; placement?: string;
+  materials?: Partial<Record<StudioMaterialPresetId, CatalogItem>>; furniture?: CatalogItem[]
+}): CompositionJobInput {
+  if (!presets.length || presets.length > STUDIO_PRESET_ORDER.length || presets.some(id => !STUDIO_PRESET_ORDER.includes(id)) || new Set(presets).size !== presets.length) throw new Error("Selecione presets válidos, sem repetições.")
+  if ((options.placement?.length ?? 0) > 500) throw new Error("A descrição do local deve ter até 500 caracteres.")
+  const ids = STUDIO_PRESET_ORDER.filter(id => presets.includes(id))
+  let working: StudioImageArtifact = { ...getStudioWorkingBase(options.aggregate === false ? { ...base, selectedPresetVersionId: undefined } : base), presetIds: ids, combinePresets: true, materialReferences: {}, instruction: "", selectedSurfaceIds: [], paintCeiling: options.includeCeiling === true, removeFixedFurniture: ids.includes("remove-furniture") && options.removeFixedFurniture === true }
+  for (const id of ids.filter(isStudioMaterialPreset)) {
+    const item = options.materials?.[id]
+    if (item) working = selectStudioMaterial(slug, working, id, item)
+  }
+  const furniture = ids.includes("furnish") ? options.furniture || [] : []
+  if (furniture.some(item => !getStudioFurniture([item], slug).length)) throw new Error("Escolha móveis ativos deste catálogo.")
+  const uploaded = ids.filter(id => !["remove-furniture", "renovate"].includes(id)).flatMap(id => {
+    const reference = base.presetOptions?.[id]?.reference
+    if (!reference) return []
+    if (reference.source !== "upload" || !/^data:image\/(jpeg|png|webp);base64,/.test(reference.mediaUrl)) throw new Error("Referência de imagem inválida. Envie uma imagem JPG, PNG ou WebP.")
+    return [{ ...reference, caption: `Referência para a etapa ${STUDIO_PRESETS.find(preset => preset.id === id)!.label}` }]
+  })
+  const refs: StudioImageArtifact[] = [...uploaded, ...furniture.map(item => ({ source: "catalog" as const, mediaUrl: item.imageUrl, catalogItemId: item.id, catalogItemName: item.name, catalogSku: item.sku, createdAt: item.createdAt }))]
+  const input = buildStudioInput(slug, working, refs, "")
+  input.prompt += [
+    ids.includes("fresh-paint") ? options.includeCeiling ? "Inclua também o teto pintado." : "Na etapa de pintura, preserve o teto e o forro; não os pinte." : "",
+    furniture.length ? "Na etapa de mobiliar, use apenas os móveis do catálogo enviados como referências, preservando as etapas anteriores." : "",
+    options.placement?.trim() ? `Local de aplicação indicado manualmente: ${options.placement.trim()}.` : "",
+  ].filter(Boolean).map(line => `\n${line}`).join("")
+  if ((input.prompt?.length ?? 0) > 5000) throw new Error("Contexto final muito extenso. Reduza as descrições e instruções adicionais.")
+  return { ...input, purpose: "studio-preset", presetIds: ids, changeStrength: options.strength }
+}
+
 export function removeStudioPresetVersion(base: StudioImageArtifact, jobId: string): Partial<StudioImageArtifact> | null {
   if (!base.presetVersions?.some(version => version.jobId === jobId && version.status === "done")) return null
   return {

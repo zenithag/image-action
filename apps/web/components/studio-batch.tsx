@@ -1,5 +1,7 @@
 "use client"
 
+import { DEFAULT_STUDIO_SETTINGS, type TenantSettings } from "@/lib/tenant-settings-types"
+
 import { UserMenu } from "@/components/molecules/user-menu"
 import { getThemeContainer } from "@/components/spectrum/theme-container"
 import { PresetIcon } from "@/components/spectrum/preset-icons"
@@ -34,7 +36,8 @@ import {
   expandStudioScenarioVariations,
 } from "@/lib/studio-draft"
 import { cn } from "@/lib/utils"
-import { buildStudioCompositionInput, STUDIO_PRESETS, getEnvironmentReferences, IMAGE_TYPES, MAX_REFERENCES, MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, validateStudioFiles } from "@/lib/studio-v1"
+import { fileToOptimizedWebpDataUrl } from "@/lib/studio-upload"
+import { buildStudioCompositionInput, toggleStudioPreset, STUDIO_PRESETS, getEnvironmentReferences, IMAGE_TYPES, MAX_REFERENCES, MAX_REQUEST_BYTES, MAX_UPLOAD_BYTES, validateStudioFiles } from "@/lib/studio-v1"
 import { loadStudioSession, saveStudioSession } from "@/lib/studio-v1-storage"
 
 function parseDraft(value: string | null): StudioDraft {
@@ -74,68 +77,7 @@ function formatSourceLabel(image: StudioImageArtifact | null) {
 }
 
 
-const uploadMaxDimension = 2000
-const uploadWebpQuality = 0.88
 
-function loadBrowserImage(url: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image()
-
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error("Nao foi possivel preparar a imagem selecionada."))
-    image.src = url
-  })
-}
-
-function canvasToWebpDataUrl(canvas: HTMLCanvasElement) {
-  return new Promise<string>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Nao foi possivel converter a imagem para WebP."))
-        return
-      }
-
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result || ""))
-      reader.onerror = () => reject(new Error("Nao foi possivel carregar a imagem convertida."))
-      reader.readAsDataURL(blob)
-    }, "image/webp", uploadWebpQuality)
-  })
-}
-
-async function fileToOptimizedWebpDataUrl(file: File) {
-  if (!IMAGE_TYPES.includes(file.type)) {
-    throw new Error("Use imagens JPG, PNG ou WebP.")
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error("Cada imagem deve ter no máximo 15 MB.")
-  }
-
-  const objectUrl = URL.createObjectURL(file)
-
-  try {
-    const image = await loadBrowserImage(objectUrl)
-    const scale = Math.min(
-      1,
-      uploadMaxDimension / image.naturalWidth,
-      uploadMaxDimension / image.naturalHeight
-    )
-    const canvas = document.createElement("canvas")
-    const context = canvas.getContext("2d")
-
-    if (!context) {
-      throw new Error("Nao foi possivel otimizar a imagem selecionada.")
-    }
-
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
-    context.drawImage(image, 0, 0, canvas.width, canvas.height)
-
-    return canvasToWebpDataUrl(canvas)
-  } finally {
-    URL.revokeObjectURL(objectUrl)
-  }
-}
 
 function UploadCollection({ title, count, description, reference = false, images, onUpload, onRemove, disabled, slug }: {
   title: string; count: string; description: string; reference?: boolean; images: StudioImageArtifact[]; onUpload: (event: ChangeEvent<HTMLInputElement>) => void; onRemove: (index: number) => void; disabled: boolean; slug: string
@@ -213,6 +155,9 @@ export default function StudioBatchPage({
   const [paintCatalogPreset, setPaintCatalogPreset] = useState<StudioPresetId>("fresh-paint")
   const paintCatalogId = useId()
   const paintPresetTrigger = useRef<HTMLButtonElement>(null)
+  const [studioSettings, setStudioSettings] = useState(DEFAULT_STUDIO_SETTINGS)
+  const [studioSettingsReady, setStudioSettingsReady] = useState(false)
+  const [presetApplyRequest, setPresetApplyRequest] = useState(0)
   const [isPainting, setIsPainting] = useState(false)
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -225,6 +170,16 @@ export default function StudioBatchPage({
   const operationLock = useRef(false)
   const batchRequests = useRef(new Map<string, string>())
   const [draftSaveError, setDraftSaveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setStudioSettingsReady(false)
+    fetch(`/api/tenant/${encodeURIComponent(slug)}/settings`, { cache: "no-store", signal: controller.signal })
+      .then(async response => { if (!response.ok) throw new Error("Não foi possível carregar as configurações do Estúdio. Recarregue para tentar novamente."); return response.json() as Promise<TenantSettings> })
+      .then(settings => { if (!controller.signal.aborted) { setStudioSettings({ ...DEFAULT_STUDIO_SETTINGS, ...settings.studio }); setStudioSettingsReady(true) } })
+      .catch(error => { if (!controller.signal.aborted) setError(error.message) })
+    return () => controller.abort()
+  }, [slug])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -586,12 +541,19 @@ export default function StudioBatchPage({
             {previewTab === "preview" && createdJobs.length > 0 && showResults ? <div className={styles.results}><Button variant="outline" type="button" onClick={() => setShowResults(false)}>Ver preparação</Button><StudioResults slug={slug} jobs={createdJobs} onCreated={(job) => setCreatedJobs((current) => current.some((item) => item.id === job.id) ? current : [...current, job])} /></div> : activeBaseImage ? <>
               <SafeImage src={activeBaseImage.mediaUrl} alt={activeBaseImage.caption || "Ambiente base"} className={styles.baseImage} fallbackLabel="Ambiente indisponível" />
               <span className={styles.canvasLabel}>{previewTab === "base" ? `Ambiente ${activeBaseIndex + 1}` : "Preparação · imagem original, ainda sem alterações"}</span>
-              <StudioPaintFlow slug={slug} base={activeBaseImage} manual={prompt} strength={strength} preset={paintCatalogPreset} catalogId={paintCatalogId} open={paintCatalogOpen} onClose={() => { setPaintCatalogOpen(false); paintPresetTrigger.current?.focus() }} disabled={isGenerating || isUploading || !draftLoaded} operationLock={operationLock} onBusy={setIsPainting} onUpdate={(key, patch) => setBaseImages(current => current.map(base => getStudioArtifactKey(base) === key ? { ...base, ...patch } : base))} />
+              <StudioPaintFlow studioSettings={studioSettings} applyRequest={presetApplyRequest} slug={slug} base={activeBaseImage} strength={strength} preset={paintCatalogPreset} catalogId={paintCatalogId} open={paintCatalogOpen} onClose={() => { setPaintCatalogOpen(false); paintPresetTrigger.current?.focus() }} disabled={isGenerating || isUploading || !draftLoaded || !studioSettingsReady} operationLock={operationLock} onBusy={setIsPainting} onUpdate={(key, patch) => setBaseImages(current => current.map(base => getStudioArtifactKey(base) === key ? { ...base, ...patch } : base))} />
               <div className={styles.presetBar} role="group" aria-label={`Presets do ambiente ${activeBaseIndex + 1}`}>
-                {STUDIO_PRESETS.map(preset => <button key={preset.id} type="button" aria-label={preset.label} title={preset.label} aria-expanded={paintCatalogOpen && paintCatalogPreset === preset.id} aria-controls={paintCatalogId} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setPaintCatalogOpen(false) } }} aria-pressed={paintCatalogOpen && paintCatalogPreset === preset.id} disabled={isGenerating || isUploading || isPainting || !draftLoaded} onClick={event => {
+                <button type="button" className={styles.combineToggle} aria-pressed={activeBaseImage.combinePresets === true} disabled={isGenerating || isUploading || isPainting || !draftLoaded || !studioSettingsReady} onClick={() => {
+                  const combinePresets = !activeBaseImage.combinePresets
+                  setBaseImages(current => current.map(base => getStudioArtifactKey(base) === getStudioArtifactKey(activeBaseImage) ? { ...base, combinePresets, presetIds: [] } : base))
+                  setPaintCatalogOpen(combinePresets)
+                }}>Combinar presets</button>
+                {STUDIO_PRESETS.filter(preset => preset.id !== "wall-covering").map(preset => <button key={preset.id} type="button" aria-label={preset.label} title={preset.label} aria-expanded={paintCatalogOpen && paintCatalogPreset === preset.id} aria-controls={paintCatalogId} aria-pressed={activeBaseImage.combinePresets ? activeBaseImage.presetIds?.includes(preset.id) === true : paintCatalogOpen && paintCatalogPreset === preset.id} disabled={isGenerating || isUploading || isPainting || !draftLoaded || !studioSettingsReady} onClick={event => {
                   paintPresetTrigger.current = event.currentTarget
-                  setPaintCatalogOpen(!(paintCatalogOpen && paintCatalogPreset === preset.id)); setPaintCatalogPreset(preset.id)
-                }}><PresetIcon preset={preset.id} /></button>)}
+                  if (activeBaseImage.combinePresets) setBaseImages(current => current.map(base => getStudioArtifactKey(base) === getStudioArtifactKey(activeBaseImage) ? toggleStudioPreset(base, preset.id) : base))
+                  setPaintCatalogOpen(activeBaseImage.combinePresets ? true : !(paintCatalogOpen && paintCatalogPreset === preset.id)); setPaintCatalogPreset(preset.id)
+                }}><PresetIcon preset={preset.id} /><span>{preset.label}</span></button>)}
+                {activeBaseImage.combinePresets && <button type="button" className={styles.presetApply} disabled={!activeBaseImage.presetIds?.length || isGenerating || isUploading || isPainting || !studioSettingsReady} onClick={() => setPresetApplyRequest(value => value + 1)}>Aplicar</button>}
               </div>
               {previewTab === "preview" && references.length > 0 && <div className={styles.previewReferences}>{(currentPlan?.baseIndex === activeBaseIndex ? currentPlan.references : getEnvironmentReferences(activeBaseImage, references)).map((image, index) => <SafeImage key={index} src={image.mediaUrl} alt={`Referência ${index + 1}`} className={styles.referenceThumb} />)}</div>}
               {previewTab === "preview" && createdJobs.length > 0 && <Button variant="outline" type="button" onClick={() => setShowResults(true)}>Ver resultados</Button>}

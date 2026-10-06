@@ -1,3 +1,5 @@
+import { readGenerationUsage } from "@/lib/generation-costs"
+import { recordCompositionGenerationUsage } from "@/lib/server/composition-jobs-store"
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import sharp from "sharp"
@@ -1401,7 +1403,7 @@ function buildPrompt(job: CompositionJob, baseImage: BaseImage) {
   return [
     "Gere obrigatoriamente uma nova imagem editada. A resposta final precisa incluir uma imagem no payload; nao responda com explicacoes, perguntas ou texto sem imagem.",
     "Tarefa: editar a IMAGEM 1, que e a foto base/cena enviada pelo cliente, para criar uma composicao visual realista.",
-    "A cena final deve ser a mesma foto da IMAGEM 1 com a referencia aplicada no local solicitado. Use a IMAGEM 1 como canvas de saida.",
+    hasStudioPresetInstruction(job.prompt) ? "A cena final deve ser a mesma foto da IMAGEM 1, transformada pelas etapas dos presets. Gere pela IA os móveis e acabamentos solicitados quando não houver referências de catálogo." : "A cena final deve ser a mesma foto da IMAGEM 1 com a referencia aplicada no local solicitado. Use a IMAGEM 1 como canvas de saida.",
     "Mantenha a IMAGEM 1 travada em posicao e angulo. A camera, perspectiva, enquadramento e geometria da base nao podem ser reinterpretados.",
     "Extraia da referencia apenas o produto/material/textura/cor/padrao/estilo solicitado e aplique isso na IMAGEM 1.",
     "Nao use a referencia como imagem principal, cena final, camera, enquadramento, fundo ou ambiente.",
@@ -1939,6 +1941,7 @@ async function requestOpenRouterImage(
   content: Array<Record<string, unknown>>,
   profile: Awaited<ReturnType<typeof getAiModelProfile>>
 ) {
+  const recordUsage = (payload: OpenRouterImageResponse | null) => recordCompositionGenerationUsage(job.tenantSlug, job.id, readGenerationUsage(payload, model)).catch(cause => { throw Object.assign(new Error("Não foi possível registrar o custo da geração.", { cause }), { name: "GenerationUsageStorageError" }) })
   const response = await fetch(appendPath(provider.baseUrl, "/chat/completions"), {
     method: "POST",
     headers: getOpenRouterHeaders(provider),
@@ -1958,8 +1961,9 @@ async function requestOpenRouterImage(
       user: job.tenantSlug,
     }),
     signal: AbortSignal.timeout(180000),
-  })
+  }).catch(async error => { await recordUsage(null); throw error })
   const payload = await response.json().catch(() => null) as OpenRouterImageResponse | null
+  await recordUsage(payload)
 
   if (!response.ok || payload?.error) {
     throw new Error(getOpenRouterError(response.status, payload))
@@ -1998,6 +2002,7 @@ async function generateImageWithOpenRouter(provider: AiProvider, job: Compositio
     try {
       return await requestOpenRouterImage(provider, candidateModel, job, baseImage, content, profile)
     } catch (error) {
+      if (error instanceof Error && error.name === "GenerationUsageStorageError") throw error
       failures.push(`${candidateModel}: ${normalizeOpenRouterError(error)}`)
     }
   }

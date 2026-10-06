@@ -187,3 +187,28 @@
 .presetThumbnailSpinner { display:block; box-sizing:border-box; width:18px; height:18px; border:2px solid rgb(255 255 255 / .45); border-top-color:#fff; border-radius:50%; animation:studioThumbnailSpin .8s linear infinite; }
 @keyframes studioThumbnailSpin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .presetThumbnailSpinner { animation:none; } }
+
+/* Presets keep labels visible and wrap without hiding the combine/apply controls. */
+.presetBar { width:calc(100% - 24px); max-width:1100px; justify-content:center; flex-wrap:wrap; overflow:visible; background:color-mix(in srgb,var(--card) 92%,transparent); border:1px solid var(--border); border-radius:12px; padding:8px; gap:6px; }
+.presetBar button { width:auto; min-height:44px; height:auto; border-radius:8px; padding:6px 9px; gap:6px; font-size:11px; }
+.presetBar .combineToggle { margin-right:auto; }
+.presetBar .presetApply { margin-left:auto; background:var(--cf-accent,#008c64); color:var(--cf-on-accent,white); }
+.paintCatalog.furnishOptions { bottom:135px; width:360px; max-height:calc(100% - 190px); background:var(--card); }
+.contextTags { display:flex; gap:8px; flex-wrap:wrap; }
+.contextTags label { font-size:12px; }
+.sceneDescription { flex-direction:column; align-items:stretch !important; }
+.sceneDescription textarea { width:100%; border:1px solid var(--border); border-radius:6px; padding:8px; background:var(--background); }
+@media(max-width:700px) { .presetBar { gap:4px; } .presetBar button { flex:1 0 auto; font-size:10px; padding:5px; } .paintCatalog.furnishOptions { bottom:200px; max-height:calc(100% - 220px); } }
+@media(max-width:700px) {
+  .preview { min-height:900px; }
+  .canvas { min-height:760px; }
+  .paintCatalog.furnishOptions { bottom:200px; max-height:calc(100% - 240px); }
+}
+
+.furnishOptions .presetReference { display: grid; gap: 6px; font-size: 12px; }
+.presetReference input { width: 100%; max-width: 100%; font-size: 12px; }
+.presetReferencePreview { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+.presetReferencePreview img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
+.presetReferencePreview button { min-height: 44px; font-size: 12px; }
+
+.furnishOptions .paintColor input { width: 48px; height: 34px; padding: 3px; flex-shrink: 0; }

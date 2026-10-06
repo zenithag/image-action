@@ -23,7 +23,7 @@ async function load(relative) {
   }
   return import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`)
 }
-const { validateStudioFiles, buildStudioInput, getEnvironmentReferences, toggleStudioPreset, getStudioInstruction, buildStudioPresetInput, buildStudioCompositionInput, getStudioWorkingBase, recordStudioPresetResult, removeStudioPresetVersion, getStudioFurniture, chooseStudioFurniture, isStudioMaterialPreset, hasStudioPresetInstruction, getStudioMaterials, getStudioPaints, getStudioPaintSwatch, getStudioPaintPreviewSource, buildStudioMaterialInput, selectStudioMaterial, buildStudioPaintInput, submitStudioPaintJob, readStudioPaintJob, MAX_UPLOAD_BYTES, MAX_REQUEST_BYTES } = await load("../lib/studio-v1.ts")
+const { validateStudioFiles, buildStudioInput, getEnvironmentReferences, toggleStudioPreset, getStudioInstruction, buildStudioPresetsInput, STUDIO_PRESET_ORDER, buildStudioPresetInput, buildStudioCompositionInput, getStudioWorkingBase, recordStudioPresetResult, removeStudioPresetVersion, getStudioFurniture, chooseStudioFurniture, isStudioMaterialPreset, hasStudioPresetInstruction, getStudioMaterials, getStudioPaints, getStudioPaintSwatch, getStudioPaintPreviewSource, buildStudioMaterialInput, selectStudioMaterial, buildStudioPaintInput, submitStudioPaintJob, readStudioPaintJob, MAX_UPLOAD_BYTES, MAX_REQUEST_BYTES } = await load("../lib/studio-v1.ts")
 const { getStudioArtifactKey, ensureStudioScenarios, planStudioScenarios, expandStudioScenarioVariations } = await load("../lib/studio-draft.ts")
 const file = { type: "image/png", size: 100 }
 const base = { source: "upload", mediaUrl: "data:image/webp;base64,base", createdAt: "2026-09-28" }
@@ -120,7 +120,7 @@ test("presets combine independently per room and survive the existing draft save
     },
   }
   try {
-    const room = { ...base, mediaUrl: "room-a", instruction: "Pinte de azul", selectedReferenceUrls: [], presetVersions: [{ jobId: "saved-version", preset: "renovate", label: "Renovação", resultImageUrl: "saved-result", status: "done", createdAt: "today" }], selectedPresetVersionId: "saved-version", paintJobId: "saved-job-a", paintCatalogItemId: "saved-paint-a", roomType: "bedroom", furnishingLuxury: true, materialReferences: { "fresh-paint": { source: "catalog", mediaUrl: "saved-paint", catalogItemId: "saved-paint-a", catalogItemName: "Tinta salva", catalogCategory: "Tintas", catalogProductType: "tinta", catalogTenantSlug: "test-presets", createdAt: "2026-10-04" } }, selectedSurfaceIds: ["wall-1"], surfaceMaterialId: "saved-paint-a", surfaceAnalysis: { version: 1, sourceKey: "saved-image-key", tenantSlug: "test", imageHash: "a".repeat(64), surfaces: [{ id: "wall-1", type: "wall", state: "proposed", contours: [[[0, 0], [1, 0], [0, 1]]] }] } }
+    const room = { ...base, mediaUrl: "room-a", instruction: "Pinte de azul", selectedReferenceUrls: [], presetVersions: [{ jobId: "saved-version", preset: "renovate", label: "Renovação", resultImageUrl: "saved-result", status: "done", createdAt: "today" }], selectedPresetVersionId: "saved-version", paintJobId: "saved-job-a", paintCatalogItemId: "saved-paint-a", roomType: "bedroom", propertyContexts: ["Alto padrão"], presetOptions: { "fresh-paint": { color: "#ab1234", instructions: "Fosco", reference: { ...base, mediaUrl: "data:image/webp;base64,reference" } } }, materialReferences: { "fresh-paint": { source: "catalog", mediaUrl: "saved-paint", catalogItemId: "saved-paint-a", catalogItemName: "Tinta salva", catalogCategory: "Tintas", catalogProductType: "tinta", catalogTenantSlug: "test-presets", createdAt: "2026-10-04" } }, selectedSurfaceIds: ["wall-1"], surfaceMaterialId: "saved-paint-a", surfaceAnalysis: { version: 1, sourceKey: "saved-image-key", tenantSlug: "test", imageHash: "a".repeat(64), surfaces: [{ id: "wall-1", type: "wall", state: "proposed", contours: [[[0, 0], [1, 0], [0, 1]]] }] } }
     const other = { ...base, mediaUrl: "room-b", instruction: "Mantenha o sofá" }
     const first = toggleStudioPreset(room, "fresh-paint")
     const combined = toggleStudioPreset(first, "remove-furniture")
@@ -139,7 +139,8 @@ test("presets combine independently per room and survive the existing draft save
     assert.deepEqual(restored.baseImages[0].presetVersions, room.presetVersions)
     assert.equal(restored.baseImages[0].selectedPresetVersionId, "saved-version")
     assert.equal(restored.baseImages[0].roomType, "bedroom")
-    assert.equal(restored.baseImages[0].furnishingLuxury, true)
+    assert.deepEqual(restored.baseImages[0].propertyContexts, ["Alto padrão"])
+    assert.deepEqual(restored.baseImages[0].presetOptions, room.presetOptions)
     assert.deepEqual(restored.baseImages[0].materialReferences, room.materialReferences)
     assert.deepEqual(restored.baseImages, [combined, other])
     assert.equal(restored.baseImages[0].paintJobId, "saved-job-a")
@@ -147,10 +148,10 @@ test("presets combine independently per room and survive the existing draft save
     assert.equal(await loadStudioSession("other-tenant"), undefined)
     const request = buildStudioInput("test-presets", { ...restored.baseImages[0], selectedSurfaceIds: [] }, [], restored.instruction)
     assert.match(request.prompt, /Remova apenas móveis soltos/)
-    assert.match(request.prompt, /Renove apenas a pintura/)
+    assert.match(request.prompt, /Renove a pintura/)
     assert.match(request.prompt, /Pinte de azul/)
     assert.doesNotMatch(request.prompt, /Instrução geral/)
-    assert.match(request.prompt, /paredes, piso, revestimentos e estrutura/)
+    assert.match(request.prompt, /Preserve câmera, perspectiva, arquitetura e estrutura/)
     assert.equal(request.baseImageUrl, "room-a")
     assert.doesNotMatch(buildStudioInput("test-presets", restored.baseImages[1], [], "").prompt, /Remova apenas|Renove apenas/)
     const toggledBack = toggleStudioPreset(toggleStudioPreset(combined, "fresh-paint"), "fresh-paint")
@@ -233,7 +234,7 @@ test("paint confirmation snapshots retain the selected room, product and origina
   assert.equal(input.baseImageUrl, "room-a")
   assert.equal(input.catalogItemId, paint.id)
   assert.deepEqual(input.references.map(ref => ref.catalogItemId), [paint.id])
-  assert.match(input.prompt, /Pintura escolhida: Azul catálogo/)
+  assert.match(input.prompt, /produto escolhido do catálogo: Azul catálogo/)
   assert.match(input.prompt, /Preserve a moldura/)
   assert.match(input.prompt, /Remova apenas móveis/)
   assert.equal(firstRoom.paintJobId, undefined)
@@ -309,7 +310,7 @@ test("an already-open empty paint strip refreshes to eight paints and cleans up 
   const documentListeners = new Map()
   const rows = Array.from({ length: 8 }, (_, i) => ({ ...paint, id: `paint-${i}`, imageUrl: "data:image/png;base64,aGVsbG8=" }))
   const context = {
-    open: true, slug: "test", preset: "fresh-paint", AbortController, getStudioPaints, getStudioMaterials, isStudioMaterialPreset,
+    catalogActive: true, open: true, slug: "test", preset: "fresh-paint", AbortController, getStudioPaints, getStudioMaterials, isStudioMaterialPreset,
     setItems: value => { state = value }, setCatalogError: value => { catalogError = value }, setLoading: value => { loading = value },
     fetch: async (url, options) => {
       assert.equal(url, "/api/tenant/test/catalog/items?view=preview")
@@ -362,9 +363,9 @@ const floorMaterial = { ...wallMaterial, id: "floor-material", category: "Pisos"
 const ceilingMaterial = { ...wallMaterial, id: "ceiling-material", category: "Forros", tags: { product_type: "outro", usage_mode: "catalogo" }, name: "Forro de demonstração" }
 
 test("renovation and furnishing are job instructions; last furniture choice wins without losing manual refinements", () => {
-  const room = { ...base, instruction: "Mantenha o quadro", roomType: "bedroom", furnishingLuxury: true }
+  const room = { ...base, instruction: "Mantenha o quadro", roomType: "bedroom", propertyContexts: ["Alto padrão"] }
   const renovated = toggleStudioPreset(room, "renovate")
-  assert.match(buildStudioInput("test", renovated, [], "").prompt, /repare visualmente desgaste e pintura/)
+  assert.match(buildStudioInput("test", renovated, [], "").prompt, /repare desgaste, trincas, sujeira, manchas e defeitos/)
   assert.doesNotMatch(getStudioInstruction(renovated, ""), /Adicione mobília|Remova apenas/)
   const furnished = toggleStudioPreset(toggleStudioPreset(renovated, "remove-furniture"), "furnish")
   assert.deepEqual(furnished.presetIds, ["renovate", "furnish"])
@@ -383,15 +384,15 @@ test("renovation and furnishing are job instructions; last furniture choice wins
   assert.equal(hasStudioPresetInstruction("PRESETS_ESTUDIO: invented\n"), false)
 })
 
-test("material catalog uses explicit type/category; wall porcelain is never a floor or ceiling", () => {
+test("material catalog uses explicit type/category; floor and wall finishes share one preset but ceiling stays separate", () => {
   const items = [paint, wallMaterial, floorMaterial, ceilingMaterial, { ...wallMaterial, id: "other", tenantSlug: "other" }, { ...wallMaterial, id: "inactive", status: "inactive" }, { ...wallMaterial, id: "reference", tags: { product_type: "revestimento", usage_mode: "referencia" } }]
   assert.deepEqual(getStudioMaterials(items, "test", "fresh-paint"), [paint])
   assert.deepEqual(getStudioMaterials(items, "test", "wall-covering"), [wallMaterial])
-  assert.deepEqual(getStudioMaterials(items, "test", "flooring"), [floorMaterial])
+  assert.deepEqual(getStudioMaterials(items, "test", "flooring"), [wallMaterial, floorMaterial])
   assert.deepEqual(getStudioMaterials(items, "test", "ceiling"), [ceilingMaterial])
-  assert.deepEqual(getStudioMaterials([wallMaterial], "test", "flooring"), [])
+  assert.deepEqual(getStudioMaterials([wallMaterial], "test", "flooring"), [wallMaterial])
   assert.deepEqual(getStudioMaterials([], "test", "ceiling"), [])
-  assert.throws(() => selectStudioMaterial("test", base, "flooring", wallMaterial), /compatível/)
+  assert.equal(selectStudioMaterial("test", base, "flooring", wallMaterial).materialReferences.flooring.catalogItemId, wallMaterial.id)
   assert.throws(() => selectStudioMaterial("other", base, "wall-covering", wallMaterial), /compatível/)
 })
 
@@ -410,8 +411,8 @@ test("material choices are per room, combinable across surfaces, persisted and a
   assert.equal(input.catalogItemId, wallMaterial.id)
   assert.equal(hasStudioPresetInstruction(input.prompt), true)
   assert.match(input.prompt, /sala de estar/)
-  assert.match(input.prompt, /acabamento do piso solicitado/)
-  assert.match(input.prompt, /acabamento do teto solicitado/)
+  assert.match(input.prompt, /no piso visível/)
+  assert.match(input.prompt, /acabamento novo para o teto/)
   assert.match(input.prompt, /Mantenha as portas/)
   assert.equal(base.materialReferences, undefined)
   assert.equal(buildStudioInput("test", restored, [restored.materialReferences["wall-covering"]], "").references.length, 3, "do not duplicate chosen catalog material")
@@ -451,7 +452,7 @@ test("painting includes ceiling only by explicit choice; selecting planes requir
   const ceiling = buildStudioPresetInput("test", base, "fresh-paint", { ...options, includeCeiling: true })
   assert.match(ceiling.prompt, /inclua o teto pintado/)
   assert.throws(() => buildStudioPresetInput("test", base, "fresh-paint", { ...options, scope: "selected" }), /foi desativada/)
-  assert.match(buildStudioPresetInput("test", base, "renovate", { strength: 72 }).prompt, /mesmos materiais, cores, desenho, mobiliário e estrutura/)
+  assert.match(buildStudioPresetInput("test", base, "renovate", { strength: 72 }).prompt, /mesmos materiais, desenho, mobiliário e estrutura/)
 })
 
 test("furnishing uses real tenant products and classified rooms; aggregate retains prior edits", () => {
@@ -468,7 +469,7 @@ test("furnishing uses real tenant products and classified rooms; aggregate retai
   assert.match(input.prompt, /Preserve todo o mobiliário e todas as edições/)
   assert.equal(buildStudioPresetInput("test", room, "furnish", { furniture: [furniture], strength: 72, aggregate: false }).baseImageUrl, base.mediaUrl)
   assert.throws(() => buildStudioPresetInput("test", base, "furnish", { furniture: [rows[1]], strength: 72 }), /deste catálogo/)
-  assert.throws(() => buildStudioPresetInput("test", base, "furnish", { furniture: [], strength: 72 }), /Escolha móveis reais/)
+  assert.equal(buildStudioPresetInput("test", base, "furnish", { furniture: [], strength: 72 }).references.length, 0)
 })
 
 test("polling stores versions once, preserves original, ignores other jobs and preserves a reviewed selection", () => {
@@ -507,6 +508,12 @@ test("preset jobs remain queueable but are omitted from Compositions; anonymous 
   assert.equal(retry.created, false)
   assert.equal(retry.job.id, created.job.id)
   assert.equal((await store.getNextQueuedCompositionJob("test")).purpose, "studio-preset")
+  const usage = { requestId: "provider-response", model: "synthetic", costUsd: .1, createdAt: "today" }
+  await store.recordCompositionGenerationUsage("test", created.job.id, usage)
+  await store.recordCompositionGenerationUsage("test", created.job.id, usage)
+  assert.equal((await store.findCompositionJob("test", created.job.id)).generationUsage.length, 1, "provider IDs prevent duplicate costs")
+  await assert.rejects(store.recordCompositionGenerationUsage("other", created.job.id, usage), /Job não encontrado/)
+
   await store.createCompositionJob("test", { ...input, purpose: "composition", sourceMessageId: "general" })
   const routeSource = await readFile(new URL("../app/api/tenant/[slug]/compositions/jobs/route.ts", import.meta.url), "utf8")
   const routeCode = ts.transpileModule(routeSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
@@ -557,16 +564,16 @@ test('manual Apply submits the chosen version without recognition or surface sel
   const {runInNewContext} = await import('node:vm')
   const source=await readFile(new URL('../components/studio-paint-flow.tsx',import.meta.url),'utf8')
   assert.doesNotMatch(source,/StudioSurfaces|Selecionar superfícies|beginSurfaceSelection|studio\/surfaces/)
-  assert.match(source,/Onde aplicar \(opcional\)/)
+  assert.match(source,/Descrição do cenário \(opcional\)/)
   const ast=ts.createSourceFile('flow.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   let apply
   function visit(node){if(ts.isFunctionDeclaration(node)&&node.name?.text==='apply')apply=node.getText(ast);ts.forEachChild(node,visit)}
   visit(ast)
   let submitted=0,error=null,savedPatch
   const room={...base,selectedSurfaceIds:['old-wall'],presetVersions:[{jobId:'chosen',status:'done',resultImageUrl:'chosen-result'}],selectedPresetVersionId:'chosen'}
-  const state={selection:{base:room,item:paint,key:'synthetic-room',preset:'fresh-paint',strength:72},operationLock:{current:false},submittingLock:{current:false},pending:false,room:'living-room',luxury:false,includeCeiling:false,removeFixedFurniture:false,aggregate:true,placement:'parede ao fundo',slug:'test',buildStudioPresetInput,STUDIO_PRESETS:[{id:'fresh-paint',label:'Pintura nova'}],requestIds:{current:new Map()},crypto:globalThis.crypto,setSubmitting:()=>{},setApplyError:value=>{error=value},submitStudioPaintJob:async(slug,body)=>{submitted++;assert.equal(body.baseImageUrl,'chosen-result');assert.match(body.prompt,/parede ao fundo/);return {id:'mock-manual',status:'queued',createdAt:'now'}},setJobs:()=>{},onUpdate:(_key,patch)=>{savedPatch=patch},setSelection:()=>{},onClose:()=>{}}
+  const state={disabled:false,uploadingReference:false,catalogActive:true,catalogSelections:{},isStudioMaterialPreset,STUDIO_PRESET_ORDER,selection:{base:room,item:paint,key:'synthetic-room',preset:'fresh-paint',strength:72},operationLock:{current:false},submittingLock:{current:false},pending:false,room:'living-room',luxury:false,includeCeiling:false,removeFixedFurniture:false,aggregate:true,placement:'parede ao fundo',slug:'test',buildStudioPresetsInput,buildStudioPresetInput,STUDIO_PRESETS:[{id:'fresh-paint',label:'Pintura nova'}],requestIds:{current:new Map()},crypto:globalThis.crypto,setSubmitting:()=>{},setApplyError:value=>{error=value},submitStudioPaintJob:async(slug,body)=>{submitted++;assert.equal(body.baseImageUrl,'chosen-result');assert.match(body.prompt,/parede ao fundo/);return {id:'mock-manual',status:'queued',createdAt:'now'}},setJobs:()=>{},onUpdate:(_key,patch)=>{savedPatch=patch},setSelection:()=>{},onClose:()=>{}}
   runInNewContext(ts.transpileModule(apply,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,state)
-  await state.apply()
+  await state.apply(state.selection)
   assert.equal(submitted,1)
   assert.equal(error,null)
   assert.equal(savedPatch.presetVersions.at(-1).manualTarget,'parede ao fundo')
@@ -627,31 +634,46 @@ test("automatic furnishing selects at most five unique active room-compatible re
   assert.notDeepEqual(reversed.map(item => item.id), chosen.map(item => item.id))
 })
 
-test("actual automatic-mode effect picks without manual clicks, reloads by room and never submits a job", async () => {
-  const { runInNewContext } = await import("node:vm")
-  const source = await readFile(new URL("../components/studio-paint-flow.tsx", import.meta.url), "utf8")
-  const ast = ts.createSourceFile("flow.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-  let effect
-  function visit(node) {
-    if (ts.isCallExpression(node) && node.expression.getText(ast) === "useEffect" && node.arguments[0]?.getText(ast).includes("const chosen = chooseStudioFurniture")) effect=node.arguments[0].getText(ast)
-    ts.forEachChild(node, visit)
-  }
-  visit(ast)
-  assert.ok(effect)
-  assert.doesNotMatch(source, /Selecionar itens compatíveis/)
-  const furniture = ["kitchen", "bedroom"].flatMap(room => Array.from({ length: 15 }, (_, i) => ({ ...paint, id: `${room}-${i}`, imageUrl: "data:image/png;base64,aGVsbG8=", tags: { product_type: "movel", usage_mode: "catalogo", room_type: room } })))
-  let selected=[],error=null
-  const state={open:true,preset:"furnish",furnitureMode:"automatic",room:"kitchen",items:furniture,slug:"test",loading:false,catalogError:null,chooseStudioFurniture,setSelectedFurniture:value=>{selected=value},setApplyError:value=>{error=value}}
-  const code=ts.transpileModule(`(${effect})()`, {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText
-  runInNewContext(code,state)
-  assert.equal(selected.length,5)
-  assert.ok(selected.every(id=>id.startsWith("kitchen-")))
-  state.room="bedroom";runInNewContext(code,state)
-  assert.ok(selected.every(id=>id.startsWith("bedroom-")))
-  state.room="bathroom";runInNewContext(code,state)
-  assert.equal(selected.length,0);assert.match(error,/classificados para este cômodo/)
-  state.loading=true;runInNewContext(code,state);assert.equal(error,null)
-  selected=["manual-choice"];state.furnitureMode="manual";runInNewContext(code,state);assert.deepEqual(selected,["manual-choice"])
+test("AI presets combine empty-room, renovation and furnishing in one ordered request without catalogue or manual prompt", () => {
+  const scene = { ...base, combinePresets: true, roomType: "Varanda", propertyContexts: ["Casa", "Alto padrão"], sceneDescription: "Varanda pequena com iluminação natural", instruction: "This general prompt must not enter presets", materialReferences: { flooring: { catalogTenantSlug: "other", catalogItemId: "stale" } } }
+  const selected = ["furnish", "renovate", "remove-furniture", "flooring"]
+  const input = buildStudioPresetsInput("test", scene, selected, { strength: 72 })
+  assert.deepEqual(input.presetIds, ["remove-furniture", "renovate", "flooring", "furnish"])
+  assert.equal(input.purpose, "studio-preset")
+  assert.equal(input.references.length, 0)
+  assert.match(input.prompt, /^PRESETS_ESTUDIO: remove-furniture,renovate,flooring,furnish/)
+  assert.ok(input.prompt.indexOf("1. Remova") < input.prompt.indexOf("2. Renove"))
+  assert.ok(input.prompt.indexOf("2. Renove") < input.prompt.indexOf("4. Adicione mobília"))
+  assert.match(input.prompt, /Varanda|Casa|alto padrão|iluminação natural/)
+  assert.doesNotMatch(input.prompt, /This general prompt|stale|Preserve os móveis existentes/)
+  assert.equal(selected[0], "furnish", "caller selections are not mutated")
+  const toggle = toggleStudioPreset(toggleStudioPreset({ ...base, combinePresets: true }, "remove-furniture"), "furnish")
+  assert.ok(toggle.presetIds.includes("remove-furniture") && toggle.presetIds.includes("furnish"))
+  for (const id of STUDIO_PRESET_ORDER) assert.equal(buildStudioPresetsInput("test", base, [id], { strength: 72 }).references.length, 0)
+  assert.throws(() => buildStudioPresetsInput("test", base, [], { strength: 72 }), /válidos/)
+  assert.throws(() => buildStudioPresetsInput("test", base, ["unknown"], { strength: 72 }), /válidos/)
+  assert.throws(() => buildStudioPresetsInput("test", base, ["furnish", "furnish"], { strength: 72 }), /repetições/)
+  assert.throws(() => buildStudioPresetsInput("test", { ...base, sceneDescription: "a".repeat(1001) }, ["furnish"], { strength: 72 }), /Contexto/)
+})
+
+test("optional catalogue validates tenant and compatible materials in the combined AI request", () => {
+  const input = buildStudioPresetsInput("test", base, ["flooring", "furnish"], { strength: 72, materials: { flooring: floorMaterial }, furniture: [{ ...paint, id: "sofa", imageUrl: "data:image/png;base64,aGVsbG8=", tags: { product_type: "movel" } }] })
+  assert.equal(input.references.length, 2)
+  assert.match(input.prompt, /Piso de demonstração|apenas os móveis do catálogo/)
+  assert.throws(() => buildStudioPresetsInput("other", base, ["flooring"], { strength: 72, materials: { flooring: floorMaterial } }), /compatível/)
+})
+
+test("generation costs retain failed attempts, real zero, missing values and combined presets", async () => {
+  const { readGenerationUsage, summarizeGenerationCosts } = await load("../lib/generation-costs.ts")
+  assert.equal(readGenerationUsage({ usage: { cost: 0 } }, "test").costUsd, 0)
+  for (const cost of [null, "0.1", -1, Infinity, NaN]) assert.equal(readGenerationUsage({ usage: { cost } }, "test").costUsd, undefined)
+  const jobs = [{ prompt: "", presetIds: ["remove-furniture", "furnish"], status: "done", processingAttempts: 1, generationUsage: [{costUsd:.1},{costUsd:.2},{costUsd:0},{model:"unknown"}] }, { prompt: "", presetIds: ["remove-furniture", "furnish"], status: "failed", processingAttempts: 1, generationUsage: [{costUsd:.3}] }, { prompt: "", status:"done",processingAttempts:1 }]
+  const groups = summarizeGenerationCosts(jobs)
+  assert.equal(groups[0].type, "combination:remove-furniture,furnish")
+  assert.equal(groups[0].jobs, 2); assert.equal(groups[0].completed, 1)
+  assert.equal(groups[0].attempts, 5); assert.equal(groups[0].knownCostAttempts, 4)
+  assert.ok(Math.abs(groups[0].knownCostUsd - .6) < 1e-10)
+  assert.equal(groups[0].unknownCosts, 1); assert.equal(groups[1].unknownCosts, 1)
 })
 
 
@@ -780,4 +802,66 @@ test("scenario variations persist independently, preserve legacy disabled slots 
   assert.match(source,/Variações no cenário \{currentScenarioIndex \+ 1\}/)
   assert.match(source,/aria-label="Quantidade de variações deste cenário"/)
   assert.match(source,/R\{index \+ 1\}/)
+})
+
+
+test("real worker caller records paid no-image failures and unknown network attempts; storage failure stops fallback", async () => {
+  const { runInNewContext } = await import("node:vm")
+  const { readGenerationUsage } = await load("../lib/generation-costs.ts")
+  const source = await readFile(new URL("../lib/server/openrouter-image-worker.ts", import.meta.url), "utf8")
+  const ast = ts.createSourceFile("worker.ts", source, ts.ScriptTarget.Latest, true)
+  const functions = []
+  function visit(node) { if (ts.isFunctionDeclaration(node) && ["requestOpenRouterImage", "generateImageWithOpenRouter"].includes(node.name?.text)) functions.push(node.getText(ast)); ts.forEachChild(node, visit) }
+  visit(ast)
+  const recorded = []
+  let calls = 0
+  const state = { Error, AbortSignal, readGenerationUsage, appendPath: (url, path) => url + path, getOpenRouterHeaders: () => ({}), getOpenRouterImageConfig: () => ({}), recordCompositionGenerationUsage: async (_tenant, _job, usage) => recorded.push(usage), getImageUrlFromPayload: () => null, getPayloadTextPreview: () => "", getPayloadNoImageDiagnostic: () => "no image", getOpenRouterError: () => "HTTP error", fetch: async () => { calls++; return { ok:true, json: async () => ({ id:"paid-response", usage:{cost:.1} }) } }, getAiModelProfile: async () => ({modelId:"test-model"}), defaultImageGenerationModel:"test-model", getCatalogMaterialImages: async () => [], buildOpenRouterImageContent: () => [], getImageGenerationModels: () => ["first", "second"], normalizeOpenRouterError: error => error.message }
+  runInNewContext(ts.transpileModule(functions.join("\n"), {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText, state)
+  const job = { tenantSlug:"test",id:"synthetic-job" }
+  await assert.rejects(state.requestOpenRouterImage({baseUrl:"https://synthetic.invalid"},"test",job,{},[],{}), /nao retornou imagem/)
+  assert.equal(recorded[0].costUsd,.1)
+  state.fetch = async () => { throw new Error("network timeout") }
+  await assert.rejects(state.requestOpenRouterImage({baseUrl:"https://synthetic.invalid"},"test",job,{},[],{}), /network timeout/)
+  assert.equal(recorded.at(-1).costUsd,undefined)
+  state.fetch = async () => { calls++; return {ok:true,json:async()=>({usage:{cost:.2}})} }
+  state.recordCompositionGenerationUsage = async () => { throw new Error("storage unavailable") }
+  const previousCalls = calls
+  await assert.rejects(state.generateImageWithOpenRouter({baseUrl:"https://synthetic.invalid"},job,{},""), error => error.name === "GenerationUsageStorageError")
+  assert.equal(calls - previousCalls,1,"a persistence error cannot trigger more paid model attempts")
+})
+
+
+test("preset refinements are scoped, painting has color texture and shared finishes accept wall targets", () => {
+  const options = { strength: 72 }
+  const configured = { ...base, roomType: "Varanda", propertyContexts: ["Casa"], sceneDescription: "cenário exclusivo", presetOptions: {
+    "fresh-paint": { color: "#ab1234", instructions: "Acabamento fosco", reference: { ...base, mediaUrl: "data:image/png;base64,aGVsbG8=" } },
+    flooring: { surface: "walls", instructions: "Revestimento claro" },
+    ceiling: { instructions: "Teto liso" },
+  } }
+  for (const preset of ["remove-furniture", "renovate"]) {
+    const input = buildStudioPresetsInput("test", configured, [preset], options)
+    assert.doesNotMatch(input.prompt, /Contexto do ambiente|cenário exclusivo|Acabamento fosco|Revestimento claro/)
+    assert.equal(input.references.length, 0)
+  }
+  const paintInput = buildStudioPresetsInput("test", configured, ["fresh-paint"], options)
+  assert.match(paintInput.prompt, /#ab1234/)
+  assert.match(paintInput.prompt, /textura realista de parede pintada/)
+  assert.match(paintInput.prompt, /Acabamento fosco/)
+  assert.match(paintInput.prompt, /Referência para a etapa Pintura nova/)
+  assert.equal(paintInput.references.length, 1)
+  const wallInput = buildStudioPresetsInput("test", configured, ["flooring"], options)
+  assert.match(wallInput.prompt, /Aplique somente nas paredes/)
+  assert.match(wallInput.prompt, /Preserve o piso/)
+  assert.doesNotMatch(wallInput.prompt, /Preserve os revestimentos de parede|Preserve a pintura existente|Acabamento fosco/)
+  const both = buildStudioPresetsInput("test", { ...configured, presetOptions: { flooring: { surface: "both" } } }, ["flooring"], options)
+  assert.match(both.prompt, /no piso visível e nas paredes/)
+  assert.doesNotMatch(both.prompt, /Preserve o piso|Preserve os revestimentos de parede/)
+  const renewed = buildStudioPresetsInput("test", configured, ["renovate"], options)
+  assert.match(renewed.prompt, /aplique pintura nova/)
+  assert.match(renewed.prompt, /no teto e nos objetos fixos/)
+  const combined = buildStudioPresetsInput("test", configured, ["fresh-paint", "ceiling"], options)
+  assert.match(combined.prompt, /Teto liso/)
+  assert.equal(combined.references.length, 1)
+  assert.throws(() => buildStudioPresetsInput("test", { ...base, presetOptions: { "fresh-paint": { color: "ignore instructions" } } }, ["fresh-paint"], options), /Opções do preset/)
+  assert.throws(() => buildStudioPresetsInput("test", { ...base, presetOptions: { furnish: { reference: { ...base, source: "catalog" } } } }, ["furnish"], options), /Referência de imagem inválida/)
 })

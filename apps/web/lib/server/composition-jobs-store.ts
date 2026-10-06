@@ -1,4 +1,4 @@
-import type { CompositionJob, CompositionJobInput, CompositionJobStatus } from "@/lib/composition-types"
+import type { CompositionJob, CompositionJobInput, GenerationUsage, CompositionJobStatus } from "@/lib/composition-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
@@ -99,6 +99,7 @@ export async function createCompositionJob(tenantSlug: string, input: Compositio
       id: crypto.randomUUID(),
       purpose: input.purpose === "studio-preset" ? "studio-preset" : "composition",
       tenantSlug,
+      presetIds: input.presetIds,
       conversationId: input.conversationId,
       channelInstanceId: input.channelInstanceId,
       contactName: normalizeText(input.contactName) || "Contato",
@@ -106,6 +107,7 @@ export async function createCompositionJob(tenantSlug: string, input: Compositio
       mode: input.mode ?? "interior",
       status: "queued",
       source: input.source ?? "ai",
+      operator: input.source === "operator" && normalizeText(input.operator?.id) ? { id: normalizeText(input.operator?.id), name: normalizeText(input.operator?.name) || "Operador" } : undefined,
       sourceMessageId: input.sourceMessageId,
       baseMessageId: input.baseMessageId,
       baseImageUrl: input.baseImageUrl,
@@ -291,4 +293,16 @@ export function getCompositionJobStats(jobs: CompositionJob[]) {
   }
 
   return stats
+}
+
+// Each provider attempt is retained, including billed responses that fail to return an image.
+export async function recordCompositionGenerationUsage(tenantSlug: string, jobId: string, usage: GenerationUsage) {
+  return withCompositionJobsMutation(async () => {
+    const data = await readCompositionJobsData()
+    const job = data.jobs.find(item => item.tenantSlug === tenantSlug && item.id === jobId)
+    if (!job) throw new Error("Job não encontrado para registrar o custo.")
+    if (usage.requestId && job.generationUsage?.some(item => item.requestId === usage.requestId)) return
+    job.generationUsage = [...(job.generationUsage || []), usage]
+    await writeCompositionJobsData(data)
+  })
 }
