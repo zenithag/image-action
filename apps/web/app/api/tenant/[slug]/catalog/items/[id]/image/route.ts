@@ -1,6 +1,7 @@
+import { getTenantCatalogAccess, requireTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
 import { createHash } from "node:crypto"
 import { normalizeImageForUpload } from "@/lib/server/image-normalization"
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
 import { getCatalogReferenceImageUrl } from "@/lib/server/catalog-reference-image"
 import { listCatalogItems } from "@/lib/server/catalog-store"
@@ -47,14 +48,20 @@ async function responseFromDataUrl(dataUrl: string, width: number | null) {
   })
 }
 
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   const { slug, id } = await context.params
+  if (!(await getTenantCatalogAccess(slug)).enabled) return NextResponse.json({ error: "Catálogo indisponível." }, { status: 404 })
   const requestedWidth = new URL(request.url).searchParams.get("width")
   const width = requestedWidth === null ? null : Number(requestedWidth)
   if (width !== null && (!Number.isInteger(width) || width < 32 || width > 512)) {
     return NextResponse.json({ error: "Tamanho de miniatura invalido." }, { status: 400 })
   }
   const item = (await listCatalogItems(slug)).find((catalogItem) => catalogItem.id === id)
+
+  if (item?.status === "inactive") {
+    const denied = await requireTenantCatalogAccess(request, slug)
+    if (denied) return denied
+  }
 
   if (!item?.imageUrl) {
     return NextResponse.json({ error: "Imagem do produto nao encontrada." }, { status: 404 })

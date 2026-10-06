@@ -1,5 +1,6 @@
 "use client"
 
+import { createTextWatermarkSvg, getWatermarkBox, getWatermarkPlacement } from "@/lib/watermark-layout"
 import styles from "./settings-layout.module.css"
 import management from "./management-layout.module.css"
 import { Tabs } from "@/components/spectrum/tabs"
@@ -18,6 +19,7 @@ import type { CatalogItem } from "@/lib/catalog-types"
 import type { TenantReferralProgram } from "@/lib/commercial-benefits-types"
 import type { TenantSettings, TenantSettingsTeamMember, TenantSettingsTeamMemberRole } from "@/lib/tenant-settings-types"
 import type { TenantTokenSnapshot } from "@/lib/token-ledger-types"
+import type { TenantChannelAvailability } from "@/lib/tenant-channel-availability"
 import { normalizeTenantBrandingSnapshot } from "@/lib/tenant-branding"
 import { cn } from "@/lib/utils"
 
@@ -29,7 +31,7 @@ type SectionId = "branding" | "domain" | "studio" | "assistant" | "limits" | "te
 
 const sections: Array<{ id: SectionId; title: string }> = [
   { id: "branding", title: "Marca & dados" },
-  { id: "domain", title: "Domínio" },
+  { id: "domain", title: "Domínio & canais" },
   { id: "studio", title: "Estúdio & presets" },
   { id: "assistant", title: "IA & prompts" },
   { id: "limits", title: "Limites" },
@@ -206,16 +208,21 @@ function Toggle({
   checked,
   onChange,
   label,
+  disabled = false,
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   label: string
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between border-t border-border pt-4 text-left transition-colors hover:border-primary/50"
+      className="flex items-center justify-between gap-3 border-t border-border pt-4 text-left transition-colors hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span className="text-sm font-medium text-foreground">{label}</span>
       <span className={cn("relative h-6 w-11 rounded-full transition-colors", checked ? "bg-primary" : "bg-muted")}>
@@ -238,6 +245,25 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
   const [catalogCategories, setCatalogCategories] = useState<string[]>([])
   const [couponCode, setCouponCode] = useState("")
   const [isRedeemingCoupon, setIsRedeemingCoupon] = useState(false)
+  const [channelAvailability, setChannelAvailability] = useState<TenantChannelAvailability | null>(null)
+  const [channelStatusError, setChannelStatusError] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    setChannelAvailability(null)
+    setChannelStatusError(false)
+    async function loadChannelStatus() {
+      try {
+        const result = await requestJson<{ whatsapp: TenantChannelAvailability }>(`/api/tenant/${tenantSlug}/channels/availability`, { cache: "no-store" })
+        if (active) { setChannelAvailability(result.whatsapp); setChannelStatusError(false) }
+      } catch {
+        if (active) { setChannelAvailability(null); setChannelStatusError(true) }
+      }
+    }
+    void loadChannelStatus()
+    window.addEventListener("focus", loadChannelStatus)
+    return () => { active = false; window.removeEventListener("focus", loadChannelStatus) }
+  }, [tenantSlug])
 
   function emitBrandingUpdate(nextSettings: TenantSettings) {
     if (typeof window === "undefined") {
@@ -250,6 +276,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
       logoUrl: nextSettings.branding.logoUrl,
     })
 
+    window.dispatchEvent(new Event("tenant-settings-updated"))
     window.dispatchEvent(new CustomEvent("tenant-branding-updated", {
       detail: {
         tenantSlug,
@@ -279,17 +306,20 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
     }
   }
 
+  const [catalogIncluded, setCatalogIncluded] = useState(false)
+
   async function loadSettings() {
     setIsLoading(true)
     setError(null)
 
     try {
       const [settingsData, tokensData, referralData, catalogItems] = await Promise.all([
-        requestJson<TenantSettings>(`/api/tenant/${tenantSlug}/settings`, { cache: "no-store" }),
+        requestJson<TenantSettings & { catalogAccess?: { included: boolean } }>(`/api/tenant/${tenantSlug}/settings`, { cache: "no-store" }),
         requestJson<TenantTokenSnapshot>(`/api/tenant/${tenantSlug}/billing/tokens`, { cache: "no-store" }),
         requestJson<TenantReferralProgram>(`/api/tenant/${tenantSlug}/billing/referrals`, { cache: "no-store" }),
-        requestJson<CatalogItem[]>(`/api/tenant/${tenantSlug}/catalog/items`, { cache: "no-store" }),
+        requestJson<CatalogItem[]>(`/api/tenant/${tenantSlug}/catalog/items`, { cache: "no-store" }).catch(() => []),
       ])
+      setCatalogIncluded(settingsData.catalogAccess?.included === true)
       const categories = getCatalogCategories(catalogItems)
       setSettings({
         ...settingsData,
@@ -604,12 +634,30 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                           <Field label="Posição da marca d’água">
                             <NativeSelect
                               value={settings.branding.watermarkPosition}
-                              onChange={(event) => updateSection("branding", { watermarkPosition: event.target.value === "bottom-right" ? "bottom-right" : "center" })}
+                              onChange={(event) => {
+                                const placement = getWatermarkPlacement(settings.branding)
+                                updateSection("branding", { watermarkPosition: event.target.value === "custom" ? "custom" : event.target.value === "bottom-right" ? "bottom-right" : "center", watermarkX: placement.x, watermarkY: placement.y })
+                              }}
                               className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
                             >
                               <option value="center">Centro</option>
                               <option value="bottom-right">Canto inferior direito</option>
+                              <option value="custom">Posição livre</option>
                             </NativeSelect>
+                          </Field>
+                          {settings.branding.watermarkPosition === "custom" && (
+                            <div className="grid gap-3">
+                              <Field label={`Posição horizontal · ${settings.branding.watermarkX ?? 50}%`}>
+                                <Input type="range" min={0} max={100} step={1} aria-label="Posição horizontal da marca d’água" value={settings.branding.watermarkX ?? 50} onChange={(event) => updateSection("branding", { watermarkX: Number(event.target.value) })} className="w-full" />
+                              </Field>
+                              <Field label={`Posição vertical · ${settings.branding.watermarkY ?? 50}%`}>
+                                <Input type="range" min={0} max={100} step={1} aria-label="Posição vertical da marca d’água" value={settings.branding.watermarkY ?? 50} onChange={(event) => updateSection("branding", { watermarkY: Number(event.target.value) })} className="w-full" />
+                              </Field>
+                            </div>
+                          )}
+                          <Field label={`Opacidade · ${settings.branding.watermarkOpacity ?? 22}%`}>
+                            <Input type="range" min={0} max={100} step={1} aria-label="Opacidade da marca d’água" value={settings.branding.watermarkOpacity ?? 22} onChange={(event) => updateSection("branding", { watermarkOpacity: Number(event.target.value) })} className="w-full" />
+                            <p className="mt-1 text-xs text-muted-foreground">0% transparente · 100% opaca. O logo tem prioridade; sem logo, será aplicado o texto.</p>
                           </Field>
                           <Field label={`Tamanho da marca d’água · ${settings.branding.watermarkSize ?? 100}%`}>
                             <Input
@@ -655,7 +703,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                           <span className="text-sm font-bold text-foreground">{settings.general.companyName || "Empresa"}</span>
                         </div>
                         <div className="space-y-1 p-3">
-                          {["Inbox", "Composições", "Catálogo", "Contatos"].map((item) => (
+                          {["Inbox", "Composições", ...(catalogIncluded && settings.studio.catalogEnabled ? ["Catálogo"] : []), "Contatos"].map((item) => (
                             <div key={item} className="rounded-lg px-3 py-2 text-xs text-muted-foreground">{item}</div>
                           ))}
                         </div>
@@ -674,32 +722,25 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       </div>
                       <div className="relative overflow-hidden rounded-md border border-border bg-black">
                         <SafeImage
-                          src={settings.branding.logoUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'%3E%3Crect width='800' height='520' fill='%23e5e7eb'/%3E%3Crect x='110' y='80' width='580' height='280' rx='18' fill='%23f8fafc'/%3E%3Crect x='160' y='120' width='260' height='180' rx='16' fill='%23d1fae5'/%3E%3Crect x='450' y='120' width='180' height='20' rx='10' fill='%239ca3af'/%3E%3Crect x='450' y='160' width='140' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='194' width='120' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='228' width='150' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='274' width='120' height='34' rx='17' fill='%2331c48d'/%3E%3C/svg%3E"}
+                          src={"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'%3E%3Crect width='800' height='520' fill='%23e5e7eb'/%3E%3Crect x='110' y='80' width='580' height='280' rx='18' fill='%23f8fafc'/%3E%3Crect x='160' y='120' width='260' height='180' rx='16' fill='%23d1fae5'/%3E%3Crect x='450' y='120' width='180' height='20' rx='10' fill='%239ca3af'/%3E%3Crect x='450' y='160' width='140' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='194' width='120' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='228' width='150' height='16' rx='8' fill='%23cbd5e1'/%3E%3Crect x='450' y='274' width='120' height='34' rx='17' fill='%2331c48d'/%3E%3C/svg%3E"}
                           alt="Prévia de composição"
-                          className="h-56 w-full object-cover opacity-90"
+                          className="aspect-[800/520] w-full object-cover"
                           fallbackLabel="Prévia indisponível"
                           fallbackHint="A imagem de prévia não carregou."
                         />
-                        {settings.branding.watermarkEnabled && (
-                          <div
-                            className="pointer-events-none absolute inset-0 flex text-white/35"
-                            style={{
-                              alignItems: settings.branding.watermarkPosition === "bottom-right" ? "flex-end" : "center",
-                              justifyContent: settings.branding.watermarkPosition === "bottom-right" ? "flex-end" : "center",
-                              padding: settings.branding.watermarkPosition === "bottom-right" ? "16px" : "0",
-                            }}
-                          >
-                            <span
-                              className="rounded-md border border-white/10 bg-black/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]"
-                              style={{
-                                transform: `${settings.branding.watermarkPosition === "center" ? "rotate(-14deg) " : ""}scale(${(settings.branding.watermarkSize ?? 100) / 100})`,
-                                transformOrigin: settings.branding.watermarkPosition === "bottom-right" ? "bottom right" : "center",
-                              }}
-                            >
-                              {settings.branding.watermarkText || settings.general.companyName || "ComoFica"}
-                            </span>
+                        {settings.branding.watermarkEnabled && (settings.branding.logoUrl ? (
+                          <div className="pointer-events-none absolute" style={{
+                            left: `${getWatermarkBox(800, 520, settings.branding).left / 8}%`,
+                            top: `${getWatermarkBox(800, 520, settings.branding).top / 5.2}%`,
+                            width: `${getWatermarkBox(800, 520, settings.branding).width / 8}%`,
+                            height: `${getWatermarkBox(800, 520, settings.branding).height / 5.2}%`,
+                            opacity: getWatermarkPlacement(settings.branding).opacity,
+                          }}>
+                            <SafeImage src={settings.branding.logoUrl} alt="Prévia do logo como marca d’água" className="h-full w-full object-contain" fallbackClassName="h-full min-h-0 p-0 text-xs" fallbackLabel="Logo indisponível" fallbackHint="" />
                           </div>
-                        )}
+                        ) : (
+                          <img className="pointer-events-none absolute inset-0 h-full w-full" alt="Prévia do texto como marca d’água" src={`data:image/svg+xml,${encodeURIComponent(createTextWatermarkSvg(800, 520, settings.branding, settings.branding.watermarkText || settings.general.companyName || "ComoFica"))}`} />
+                        ))}
                       </div>
                     </div>
                   </SettingsGroup>
@@ -707,11 +748,31 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               )}
 
               {activeSection === "domain" && (
-                <SettingsGroup title="Domínio" description="Configurações de domínio e canais do tenant.">
+                <SettingsGroup title="Domínio & canais" description="Habilitar o canal autoriza seu uso; a conexão é configurada separadamente.">
 <div className="grid gap-4 md:grid-cols-2">
-                    <Toggle checked={settings.channels.whatsappEnabled} onChange={(checked) => updateSection("channels", { whatsappEnabled: checked })} label="WhatsApp habilitado" />
-                    <Toggle checked={settings.channels.instagramEnabled} onChange={(checked) => updateSection("channels", { instagramEnabled: checked })} label="Instagram habilitado" />
-                    <Toggle checked={settings.channels.telegramEnabled} onChange={(checked) => updateSection("channels", { telegramEnabled: checked })} label="Telegram habilitado" />
+                    <div className="grid gap-2">
+                      <Toggle checked={settings.channels.whatsappEnabled} onChange={(checked) => updateSection("channels", { whatsappEnabled: checked })} label="Permitir uso do WhatsApp" />
+                      <p className="text-xs text-muted-foreground" role="status">
+                        {!settings.channels.whatsappEnabled ? "Uso desabilitado. " : "Uso habilitado. "}
+                        {channelStatusError ? "Não foi possível consultar a conexão." : !channelAvailability ? "Consultando conexão…" : {
+                          "not-configured": "Nenhuma instância configurada.",
+                          connected: "Conectado no último registro.",
+                          connecting: "Aguardando conexão no último registro.",
+                          disconnected: "Instância configurada, desconectada no último registro.",
+                          error: "Instância configurada, com erro no último registro.",
+                        }[channelAvailability.connection]}
+                        {channelAvailability?.recordedAt ? ` Registro: ${new Date(channelAvailability.recordedAt).toLocaleString("pt-BR")}.` : ""}
+                      </p>
+                      <a className="text-xs text-primary underline" href={`/tenant/${tenantSlug}/whatsapp`}>Gerenciar conexão do WhatsApp</a>
+                    </div>
+                    <div className="grid gap-2">
+                      <Toggle checked={false} disabled onChange={() => {}} label="Instagram indisponível" />
+                      <p className="text-xs text-muted-foreground">Integração ainda não implementada. Uma preferência salva não estabelece conexão.</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Toggle checked={false} disabled onChange={() => {}} label="Telegram indisponível" />
+                      <p className="text-xs text-muted-foreground">Integração ainda não implementada. Uma preferência salva não estabelece conexão.</p>
+                    </div>
                     <Toggle checked={settings.channels.autoSendCompositionsToWhatsapp} onChange={(checked) => updateSection("channels", { autoSendCompositionsToWhatsapp: checked })} label="Enviar composições do Estúdio no WhatsApp" />
                     <Field label="Handoff">
                       <NativeSelect
@@ -723,7 +784,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         <option value="auto">Automatico</option>
                       </NativeSelect>
                     </Field>
-                    <Field label="Dominios permitidos" className="md:col-span-2">
+                    <Field label="Domínios permitidos" className="md:col-span-2">
                       <TextArea rows={4} value={asLines(settings.security.allowedDomains)} onChange={(event) => updateSection("security", { allowedDomains: fromLines(event.target.value) })} />
                     </Field>
                   </div>
@@ -733,7 +794,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               {activeSection === "studio" && (
                 <SettingsGroup title="Estúdio & presets" description="A IA gera móveis e acabamentos sem exigir produtos cadastrados.">
                   <div className="grid gap-4">
-                    <Toggle checked={settings.studio.catalogEnabled} onChange={checked => updateSection("studio", { catalogEnabled: checked })} label="Disponibilizar catálogo nos presets" />
+                    {catalogIncluded && <Toggle checked={settings.studio.catalogEnabled} onChange={checked => updateSection("studio", { catalogEnabled: checked })} label="Ativar catálogo" />}
                     <p className="text-xs text-muted-foreground">Quando ativado, o operador pode optar por produtos do catálogo. Desativado: o catálogo fica oculto e os presets usam somente a IA.</p>
                     <Field label="Tipos de ambiente (um por linha)"><TextArea rows={7} value={asLines(settings.studio.environmentTypes)} onChange={event => updateSection("studio", { environmentTypes: fromLines(event.target.value) })} /></Field>
                     <Field label="Contextos do imóvel (um por linha)"><TextArea rows={6} value={asLines(settings.studio.propertyContexts)} onChange={event => updateSection("studio", { propertyContexts: fromLines(event.target.value) })} /></Field>
@@ -745,7 +806,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                 <SettingsGroup title="IA & prompts" description="Configurações do assistente de IA e prompts do sistema.">
 <div className="grid gap-4">
                     <Toggle checked={settings.assistant.enabled} onChange={(checked) => updateSection("assistant", { enabled: checked })} label="Assistente IA habilitado" />
-                    <Toggle checked={settings.assistant.catalogEnabled} onChange={(checked) => updateSection("assistant", { catalogEnabled: checked })} label="Usar catálogo no WhatsApp" />
+                    {catalogIncluded && <Toggle checked={settings.assistant.catalogEnabled} onChange={(checked) => updateSection("assistant", { catalogEnabled: checked })} label="Usar catálogo no WhatsApp" />}
                     <p className="-mt-2 text-xs text-muted-foreground">
                       Desligado: a IA usa apenas referências enviadas pelo cliente no WhatsApp e não solicita produto ou link do catálogo.
                     </p>
@@ -864,6 +925,10 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                         </NativeSelect>
                         <Button variant="outline" className="w-full md:w-auto" onClick={() => removeTeamMember(member.id)}>Remover</Button>
                         </div>
+                        <Field label="Cota mensal de gerações (UTC)">
+                          <TextInput type="number" min={0} step={1} placeholder="Sem limite individual" value={member.monthlyGenerationLimit ?? ""} onChange={(event) => updateTeamMember(member.id, { monthlyGenerationLimit: event.target.value === "" ? undefined : Number(event.target.value) })} />
+                          <p className="text-xs text-muted-foreground">Vazio: sem limite. Zero: bloquear novas gerações. Cada pedido aceito conta uma vez, inclusive falhas; novas tentativas do mesmo pedido não contam novamente.</p>
+                        </Field>
                         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
                           <Field label={member.lastLoginAt ? "Redefinir senha (opcional)" : "Senha inicial"}>
                             <TextInput

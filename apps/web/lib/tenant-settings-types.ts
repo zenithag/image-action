@@ -10,6 +10,7 @@ export type TenantSettingsTeamMember = {
   email: string
   role: TenantSettingsTeamMemberRole
   status: TenantSettingsTeamMemberStatus
+  monthlyGenerationLimit?: number
   password?: string
   lastLoginAt?: string
 }
@@ -35,7 +36,12 @@ export type TenantSettings = {
     brandVoice: string
     watermarkEnabled: boolean
     watermarkText: string
-    watermarkPosition: "center" | "bottom-right"
+    watermarkPosition: "center" | "bottom-right" | "custom"
+    /** Free position in the available image area, from 0 to 100. */
+    watermarkX?: number
+    watermarkY?: number
+    /** Opacity from 0 (transparent) to 100 (opaque). */
+    watermarkOpacity?: number
     /** Watermark size as a percentage of the default size (50-200). */
     watermarkSize: number
   }

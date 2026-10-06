@@ -1,4 +1,5 @@
 import { DEFAULT_STUDIO_SETTINGS } from "@/lib/tenant-settings-types"
+import { normalizeWatermarkPercent } from "@/lib/watermark-layout"
 import type {
   TenantSegmentationProfile,
   TenantSettings,
@@ -105,6 +106,7 @@ function normalizeTeamMembers(value: unknown): TenantSettingsTeamMember[] {
         email,
         role: item.role === "admin" || item.role === "viewer" ? item.role : "operator",
         status: item.status === "invited" || item.status === "disabled" ? item.status : "active",
+        monthlyGenerationLimit: typeof item.monthlyGenerationLimit === "number" && Number.isSafeInteger(item.monthlyGenerationLimit) && item.monthlyGenerationLimit >= 0 ? item.monthlyGenerationLimit : undefined,
         lastLoginAt: normalizeText(item.lastLoginAt) || undefined,
       } satisfies TenantSettingsTeamMember
     })
@@ -134,6 +136,7 @@ async function hydrateTeamMembersFromAuth(tenantSlug: string, currentMembers: Te
       email: user.email,
       role,
       status: user.status === "disabled" ? "disabled" : user.lastLoginAt ? "active" : existing?.status === "invited" ? "invited" : "active",
+      monthlyGenerationLimit: existing?.monthlyGenerationLimit,
       lastLoginAt: user.lastLoginAt,
     } satisfies TenantSettingsTeamMember
   })
@@ -206,6 +209,9 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
       watermarkText: "",
       watermarkPosition: "center",
       watermarkSize: 100,
+      watermarkX: 50,
+      watermarkY: 50,
+      watermarkOpacity: 22,
     },
     channels: {
       whatsappEnabled: true,
@@ -318,7 +324,10 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
       brandVoice: normalizeText(next.branding.brandVoice),
       watermarkEnabled: normalizeBoolean(next.branding.watermarkEnabled, existing.branding.watermarkEnabled),
       watermarkText: normalizeText(next.branding.watermarkText),
-      watermarkPosition: next.branding.watermarkPosition === "bottom-right" ? "bottom-right" : "center",
+      watermarkPosition: next.branding.watermarkPosition === "custom" ? "custom" : next.branding.watermarkPosition === "bottom-right" ? "bottom-right" : "center",
+      watermarkX: normalizeWatermarkPercent(next.branding.watermarkX, existing.branding.watermarkX ?? 50),
+      watermarkY: normalizeWatermarkPercent(next.branding.watermarkY, existing.branding.watermarkY ?? 50),
+      watermarkOpacity: normalizeWatermarkPercent(next.branding.watermarkOpacity, existing.branding.watermarkOpacity ?? 22),
       watermarkSize: normalizeWatermarkSize(next.branding.watermarkSize, existing.branding.watermarkSize),
     },
     channels: {
@@ -462,6 +471,7 @@ export async function updateTenantSettings(tenantSlug: string, input: TenantSett
             email: user.email,
             role: user.roles.includes("tenant_admin") ? "admin" : user.roles.includes("tenant_viewer") ? "viewer" : "operator",
             status: user.status === "disabled" ? "disabled" : user.lastLoginAt ? "active" : "invited",
+            monthlyGenerationLimit: updated.team.members.find(member => member.email.toLowerCase() === user.email.toLowerCase())?.monthlyGenerationLimit,
             lastLoginAt: user.lastLoginAt,
           })),
         },

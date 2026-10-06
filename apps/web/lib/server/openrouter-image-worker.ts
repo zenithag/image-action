@@ -1,3 +1,5 @@
+import { renderLogoWatermark } from "@/lib/server/watermark-render"
+import { createTextWatermarkSvg, type WatermarkSettings } from "@/lib/watermark-layout"
 import { readGenerationUsage } from "@/lib/generation-costs"
 import { recordCompositionGenerationUsage } from "@/lib/server/composition-jobs-store"
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
@@ -234,39 +236,11 @@ async function readWatermarkLogo(logoUrl: string) {
   }
 }
 
-async function createLogoWatermarkOverlay(logoUrl: string, width: number, height: number, scale = 1) {
+async function createLogoWatermarkOverlay(logoUrl: string, width: number, height: number, settings: WatermarkSettings) {
   const logo = await readWatermarkLogo(logoUrl)
+  if (!logo) return null
 
-  if (!logo) {
-    return null
-  }
-
-  // Largest box the logo may occupy, scaled by the tenant's watermark size (kept inside the image).
-  const maxWidth = Math.max(1, Math.min(width, Math.round(width * 0.28 * scale)))
-  const maxHeight = Math.max(1, Math.min(height, Math.round(height * 0.18 * scale)))
-  const resizedLogo = await sharp(logo.bytes)
-    .resize({ width: maxWidth, height: maxHeight, fit: "inside" })
-    .png()
-    .toBuffer()
-  const metadata = await sharp(resizedLogo).metadata()
-  const logoWidth = metadata.width ?? maxWidth
-  const logoHeight = metadata.height ?? maxHeight
-  const opacityMask = Buffer.from(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="${logoWidth}" height="${logoHeight}">
-      <rect width="100%" height="100%" fill="rgba(255,255,255,0.22)" />
-    </svg>
-  `)
-  const transparentLogo = await sharp(resizedLogo)
-    .ensureAlpha()
-    .composite([{ input: opacityMask, blend: "dest-in" }])
-    .png()
-    .toBuffer()
-
-  return {
-    input: transparentLogo,
-    left: Math.round((width - logoWidth) / 2),
-    top: Math.round((height - logoHeight) / 2),
-  }
+  return renderLogoWatermark(logo.bytes, width, height, settings)
 }
 
 async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
@@ -280,8 +254,7 @@ async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
   const metadata = await sharp(imageBytes).metadata()
   const width = metadata.width ?? 1280
   const height = metadata.height ?? 720
-  const sizeScale = (branding.watermarkSize ?? 100) / 100
-  const logoOverlay = await createLogoWatermarkOverlay(branding.logoUrl, width, height, sizeScale).catch(() => null)
+  const logoOverlay = await createLogoWatermarkOverlay(branding.logoUrl, width, height, branding).catch(() => null)
 
   if (logoOverlay) {
     return sharp(imageBytes)
@@ -295,33 +268,7 @@ async function applyTenantWatermark(job: CompositionJob, imageBytes: Buffer) {
     return imageBytes
   }
 
-  const fontSize = Math.max(14, Math.round(Math.min(width, height) * (branding.watermarkPosition === "center" ? 0.045 : 0.028) * sizeScale))
-  const padding = Math.max(24, Math.round(Math.min(width, height) * 0.03))
-  const escapedText = escapeSvgText(text)
-
-  const overlaySvg = branding.watermarkPosition === "bottom-right"
-    ? `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <style>
-          .wm { fill: rgba(255,255,255,0.26); font-family: Arial, sans-serif; font-weight: 700; font-size: ${fontSize}px; letter-spacing: 0.18em; text-transform: uppercase; }
-          .bg { fill: rgba(0,0,0,0.10); rx: 12px; ry: 12px; }
-        </style>
-        <g transform="translate(${width - padding}, ${height - padding})">
-          <rect class="bg" x="-${Math.round((escapedText.length + 8) * fontSize * 0.48)}" y="-${Math.round(fontSize * 1.55)}" width="${Math.round((escapedText.length + 6) * fontSize * 0.58)}" height="${Math.round(fontSize * 1.9)}" />
-          <text class="wm" text-anchor="end" dominant-baseline="ideographic"> ${escapedText} </text>
-        </g>
-      </svg>
-    `
-    : `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <style>
-          .wm { fill: rgba(255,255,255,0.22); stroke: rgba(0,0,0,0.12); stroke-width: 1; paint-order: stroke; font-family: Arial, sans-serif; font-weight: 700; font-size: ${fontSize}px; letter-spacing: 0.22em; text-transform: uppercase; }
-        </style>
-        <g transform="translate(${width / 2}, ${height / 2}) rotate(-14)">
-          <text class="wm" text-anchor="middle" dominant-baseline="middle">${escapedText}</text>
-        </g>
-      </svg>
-    `
+  const overlaySvg = createTextWatermarkSvg(width, height, branding, text)
 
   return sharp(imageBytes)
     .composite([{ input: Buffer.from(overlaySvg) }])

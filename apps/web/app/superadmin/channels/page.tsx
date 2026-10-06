@@ -381,6 +381,7 @@ export default function ChannelsPage() {
             whatsapp: plan.whatsapp,
             instagram: plan.instagram,
             telegram: plan.telegram,
+            catalogIncluded: plan.catalogIncluded,
             conversationsLimit: plan.conversationsLimit,
             extra: plan.extra,
           })),
@@ -616,6 +617,7 @@ export default function ChannelsPage() {
                   <div key={plan.planCode} className="rounded-md border border-border bg-card p-6">
                     <h2 className="text-lg font-bold text-foreground font-display">{plan.label}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">Capacidade inicial concedida ao tenant neste plano.</p>
+                    <label className="mt-4 flex items-center gap-2"><input type="checkbox" checked={plan.catalogIncluded} onChange={event => setPlanLimits(current => current.map(item => item.planCode === plan.planCode ? { ...item, catalogIncluded: event.target.checked } : item))} />Catálogo incluído no plano</label>
                     <div className="mt-6 space-y-4">
                       <PlanLimitInput
                         label="WhatsApp"

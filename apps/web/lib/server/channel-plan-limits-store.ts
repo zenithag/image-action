@@ -46,6 +46,7 @@ function normalizePlan(value: unknown): ChannelPlanLimit | null {
     whatsapp: normalizeNumber(plan.whatsapp, defaults.whatsapp),
     instagram: normalizeNumber(plan.instagram, defaults.instagram),
     telegram: normalizeNumber(plan.telegram, defaults.telegram),
+    catalogIncluded: plan.catalogIncluded === true,
     conversationsLimit: normalizeNumber(plan.conversationsLimit, defaults.conversationsLimit),
     extra: normalizeText(plan.extra, defaults.extra),
     updatedAt: normalizeText(plan.updatedAt, now()),

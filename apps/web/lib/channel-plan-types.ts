@@ -6,6 +6,7 @@ export type ChannelPlanLimit = {
   whatsapp: number
   instagram: number
   telegram: number
+  catalogIncluded: boolean
   conversationsLimit: number
   extra: string
   updatedAt: string
@@ -20,6 +21,7 @@ export const defaultChannelPlanLimits: Record<TenantPlanCode, Omit<ChannelPlanLi
     whatsapp: 1,
     instagram: 1,
     telegram: 1,
+    catalogIncluded: false,
     conversationsLimit: 100,
     extra: "Compra avulsa por instancia",
   },
@@ -29,6 +31,7 @@ export const defaultChannelPlanLimits: Record<TenantPlanCode, Omit<ChannelPlanLi
     whatsapp: 3,
     instagram: 2,
     telegram: 2,
+    catalogIncluded: false,
     conversationsLimit: 1000,
     extra: "Pacotes de 3 instancias",
   },
@@ -38,6 +41,7 @@ export const defaultChannelPlanLimits: Record<TenantPlanCode, Omit<ChannelPlanLi
     whatsapp: 10,
     instagram: 5,
     telegram: 5,
+    catalogIncluded: false,
     conversationsLimit: 10000,
     extra: "Limite negociado",
   },

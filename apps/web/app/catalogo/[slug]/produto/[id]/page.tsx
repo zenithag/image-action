@@ -1,3 +1,4 @@
+import { getTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { CSSProperties } from "react"
@@ -34,7 +35,7 @@ export default async function PublicCatalogProductPage({ params }: PageProps) {
   const { slug, id } = await params
   const tenant = await findTenant(slug)
 
-  if (!tenant || tenant.status !== "active") {
+  if (!tenant || tenant.status !== "active" || !(await getTenantCatalogAccess(slug)).enabled) {
     notFound()
   }
 

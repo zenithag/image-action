@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { requireTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
+import { NextResponse, type NextRequest } from "next/server"
 
 import type { CatalogItemStatus } from "@/lib/catalog-types"
 import { bulkUpdateCatalogItems } from "@/lib/server/catalog-store"
@@ -15,8 +16,10 @@ type BulkPayload = {
   delete?: unknown
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   const { slug } = await context.params
+  const denied = await requireTenantCatalogAccess(request, slug, true)
+  if (denied) return denied
   const payload = await request.json().catch(() => null) as BulkPayload | null
   const ids = Array.isArray(payload?.ids) ? payload.ids.filter((id): id is string => typeof id === "string") : []
 

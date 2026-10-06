@@ -310,7 +310,7 @@ test("an already-open empty paint strip refreshes to eight paints and cleans up 
   const documentListeners = new Map()
   const rows = Array.from({ length: 8 }, (_, i) => ({ ...paint, id: `paint-${i}`, imageUrl: "data:image/png;base64,aGVsbG8=" }))
   const context = {
-    catalogActive: true, open: true, slug: "test", preset: "fresh-paint", AbortController, getStudioPaints, getStudioMaterials, isStudioMaterialPreset,
+    base, catalogActive: true, open: true, slug: "test", preset: "fresh-paint", AbortController, getStudioPaints, getStudioMaterials, isStudioMaterialPreset,
     setItems: value => { state = value }, setCatalogError: value => { catalogError = value }, setLoading: value => { loading = value },
     fetch: async (url, options) => {
       assert.equal(url, "/api/tenant/test/catalog/items?view=preview")
@@ -388,11 +388,14 @@ test("material catalog uses explicit type/category; floor and wall finishes shar
   const items = [paint, wallMaterial, floorMaterial, ceilingMaterial, { ...wallMaterial, id: "other", tenantSlug: "other" }, { ...wallMaterial, id: "inactive", status: "inactive" }, { ...wallMaterial, id: "reference", tags: { product_type: "revestimento", usage_mode: "referencia" } }]
   assert.deepEqual(getStudioMaterials(items, "test", "fresh-paint"), [paint])
   assert.deepEqual(getStudioMaterials(items, "test", "wall-covering"), [wallMaterial])
-  assert.deepEqual(getStudioMaterials(items, "test", "flooring"), [wallMaterial, floorMaterial])
+  assert.deepEqual(getStudioMaterials(items, "test", "flooring"), [floorMaterial])
   assert.deepEqual(getStudioMaterials(items, "test", "ceiling"), [ceilingMaterial])
-  assert.deepEqual(getStudioMaterials([wallMaterial], "test", "flooring"), [wallMaterial])
+  assert.deepEqual(getStudioMaterials([wallMaterial], "test", "flooring"), [])
   assert.deepEqual(getStudioMaterials([], "test", "ceiling"), [])
-  assert.equal(selectStudioMaterial("test", base, "flooring", wallMaterial).materialReferences.flooring.catalogItemId, wallMaterial.id)
+  assert.deepEqual(getStudioMaterials(items, "test", "flooring", "walls"), [wallMaterial])
+  assert.deepEqual(getStudioMaterials(items, "test", "flooring", "both"), [])
+  assert.throws(() => selectStudioMaterial("test", base, "flooring", wallMaterial), /compatível/)
+  assert.equal(selectStudioMaterial("test", { ...base, presetOptions: { flooring: { surface: "walls" } } }, "flooring", wallMaterial).materialReferences.flooring.catalogItemId, wallMaterial.id)
   assert.throws(() => selectStudioMaterial("other", base, "wall-covering", wallMaterial), /compatível/)
 })
 
@@ -500,7 +503,7 @@ test("preset jobs remain queueable but are omitted from Compositions; anonymous 
   let state = { jobs: [] }
   const storeModule = { exports: {} }
   const storeCode = ts.transpileModule(storeSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-  runInNewContext(storeCode, { exports: storeModule.exports, crypto: globalThis.crypto, require: name => name.includes("postgres-json-store") ? { readJsonStore: async () => state, writeJsonStore: async ({}, value) => { state = value } } : { getRuntimeDataFile: () => "mock-only" } })
+  runInNewContext(storeCode, { exports: storeModule.exports, crypto: globalThis.crypto, require: name => name.includes("postgres-json-store") ? { withJsonStoreLock: async (_, __, fn) => fn(), readJsonStore: async () => state, writeJsonStore: async ({}, value) => { state = value } } : name.includes("tenant-settings-store") ? { getTenantSettings: async () => ({ team: { members: [] } }) } : { getRuntimeDataFile: () => "mock-only" } })
   const store = storeModule.exports
   const input = buildStudioPresetInput("test", base, "renovate", { strength: 72 })
   const created = await store.createCompositionJob("test", { ...input, sourceMessageId: "idempotent" })

@@ -63,6 +63,8 @@ export type StudioImageArtifact = {
   catalogItemName?: string
   catalogSku?: string
   catalogCategory?: string
+  materialPreset?: "fresh-paint" | "wall-covering" | "flooring" | "ceiling"
+  materialSurface?: "floor" | "walls" | "both"
   catalogDescription?: string
   createdAt: string
 }

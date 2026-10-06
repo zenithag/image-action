@@ -93,6 +93,7 @@ interface AppSidebarProps {
   tenantSlug?: string
   tenantDisplayName?: string
   tenantLogoUrl?: string
+  catalogEnabled?: boolean
   tenantPrimaryColor?: string
 }
 
@@ -104,6 +105,7 @@ export function AppSidebar({
   tenantDisplayName,
   tenantLogoUrl,
   tenantPrimaryColor,
+  catalogEnabled = false,
 }: AppSidebarProps) {
   const pathname = usePathname()
   const { theme, resolvedTheme, setTheme } = useTheme()
@@ -115,7 +117,7 @@ export function AppSidebar({
   const onDarkSurface = variant === "superadmin" || (mounted && (resolvedTheme ?? theme) === "dark")
   const platformSymbol = onDarkSurface ? "/simbolo-branco.svg" : "/simbolo-azul.svg"
   const platformLogo = onDarkSurface ? "/logo-horizontal-branco.svg" : "/logo-horizontal-azul.svg"
-  const navItems = variant === "superadmin" ? superadminNavItems : tenantNavItems
+  const navItems = variant === "superadmin" ? superadminNavItems : tenantNavItems.filter(item => item.href !== "/tenant/catalog" || catalogEnabled)
   const tenantName = variant === "superadmin" ? "Administração" : tenantDisplayName && tenantDisplayName !== tenantSlug
     ? tenantDisplayName
     : (tenantSlug || "Empresa").replace(/[-_]+/g, " ")

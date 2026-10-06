@@ -44,7 +44,8 @@ test('create, edit and CSV import persist WebP; invalid bytes never commit', asy
 
 test('preview lists omit embedded images; thumbnails are bounded WebP and full references retain resolution', async () => {
   const items = [{ id: 'sample', tenantSlug: 'one', imageUrl: png, tags: {}, updatedAt: 'today' }]
-  const deps = { '@/lib/server/catalog-store': { listCatalogItems: async slug => items.filter(item => item.tenantSlug === slug) }, '@/lib/server/image-normalization': normalization,
+  let catalogEnabled = true
+  const deps = { '@/lib/server/tenant-catalog-access': { getTenantCatalogAccess: async slug => ({ included: slug === 'one', enabled: catalogEnabled && slug === 'one' }), requireTenantCatalogAccess: async () => null }, '@/lib/server/catalog-store': { listCatalogItems: async slug => items.filter(item => item.tenantSlug === slug) }, '@/lib/server/image-normalization': normalization,
     '@/lib/server/catalog-reference-image': { getCatalogReferenceImageUrl: item => item.imageUrl } }
   const list = await load('../app/api/tenant/[slug]/catalog/items/route.ts', deps)
   const preview = await (await list.GET(new Request('https://app.test/api/tenant/one/catalog/items?view=preview'), { params: Promise.resolve({ slug: 'one' }) })).json()
@@ -62,4 +63,6 @@ test('preview lists omit embedded images; thumbnails are bounded WebP and full r
   assert.equal((await image.GET(new Request('https://app.test/image'), { params: Promise.resolve({ slug: 'other', id: 'sample' }) })).status, 404)
   const full = await image.GET(new Request('https://app.test/image'), context)
   assert.equal((await sharp(Buffer.from(await full.arrayBuffer())).metadata()).width, 800)
+  catalogEnabled = false
+  assert.equal((await image.GET(new Request('https://app.test/image'), context)).status, 404)
 })

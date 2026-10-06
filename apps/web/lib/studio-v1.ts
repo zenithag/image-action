@@ -99,8 +99,8 @@ export function buildStudioInput(slug: string, base: StudioImageArtifact, refere
     if (!ref) {
       return []
     }
-    if (ref.catalogTenantSlug !== slug || !matchesStudioMaterial(preset.id as StudioMaterialPresetId, ref.catalogProductType || "", ref.catalogCategory || "")) throw new Error("Material salvo incompatível com o tenant ou a superfície. Escolha novamente no catálogo.")
-    return [ref]
+    if (ref.catalogTenantSlug !== slug || !matchesStudioMaterial(preset.id as StudioMaterialPresetId, ref.catalogProductType || "", ref.catalogCategory || "", base.presetOptions?.flooring?.surface)) throw new Error("Material salvo incompatível com o tenant ou a superfície. Escolha novamente no catálogo.")
+    return [{ ...ref, materialPreset: preset.id as StudioMaterialPresetId, materialSurface: preset.id === "flooring" ? base.presetOptions?.flooring?.surface || "floor" : undefined }]
   })
   references = [...references, ...materialRefs.filter(ref => !references.some(other => ref.catalogItemId ? other.catalogItemId === ref.catalogItemId : other.mediaUrl === ref.mediaUrl))]
   const composedInstruction = getStudioInstruction(base, instruction)
@@ -135,6 +135,8 @@ export function buildStudioInput(slug: string, base: StudioImageArtifact, refere
       catalogSku: ref.catalogSku,
       catalogCategory: ref.catalogCategory,
       catalogDescription: ref.catalogDescription,
+      materialPreset: ref.materialPreset,
+      materialSurface: ref.materialSurface,
     })),
     prompt,
   }
@@ -156,18 +158,23 @@ export function getStudioPaints(items: CatalogItem[], slug: string) {
 }
 
 function normalizeCategory(value: string) { return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim() }
-export function matchesStudioMaterial(preset: StudioMaterialPresetId, type: string, category: string) {
+export function matchesStudioMaterial(preset: StudioMaterialPresetId, type: string, category: string, surface: "floor" | "walls" | "both" = "floor") {
   if (preset === "fresh-paint") return type === "tinta"
   const value = normalizeCategory(category)
   if (preset === "wall-covering") return type === "revestimento" && ["revestimentos para parede", "revestimentos de parede"].includes(value)
-  if (preset === "flooring") return type === "revestimento" && ["piso", "pisos", "revestimentos para piso", "porcelanatos para piso", "pisos e porcelanatos", "revestimentos para parede", "revestimentos de parede"].includes(value)
+  if (preset === "flooring") {
+    const floor = ["piso", "pisos", "revestimentos para piso", "porcelanatos para piso", "pisos e porcelanatos"].includes(value)
+    const walls = ["revestimentos para parede", "revestimentos de parede"].includes(value)
+    const both = ["revestimentos para piso e parede", "pisos e paredes"].includes(value)
+    return type === "revestimento" && (both || (surface === "floor" ? floor : surface === "walls" ? walls : false))
+  }
   return ["revestimento", "outro"].includes(type) && ["forro", "forros", "forros e tetos", "revestimentos para teto"].includes(value)
 }
-export function getStudioMaterials(items: CatalogItem[], slug: string, preset: StudioMaterialPresetId) {
-  return items.filter(item => item.tenantSlug === slug && item.status === "active" && item.tags?.usage_mode !== "referencia" && matchesStudioMaterial(preset, item.tags?.product_type || "", item.category))
+export function getStudioMaterials(items: CatalogItem[], slug: string, preset: StudioMaterialPresetId, surface: "floor" | "walls" | "both" = "floor") {
+  return items.filter(item => item.tenantSlug === slug && item.status === "active" && item.tags?.usage_mode !== "referencia" && matchesStudioMaterial(preset, item.tags?.product_type || "", item.category, surface))
 }
 export function selectStudioMaterial(slug: string, base: StudioImageArtifact, preset: StudioMaterialPresetId, item: CatalogItem): StudioImageArtifact {
-  if (!getStudioMaterials([item], slug, preset).length) throw new Error("Escolha um material ativo e compatível deste catálogo.")
+  if (!getStudioMaterials([item], slug, preset, base.presetOptions?.flooring?.surface).length) throw new Error("Escolha um material ativo e compatível deste catálogo.")
   const selected = base.presetIds?.includes(preset) ? base : toggleStudioPreset(base, preset)
   const reference: StudioImageArtifact = { source: "catalog", mediaUrl: item.imageUrl, catalogItemId: item.id, catalogItemName: item.name, catalogSku: item.sku, catalogCategory: item.category, catalogDescription: item.description, catalogTenantSlug: slug, catalogProductType: item.tags.product_type, createdAt: item.createdAt }
   return { ...selected, materialReferences: { ...base.materialReferences, [preset]: reference }, paintCatalogItemId: preset === "fresh-paint" ? item.id : base.paintCatalogItemId, surfaceMaterialId: base.selectedSurfaceIds?.length ? item.id : base.surfaceMaterialId }
