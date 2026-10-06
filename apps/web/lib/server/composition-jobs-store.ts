@@ -1,9 +1,11 @@
 import type { CompositionJob, CompositionJobInput, GenerationUsage, CompositionJobStatus } from "@/lib/composition-types"
-import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { readJsonStore, writeJsonStore, withJsonStoreLock } from "@/lib/server/postgres-json-store"
+import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type CompositionJobsData = {
   jobs: CompositionJob[]
+  operatorMonthlyUsage?: Record<string, number>
 }
 
 const dataFile = getRuntimeDataFile("composition-jobs.json")
@@ -11,18 +13,19 @@ const storeKey = "composition-jobs"
 let mutationQueue = Promise.resolve()
 
 async function withCompositionJobsMutation<T>(mutation: () => Promise<T>) {
-  const run = mutationQueue.then(mutation, mutation)
+  const run = mutationQueue.then(() => withJsonStoreLock(storeKey, dataFile, mutation), () => withJsonStoreLock(storeKey, dataFile, mutation))
   mutationQueue = run.then(() => undefined, () => undefined)
 
   return run
 }
 
 async function readCompositionJobsData(): Promise<CompositionJobsData> {
-  return readJsonStore({
+  return readJsonStore<CompositionJobsData>({
     key: storeKey,
     filePath: dataFile,
     fallback: { jobs: [] },
     normalize: (parsed) => ({
+      operatorMonthlyUsage: (parsed as CompositionJobsData)?.operatorMonthlyUsage ?? {},
       jobs: Array.isArray((parsed as Partial<CompositionJobsData>)?.jobs)
         ? (parsed as CompositionJobsData).jobs
         : [],
@@ -57,6 +60,8 @@ function normalizeReferences(value: CompositionJobInput["references"]) {
       catalogSku: normalizeText(reference.catalogSku) || undefined,
       catalogCategory: normalizeText(reference.catalogCategory) || undefined,
       catalogDescription: normalizeText(reference.catalogDescription) || undefined,
+      materialPreset: reference.materialPreset,
+      materialSurface: reference.materialSurface,
     }))
     .filter((reference) =>
       reference.source === "inbox"
@@ -82,6 +87,13 @@ export async function findCompositionJob(tenantSlug: string, jobId: string) {
   return data.jobs.find((job) => job.tenantSlug === tenantSlug && job.id === jobId) ?? null
 }
 
+export class OperatorQuotaExceededError extends Error {
+  constructor(public limit: number, public used: number) {
+    super(`Limite mensal de ${limit} gerações atingido para este usuário.`)
+    this.name = "OperatorQuotaExceededError"
+  }
+}
+
 export async function createCompositionJob(tenantSlug: string, input: CompositionJobInput) {
   return withCompositionJobsMutation(async () => {
     const data = await readCompositionJobsData()
@@ -94,6 +106,19 @@ export async function createCompositionJob(tenantSlug: string, input: Compositio
     }
 
     const now = new Date().toISOString()
+    let usageKey: string | undefined
+    let used = 0
+    if (input.source === "operator" && input.operator?.id) {
+      usageKey = JSON.stringify([tenantSlug, input.operator.id, now.slice(0, 7)])
+      used = data.operatorMonthlyUsage?.[usageKey] ?? data.jobs.filter(job => job.tenantSlug === tenantSlug && job.operator?.id === input.operator!.id && job.createdAt.slice(0, 7) === now.slice(0, 7)).length
+      const settings = await getTenantSettings(tenantSlug)
+      const member = settings.team.members.find(item => item.id === input.operator!.id)
+      if (member?.status === "disabled" || member?.role === "viewer") throw new Error("Este usuário não pode gerar composições.")
+      if (member?.monthlyGenerationLimit !== undefined) {
+        // UTC calendar month. All accepted jobs count once, including failures and archived results.
+        if (used >= member.monthlyGenerationLimit) throw new OperatorQuotaExceededError(member.monthlyGenerationLimit, used)
+      }
+    }
     const prompt = normalizeText(input.prompt) || "Composicao visual solicitada pelo cliente."
     const job: CompositionJob = {
       id: crypto.randomUUID(),
@@ -127,6 +152,8 @@ export async function createCompositionJob(tenantSlug: string, input: Compositio
     }
 
     await writeCompositionJobsData({
+      ...data,
+      operatorMonthlyUsage: usageKey ? { ...data.operatorMonthlyUsage, [usageKey]: used + 1 } : data.operatorMonthlyUsage,
       jobs: [job, ...data.jobs],
     })
 
@@ -166,7 +193,7 @@ export async function updateCompositionJob(
       return null
     }
 
-    await writeCompositionJobsData({ jobs })
+    await writeCompositionJobsData({ ...data, jobs })
 
     return updatedJob
   })
@@ -202,7 +229,7 @@ export async function ensureCompositionJobShareToken(tenantSlug: string, jobId: 
       return null
     }
 
-    await writeCompositionJobsData({ jobs })
+    await writeCompositionJobsData({ ...data, jobs })
 
     return updatedJob
   })
@@ -261,6 +288,7 @@ export async function purgeTenantCompositionJobs(tenantSlug: string) {
     }
 
     await writeCompositionJobsData({
+      ...data,
       jobs: data.jobs.filter((job) => job.tenantSlug !== tenantSlug),
     })
 

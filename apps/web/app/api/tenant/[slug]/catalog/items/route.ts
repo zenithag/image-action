@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { requireTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
+import { NextResponse, type NextRequest } from "next/server"
 
 import type { CatalogItemInput } from "@/lib/catalog-types"
 import { createCatalogItem, listCatalogItems } from "@/lib/server/catalog-store"
@@ -9,8 +10,10 @@ type RouteContext = {
   params: Promise<{ slug: string }>
 }
 
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   const { slug } = await context.params
+  const denied = await requireTenantCatalogAccess(request, slug, false)
+  if (denied) return denied
   const items = await listCatalogItems(slug)
 
   const url = new URL(request.url)
@@ -26,8 +29,10 @@ export async function GET(request: Request, context: RouteContext) {
   return NextResponse.json(items)
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   const { slug } = await context.params
+  const denied = await requireTenantCatalogAccess(request, slug, true)
+  if (denied) return denied
   const payload = await request.json().catch(() => null) as CatalogItemInput | null
 
   if (!payload) {

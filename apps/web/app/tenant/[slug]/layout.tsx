@@ -33,11 +33,11 @@ async function loadTenantBranding(tenantSlug: string) {
   }
 
   const settings = await response.json() as TenantSettings
-  return normalizeTenantBrandingSnapshot({
+  return { catalogEnabled: (settings as TenantSettings & { catalogAccess?: { enabled: boolean } }).catalogAccess?.enabled === true, branding: normalizeTenantBrandingSnapshot({
     companyName: settings.general.companyName,
     primaryColor: settings.branding.primaryColor,
     logoUrl: settings.branding.logoUrl,
-  })
+  }) }
 }
 
 export default function TenantLayout({
@@ -49,6 +49,7 @@ export default function TenantLayout({
 }) {
   const { slug } = use(params)
   const pathname = usePathname()
+  const [catalogEnabled, setCatalogEnabled] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const activeMobileNavRef = useRef<HTMLAnchorElement | null>(null)
   const [branding, setBranding] = useState<TenantBrandingSnapshot>(() =>
@@ -65,7 +66,8 @@ export default function TenantLayout({
     void loadTenantBranding(slug)
       .then((nextBranding) => {
         if (isMounted) {
-          setBranding(nextBranding)
+          setBranding(nextBranding.branding)
+          setCatalogEnabled(nextBranding.catalogEnabled)
         }
       })
       .catch(() => undefined)
@@ -83,10 +85,13 @@ export default function TenantLayout({
       }))
     }
 
+    const refreshCatalog = () => { void loadTenantBranding(slug).then(next => setCatalogEnabled(next.catalogEnabled)).catch(() => undefined) }
+    window.addEventListener("tenant-settings-updated", refreshCatalog)
     window.addEventListener("tenant-branding-updated", handleBrandingUpdate as EventListener)
 
     return () => {
       isMounted = false
+      window.removeEventListener("tenant-settings-updated", refreshCatalog)
       window.removeEventListener("tenant-branding-updated", handleBrandingUpdate as EventListener)
     }
   }, [slug])
@@ -102,6 +107,7 @@ export default function TenantLayout({
     <SocketProvider>
       <div className="flex h-dvh overflow-hidden bg-background">
         <AppSidebar
+          catalogEnabled={catalogEnabled}
           variant="tenant"
           tenantSlug={slug}
           tenantDisplayName={branding.companyName}
@@ -113,7 +119,7 @@ export default function TenantLayout({
         <main className="min-w-0 flex-1 overflow-hidden bg-transparent pb-[72px] md:pb-0">{children}</main>
         <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background md:hidden">
           <div className="flex overflow-x-auto pb-[env(safe-area-inset-bottom)] scrollbar-hide">
-            {mobileNavItems.map((item) => {
+            {mobileNavItems.filter(item => item.href !== "/tenant/catalog" || catalogEnabled).map((item) => {
               const href = item.href.replace("/tenant", `/tenant/${slug}`)
               const isActive = pathname === href || (item.href !== "/tenant" && pathname?.startsWith(`${href}/`))
               return (

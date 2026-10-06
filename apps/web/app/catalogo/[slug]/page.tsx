@@ -1,3 +1,4 @@
+import { getTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
 import { notFound } from "next/navigation"
 
 import { PublicCatalogView } from "@/components/public-catalog-view"
@@ -19,7 +20,7 @@ export default async function PublicCatalogPage({ params }: PageProps) {
   const { slug } = await params
   const tenant = await findTenant(slug)
 
-  if (!tenant || tenant.status !== "active") {
+  if (!tenant || tenant.status !== "active" || !(await getTenantCatalogAccess(slug)).enabled) {
     notFound()
   }
 

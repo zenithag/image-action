@@ -76,7 +76,7 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
   updateRef.current = onUpdate
   const key = getStudioArtifactKey(base)
   const job = base.paintJobId && jobs[base.paintJobId]?.tenantSlug === slug ? jobs[base.paintJobId] : undefined
-  const visibleItems = isStudioMaterialPreset(preset) ? getStudioMaterials(items, slug, preset) : getStudioFurniture(items, slug)
+  const visibleItems = isStudioMaterialPreset(preset) ? getStudioMaterials(items, slug, preset, base.presetOptions?.flooring?.surface) : getStudioFurniture(items, slug)
   const activePresets = base.combinePresets ? STUDIO_PRESET_ORDER.filter(id => base.presetIds?.includes(id)) : [preset]
   const contextualPresets = activePresets.filter(id => !["remove-furniture", "renovate"].includes(id))
   const presetLabel = STUDIO_PRESETS.find(item => item.id === preset)!.label
@@ -109,7 +109,7 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
         const payload = await response.json()
         if (!response.ok || !Array.isArray(payload)) throw new Error("Não foi possível carregar o catálogo.")
         if (controller.signal.aborted) return
-        const paints = isStudioMaterialPreset(preset) ? getStudioMaterials(payload, slug, preset) : getStudioFurniture(payload, slug)
+        const paints = isStudioMaterialPreset(preset) ? getStudioMaterials(payload, slug, preset, base.presetOptions?.flooring?.surface) : getStudioFurniture(payload, slug)
         setItems(paints)
         if (!paints.length) timer = setTimeout(() => void refresh(), 5000)
       } catch (error) {
@@ -120,7 +120,7 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
     const onVisibility = () => { if (document.visibilityState === "visible") void refresh() }
     window.addEventListener("focus", onFocus); document.addEventListener("visibilitychange", onVisibility); void refresh()
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVisibility) }
-  }, [open, slug, preset, catalogActive])
+  }, [open, slug, preset, catalogActive, base.presetOptions?.flooring?.surface])
 
 
   useEffect(() => {

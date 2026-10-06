@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { requireTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
+import { NextResponse, type NextRequest } from "next/server"
 
 import { previewCatalogImport } from "@/lib/catalog-csv"
 import { importCatalogItems, listCatalogItems } from "@/lib/server/catalog-store"
@@ -14,8 +15,10 @@ type ImportPayload = {
   mode?: unknown
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   const { slug } = await context.params
+  const denied = await requireTenantCatalogAccess(request, slug, true)
+  if (denied) return denied
   const payload = await request.json().catch(() => null) as ImportPayload | null
   const csvText = typeof payload?.csvText === "string" ? payload.csvText : ""
   const mode = payload?.mode === "import" ? "import" : "preview"

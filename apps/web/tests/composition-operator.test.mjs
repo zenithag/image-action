@@ -16,8 +16,8 @@ async function load(path, resolve) {
 test('signed operator survives storage and deduplication; Analytics counts by identity and period without inventing historical authors', async () => {
   let state = { jobs: [] }
   const store = await load('../lib/server/composition-jobs-store.ts', name => name.includes('postgres-json-store')
-    ? { readJsonStore: async () => structuredClone(state), writeJsonStore: async (_, value) => { state = structuredClone(value) } }
-    : { getRuntimeDataFile: () => 'test-memory-only' })
+    ? { withJsonStoreLock: async (_, __, fn) => fn(), readJsonStore: async () => structuredClone(state), writeJsonStore: async (_, value) => { state = structuredClone(value) } }
+    : name.includes("tenant-settings-store") ? { getTenantSettings: async () => ({ team: { members: [] } }) } : { getRuntimeDataFile: () => 'test-memory-only' })
   const access = await load('../lib/server/studio-surface-access.ts', () => { throw new Error('Unexpected dependency') })
   const claims = { sub: 'operator-a', name: 'Ana', tenantSlug: 'test', tenantId: 'tenant-test', roles: ['tenant_operator'], exp: Date.now() / 1000 + 3600 }
   let token = claims
@@ -33,6 +33,8 @@ test('signed operator survives storage and deduplication; Analytics counts by id
     if (name.includes('composition-base-snapshots')) return { ensureCompositionBaseSnapshot: async job => job }
     if (name.includes('image-normalization')) return { normalizeDataImageUrlForUpload: async url => url }
     if (name.includes('token-ledger-store')) return { canTenantCreateComposition: async () => ({ allowed: true }) }
+    if (name.includes('tenant-catalog-access')) return { getTenantCatalogAccess: async () => ({ included: false, enabled: false }) }
+    if (name.includes('studio-v1')) return { matchesStudioMaterial: () => true }
     if (name.includes('tenant-settings-store')) return { getTenantSettings: async () => ({ studio: { catalogEnabled: false } }) }
     if (name.includes('inbox-store')) return { listInboxConversations: async () => [], listInboxMessages: async () => [] }
     if (name.includes('catalog-store')) return { listCatalogItems: async () => [] }
@@ -87,4 +89,45 @@ test('signed operator survives storage and deduplication; Analytics counts by id
   assert.equal((await route.POST(crossOrigin, context)).status, 403)
   assert.equal(state.jobs.length, before)
   assert.equal(enqueueCalls, 3)
+})
+
+test('catalog jobs require entitlement and active tenant item, reject incompatible targets, and ignore forged reference metadata', async () => {
+  const access = await load('../lib/server/studio-surface-access.ts', () => ({}))
+  let enabled = false, created = 0, captured
+  const item = { id: 'wall', tenantSlug: 'test', status: 'active', name: 'Parede', category: 'Revestimentos para parede', description: 'Material demonstrativo', sku: 'W1', tags: { product_type: 'revestimento' } }
+  let items = [item]
+  const route = await load('../app/api/tenant/[slug]/compositions/jobs/route.ts', name => {
+    if (name === 'next/server') return { NextResponse: { json: (body,opts) => ({body,status:opts?.status||200}) } }
+    if (name === 'zod') return require('zod')
+    if (name === 'next-auth/jwt') return {getToken:async()=>({sub:'u1',exp:Date.now()/1000+60,tenantSlug:'test',tenantId:'t1',roles:['tenant_operator']})}
+    if (name.includes('studio-surface-access')) return access
+    if (name.includes('tenants-store')) return {findTenant:async()=>({id:'t1',slug:'test',status:'active'})}
+    if (name.includes('tenant-catalog-access')) return {getTenantCatalogAccess:async()=>({included:enabled,enabled})}
+    if (name.includes('catalog-store')) return {listCatalogItems:async()=>items}
+    if (name.includes('studio-v1')) return {matchesStudioMaterial:(_,__,___,surface)=>surface==='walls'}
+    if (name.includes('composition-jobs-store')) return {createCompositionJob:async(_,input)=>{created++;captured=input;return {created:true,job:{id:'job',status:'done'}}}}
+    if (name.includes('composition-base-snapshots')) return {ensureCompositionBaseSnapshot:async job=>job}
+    if (name.includes('token-ledger-store')) return {canTenantCreateComposition:async()=>({allowed:true})}
+    if (name.includes('image-normalization')) return {normalizeDataImageUrlForUpload:async url=>url}
+    return {}
+  })
+  const input = {conversationId:'studio:test',channelInstanceId:'studio',contactName:'Teste',studioVersion:'v1',purpose:'studio-preset',presetIds:['flooring'],baseImageUrl:'base',prompt:'Aplicar acabamento',references:[{source:'catalog',catalogItemId:'wall',materialPreset:'flooring',materialSurface:'walls',imageUrl:'https://other-tenant.example/image',catalogItemName:'Forged'}]}
+  const request = data => ({url:'http://127.0.0.1:3000/api',nextUrl:new URL('http://127.0.0.1:3000/api'),headers:new Headers({host:'127.0.0.1:3000',origin:'http://127.0.0.1:3000'}),json:async()=>structuredClone(data)})
+  const context = {params:Promise.resolve({slug:'test'})}
+  assert.equal((await route.POST(request(input),context)).status,403)
+  enabled=true
+  assert.equal((await route.POST(request({...input,references:[{...input.references[0],materialSurface:'floor'}]}),context)).status,400)
+  items=[{...item,tenantSlug:'other'}]
+  assert.equal((await route.POST(request(input),context)).status,400)
+  items=[{...item,status:'inactive'}]
+  assert.equal((await route.POST(request(input),context)).status,400)
+  assert.equal(created,0)
+  items=[item]
+  assert.equal((await route.POST(request({...input,references:[{source:'url',catalogItemId:'wall',imageUrl:'https://forged.example/asset'}]}),context)).status,400)
+  assert.equal((await route.POST(request({...input,catalogItemId:'wall',references:[]}),context)).status,400)
+  assert.equal(created,0)
+  assert.equal((await route.POST(request(input),context)).status,201)
+  assert.equal(captured.references[0].imageUrl,undefined)
+  assert.equal(captured.references[0].catalogItemName,'Parede')
+  assert.equal(captured.references[0].materialSurface,'walls')
 })

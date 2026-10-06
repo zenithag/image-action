@@ -1,3 +1,6 @@
+import { getTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
+import { listCatalogItems } from "@/lib/server/catalog-store"
+import { matchesStudioMaterial } from "@/lib/studio-v1"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
@@ -8,7 +11,7 @@ import { z } from "zod"
 import type { CompositionJobInput } from "@/lib/composition-types"
 import { enqueueProcessCompositionQueue, scheduleAppJobProcessing } from "@/lib/server/app-job-queue"
 import { ensureCompositionBaseSnapshot } from "@/lib/server/composition-base-snapshots"
-import { createCompositionJob, getCompositionJobStats, listCompositionJobs } from "@/lib/server/composition-jobs-store"
+import { createCompositionJob, OperatorQuotaExceededError, getCompositionJobStats, listCompositionJobs } from "@/lib/server/composition-jobs-store"
 import { normalizeDataImageUrlForUpload } from "@/lib/server/image-normalization"
 import { canTenantCreateComposition } from "@/lib/server/token-ledger-store"
 
@@ -45,6 +48,8 @@ const CompositionJobInputSchema = z.object({
     catalogSku: z.string().optional(),
     catalogCategory: z.string().optional(),
     catalogDescription: z.string().optional(),
+    materialPreset: z.enum(["fresh-paint", "wall-covering", "flooring", "ceiling"]).optional(),
+    materialSurface: z.enum(["floor", "walls", "both"]).optional(),
   })).optional(),
   changeStrength: z.number().min(0).max(100).optional(),
   prompt: z.string().max(5000).optional(),
@@ -128,9 +133,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
 
   try {
-    if (parsed.data.purpose === "studio-preset") {
-      const settings = await getTenantSettings(slug)
-      if (!settings.studio.catalogEnabled && (parsed.data.catalogItemId || parsed.data.references?.some(ref => ref.source === "catalog" || ref.catalogItemId))) return NextResponse.json({ error: "O catálogo está desativado para os presets deste tenant." }, { status: 400 })
+    const catalogRefs = parsed.data.references?.filter(ref => ref.source === "catalog" || ref.catalogItemId) || []
+    if (parsed.data.catalogItemId || catalogRefs.length) {
+      if (!(await getTenantCatalogAccess(slug)).enabled) return NextResponse.json({ error: "O catálogo está desativado ou não está incluído no plano." }, { status: 403 })
+      if (parsed.data.purpose === "studio-preset" && parsed.data.catalogItemId && !catalogRefs.some(ref => ref.catalogItemId === parsed.data.catalogItemId && ref.materialPreset)) return NextResponse.json({ error: "Associe o material ao preset e à superfície." }, { status: 400 })
+      const items = await listCatalogItems(slug)
+      for (const ref of [...catalogRefs, ...(parsed.data.catalogItemId ? [{ catalogItemId: parsed.data.catalogItemId }] : [])]) {
+        const item = items.find(item => item.id === ref.catalogItemId && item.tenantSlug === slug && item.status === "active")
+        if (!item) return NextResponse.json({ error: "Produto indisponível neste catálogo." }, { status: 400 })
+        if (parsed.data.purpose === "studio-preset" && catalogRefs.includes(ref as typeof catalogRefs[number]) && (["tinta", "revestimento"].includes(item.tags.product_type || "") || (parsed.data.presetIds?.includes("ceiling") && item.tags.product_type === "outro")) && (!("materialPreset" in ref) || !ref.materialPreset)) return NextResponse.json({ error: "Informe o preset e o alvo do material selecionado." }, { status: 400 })
+        if ("materialPreset" in ref && ref.materialPreset && (!parsed.data.presetIds?.includes(ref.materialPreset) || (ref.materialPreset === "flooring" && !ref.materialSurface))) return NextResponse.json({ error: "Informe o preset e a superfície de aplicação." }, { status: 400 })
+        if ("materialPreset" in ref && ref.materialPreset && !matchesStudioMaterial(ref.materialPreset, item.tags.product_type || "", item.category, ref.materialSurface)) return NextResponse.json({ error: "Material incompatível com a superfície escolhida." }, { status: 400 })
+      }
+      for (const ref of catalogRefs) {
+        const item = items.find(item => item.id === ref.catalogItemId)!
+        ref.source = "catalog"
+        ref.imageUrl = undefined
+        ref.messageId = undefined
+        ref.catalogItemName = item.name
+        ref.catalogSku = item.sku
+        ref.catalogCategory = item.category
+        ref.catalogDescription = item.description
+      }
+      if (parsed.data.catalogItemId) {
+        const item = items.find(item => item.id === parsed.data.catalogItemId)!
+        parsed.data.catalogItemName = item.name
+        parsed.data.catalogColorReference = undefined
+      }
     }
     const payload = await normalizeCompositionJobInputImages(parsed.data)
     payload.source = "operator"
@@ -157,6 +186,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ ...result, job }, { status: result.created ? 201 : 200 })
   } catch (error) {
+    if (error instanceof OperatorQuotaExceededError) return NextResponse.json({ error: error.message, code: "OPERATOR_QUOTA_EXHAUSTED", limit: error.limit, used: error.used }, { status: 429 })
     return NextResponse.json({
       error: error instanceof Error ? error.message : "Nao foi possivel criar o job de composicao.",
     }, { status: 400 })

@@ -1,7 +1,8 @@
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
+import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 
-import { Pool } from "pg"
+import { Pool, type PoolClient } from "pg"
+import { AsyncLocalStorage } from "node:async_hooks"
 
 type JsonStoreOptions<T> = {
   key: string
@@ -10,6 +11,7 @@ type JsonStoreOptions<T> = {
   normalize?: (value: unknown) => T
 }
 
+const lockedClient = new AsyncLocalStorage<PoolClient>()
 let pool: Pool | null = null
 let tableReady: Promise<void> | null = null
 
@@ -95,7 +97,7 @@ export async function readJsonStore<T>(options: JsonStoreOptions<T>) {
     return (await readJsonFile(options)).data
   }
 
-  const result = await activePool.query<{ data: unknown }>(
+  const result = await (lockedClient.getStore() ?? activePool).query<{ data: unknown }>(
     "select data from app_documents where key = $1",
     [options.key]
   )
@@ -121,7 +123,7 @@ export async function writeJsonStore<T>(options: JsonStoreOptions<T>, data: T) {
     return
   }
 
-  await activePool.query(
+  await (lockedClient.getStore() ?? activePool).query(
     `
       insert into app_documents (key, data, updated_at)
       values ($1, $2::jsonb, now())
@@ -147,6 +149,40 @@ export async function deleteJsonStore<T>(options: JsonStoreOptions<T>) {
     return false
   }
 
-  const result = await activePool.query("delete from app_documents where key = $1", [options.key])
+  const result = await (lockedClient.getStore() ?? activePool).query("delete from app_documents where key = $1", [options.key])
   return (result.rowCount ?? 0) > 0
+}
+
+// Serialize document read/check/write across web and worker processes in PostgreSQL.
+export async function withJsonStoreLock<T>(key: string, filePath: string, mutation: () => Promise<T>): Promise<T> {
+  const activePool = await ensureTable()
+  if (!activePool) {
+    // Never break another process's lock: a crashed local process requires explicit recovery.
+    await mkdir(path.dirname(filePath), { recursive: true })
+    const lockPath = `${filePath}.lock`
+    const deadline = Date.now() + 30_000
+    while (true) {
+      try {
+        const file = await open(lockPath, "wx")
+        await file.close()
+        break
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+        if (Date.now() >= deadline) throw new Error("O armazenamento está ocupado. Tente novamente ou verifique o processo local.")
+        await new Promise(resolve => setTimeout(resolve, 25))
+      }
+    }
+    try { return await mutation() } finally { await unlink(lockPath) }
+  }
+  const client = await activePool.connect()
+  try {
+    await client.query("begin")
+    await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [key])
+    const result = await lockedClient.run(client, mutation)
+    await client.query("commit")
+    return result
+  } catch (error) {
+    await client.query("rollback")
+    throw error
+  } finally { client.release() }
 }

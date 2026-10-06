@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { requireTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
+import { NextResponse, type NextRequest } from "next/server"
 
 import type { CatalogItemInput } from "@/lib/catalog-types"
 import { deleteCatalogItem, updateCatalogItem } from "@/lib/server/catalog-store"
@@ -9,8 +10,10 @@ type RouteContext = {
   params: Promise<{ slug: string; id: string }>
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
+export async function PATCH(request: NextRequest, context: RouteContext) {
   const { slug, id } = await context.params
+  const denied = await requireTenantCatalogAccess(request, slug, true)
+  if (denied) return denied
   const payload = await request.json().catch(() => null) as Partial<CatalogItemInput> | null
 
   if (!payload) {
@@ -32,8 +35,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   const { slug, id } = await context.params
+  const denied = await requireTenantCatalogAccess(request, slug, true)
+  if (denied) return denied
   const deleted = await deleteCatalogItem(slug, id)
 
   if (!deleted) {

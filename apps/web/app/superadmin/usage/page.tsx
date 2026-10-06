@@ -65,6 +65,10 @@ async function requestJson<T>(url: string) {
   return payload as T
 }
 
+function formatCost(value: number | null) {
+  return value === null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", minimumFractionDigits: 4 }).format(value)
+}
+
 function Delta({ value }: { value?: number | null }) {
   if (value == null) return <span className="mt-1 text-xs text-muted-foreground">sem histórico</span>
 
@@ -154,11 +158,21 @@ export default function UsagePage() {
           <>
             <Section title="Custo por tipo de geração" aside={<span className="text-xs text-muted-foreground">Custos do provedor em USD, incluindo tentativas e fallbacks</span>}>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm"><thead><tr className="border-b border-border"><th className="py-3">Tipo</th><th>Jobs</th><th>Concluídos</th><th>Chamadas</th><th>Custo conhecido</th><th>Média por chamada com custo</th><th>Sem custo informado</th></tr></thead><tbody>
-                  {data.generationCosts?.map(row => <tr key={row.type} className="border-b border-border"><td className="py-3">{row.type === "composition" ? "Composição" : row.type.replace("combination:", "").split(",").map(id => STUDIO_PRESETS.find(preset => preset.id === id)?.label || id).join(" + ")}</td><td>{row.jobs}</td><td>{row.completed}</td><td>{row.attempts}</td><td>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", minimumFractionDigits: 4 }).format(row.knownCostUsd)}</td><td>{row.knownCostAttempts > 0 ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", minimumFractionDigits: 4 }).format(row.knownCostUsd / row.knownCostAttempts) : "—"}</td><td>{row.unknownCosts}</td></tr>)}
+                <table className="w-full text-left text-sm"><thead><tr className="border-b border-border"><th className="py-3">Tipo</th><th>Jobs</th><th>Concluídos / falhos</th><th>Chamadas</th><th>Custo conhecido</th><th>Média por chamada informada</th><th>Média por job finalizado</th><th>Média por geração concluída</th><th>Média por falha</th><th>Custo por resultado, incluindo falhas</th><th>Cobertura de jobs finalizados</th><th>Custos ausentes</th></tr></thead><tbody>
+                  {data.generationCosts?.map(row => <tr key={row.type} className="border-b border-border">
+                    <td className="py-3">{row.type === "composition" ? "Composição" : row.type.replace("combination:", "").split(",").map(id => STUDIO_PRESETS.find(preset => preset.id === id)?.label || id).join(" + ")}</td>
+                    <td>{row.jobs}</td><td>{row.completed} / {row.failed}</td><td>{row.attempts}</td>
+                    <td>{formatCost(row.knownCostUsd)}</td>
+                    <td>{formatCost(row.knownCostAttempts > 0 ? row.knownCostUsd / row.knownCostAttempts : null)}</td>
+                    <td>{formatCost(row.averageTerminalJobCostUsd)}</td>
+                    <td>{formatCost(row.averageCompletedCostUsd)}</td><td>{formatCost(row.averageFailedCostUsd)}</td>
+                    <td>{formatCost(row.costPerSuccessfulResultUsd)}</td>
+                    <td>{row.completedWithCompleteCost + row.failedWithCompleteCost} / {row.completed + row.failed}</td>
+                    <td>{row.unknownCosts} em {row.jobsWithUnknownCost} jobs</td>
+                  </tr>)}
                 </tbody></table>
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">Valores ausentes não significam custo zero. Histórico anterior à coleta pode estar incompleto; esta visão não inclui infraestrutura nem taxas comerciais.</p>
+              <p className="mt-3 text-xs text-muted-foreground">Médias somam todas as chamadas e tentativas de cada job, considerando apenas jobs finalizados com todos os custos informados. O custo por resultado inclui também as falhas desse conjunto. Jobs em andamento entram apenas no custo conhecido. Valores ausentes não significam custo zero; a cobertura mostra quantos jobs finalizados possuem custo completo. Histórico anterior à coleta pode estar incompleto. Esta visão usa todo o histórico disponível e não inclui infraestrutura nem taxas comerciais.</p>
             </Section>
 
             <div className="grid grid-cols-[1.6fr_1fr] gap-4">
