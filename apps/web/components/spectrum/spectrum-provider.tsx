@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import type * as React from "react"
-import { Source_Code_Pro, Source_Sans_3 } from "next/font/google"
+import localFont from "next/font/local"
 import { useTheme } from "next-themes"
 
 import "./spectrum-theme.css"
@@ -10,18 +10,20 @@ import { getConsoleThemeVariables } from "@/lib/brand-palette"
 import { SpectrumContext } from "./spectrum-context"
 import { ensureSpectrumTheme } from "./theme-ready"
 
-const sourceSans = Source_Sans_3({
-  subsets: ["latin"],
+const sourceSans = localFont({
+  src: "./fonts/SourceSans3VF-Upright.woff2",
   variable: "--font-source-sans",
   display: "swap",
-  weight: ["400", "600", "700", "800"],
+  weight: "200 900",
+  style: "normal",
 })
 
-const sourceCode = Source_Code_Pro({
-  subsets: ["latin"],
+const sourceCode = localFont({
+  src: "./fonts/SourceCodeVF-Upright.woff2",
   variable: "--font-source-code",
   display: "swap",
-  weight: ["400", "600"],
+  weight: "200 900",
+  style: "normal",
 })
 
 /**
