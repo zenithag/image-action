@@ -1,5 +1,6 @@
 "use client"
 
+import { getThemeContainer } from "@/components/spectrum/theme-container"
 import { PageHeader } from "@/components/organisms/page-header"
 import { ToggleButton } from "@/components/spectrum/toggle-button"
 import { Tabs } from "@/components/spectrum/tabs"
@@ -196,7 +197,7 @@ async function requestJson<T>(url: string, init?: RequestInit) {
 function CompositionMenu({ label, items }: { label: string; items: Array<{ label: string; action: () => void; disabled?: boolean; destructive?: boolean }> }) {
   return <DropdownMenu.Root>
     <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" type="button" aria-label={label}><MoreVertical size={18} /></Button></DropdownMenu.Trigger>
-    <DropdownMenu.Portal><DropdownMenu.Content className={styles.menu} align="end" sideOffset={6}>
+    <DropdownMenu.Portal container={getThemeContainer()}><DropdownMenu.Content className={styles.menu} align="end" sideOffset={6}>
       {items.map((item) => <DropdownMenu.Item key={item.label} className={cn(styles.menuItem, item.destructive && styles.destructive)} disabled={item.disabled} onSelect={item.action}>{item.label}</DropdownMenu.Item>)}
     </DropdownMenu.Content></DropdownMenu.Portal>
   </DropdownMenu.Root>
@@ -375,12 +376,14 @@ export function CompositionJobs({ tenantSlug }: { tenantSlug: string }) {
   return (
     <div className={cn(overviewStyles.surface, styles.surface)}>
       <PageHeader
-        title="composições"
+        className={styles.header}
+        title="Composições"
+        subtitle="Gerencie e visualize todas as composições criadas."
         search={{ value: search, onChange: setSearch, label: "Buscar composições", placeholder: "Buscar composições por nome, contato ou descrição..." }}
         actions={
           <>
-          <Button variant="outline" onClick={() => loadJobs()} disabled={isLoading}><RotateCcw className={cn("h-4 w-4", isLoading && "animate-spin")} />Atualizar</Button>
-            <Button className={styles.process} onClick={() => processQueue()} disabled={isProcessingQueue || stats.queued === 0}>{isProcessingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}Processar</Button>
+          <Button variant="outline" onClick={() => loadJobs()} disabled={isLoading}><span className={styles.headerActionLabel}><RotateCcw className={cn("h-4 w-4", isLoading && "animate-spin")} /><span>Atualizar</span></span></Button>
+            <Button className={styles.process} onClick={() => processQueue()} disabled={isProcessingQueue || stats.queued === 0}><span className={styles.headerActionLabel}>{isProcessingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}<span>Processar</span></span></Button>
             <CompositionMenu label="Mais ações das composições" items={[{ label: isCleaningStorage ? "Limpando armazenamento…" : "Limpar armazenamento", action: () => void cleanupStorage(), disabled: isCleaningStorage || isProcessingQueue || jobs.length === 0 || stats.processing > 0, destructive: true }]} />
           </>
         }
@@ -629,7 +632,7 @@ function CompositionViewerModal({
 
   return (
     <Dialog.Root open onOpenChange={(open) => { if (!open) onClose() }}>
-      <Dialog.Portal>
+      <Dialog.Portal container={getThemeContainer()}>
         <Dialog.Overlay className={styles.viewerOverlay} />
         <Dialog.Content className={cn(overviewStyles.surface, styles.viewer)} aria-describedby="composition-description">
           <header className={styles.viewerHeader}>
@@ -639,7 +642,7 @@ function CompositionViewerModal({
               <span className={cn(styles.viewerBadge, styles[job.status])}><StatusIcon size={16} />{statusConfig[job.status].label}</span>
             </div>
             <div className={styles.viewerActions}>
-              <Button className={styles.download} disabled={!jobResultImageUrl || isDownloading} onClick={downloadResult}>{isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} {isDownloading ? "Baixando..." : "Baixar imagem"}</Button>
+              <Button className={styles.download} disabled={!jobResultImageUrl || isDownloading} onClick={downloadResult}><span className={styles.headerActionLabel}>{isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}<span>{isDownloading ? "Baixando..." : "Baixar imagem"}</span></span></Button>
               <CompositionMenu label="Mais ações da composição" items={[
                 { label: isSharing ? "Gerando link..." : "Copiar link público", action: () => void copyShareLink(), disabled: !canCompare || job.status !== "done" || isSharing },
                 { label: isDownloadingComparison ? "Gerando comparativo..." : "Baixar comparativo", action: () => void downloadSideBySideComparison(), disabled: !canCompare || isDownloadingComparison },
@@ -694,15 +697,15 @@ function CompositionViewerModal({
                 <div><dt>Modo</dt><dd><span className={styles.category}>{modeLabels[job.mode]}</span></dd></div>
                 <div><dt>Origem</dt><dd>{job.source === "ai" ? "IA" : "Operador"}</dd></div>
               </dl></section>
-              <section><h3>Processamento</h3><dl>
+              <section><h3><Clock size={20} />Processamento</h3><dl>
                 <div><dt>Criado em</dt><dd>{formatJobTime(job.createdAt)}</dd></div>
                 <div><dt>Iniciado em</dt><dd>{formatJobTime(job.startedAt)}</dd></div>
                 <div><dt>Finalizado em</dt><dd>{formatJobTime(job.completedAt)}</dd></div>
                 <div><dt>Tentativas</dt><dd>{job.processingAttempts}</dd></div>
               </dl></section>
-              <section><h3>Instruções utilizadas</h3><p className={styles.instructions}>{job.prompt || "Nenhuma instrução registrada."}</p></section>
-              {job.errorMessage && <section><h3>Falha registrada</h3><p className={styles.failure}>{formatCompositionError(job.errorMessage)}</p></section>}
-              {(job.status === "queued" || job.status === "failed") && <Button className={styles.download} disabled={isProcessing === job.id} onClick={() => onProcess(job.id)}>{isProcessing === job.id ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}Processar agora</Button>}
+              <section><h3><List size={20} />Instruções utilizadas</h3><p className={styles.instructions}>{job.prompt || "Nenhuma instrução registrada."}</p></section>
+              {job.errorMessage && <section className={styles.failurePanel}><h3><XCircle size={20} />Falha registrada</h3><p className={styles.failure}>{formatCompositionError(job.errorMessage)}</p></section>}
+              {(job.status === "queued" || job.status === "failed") && <div className={styles.processNow}><Button size="lg" className="w-full" disabled={isProcessing === job.id} onClick={() => onProcess(job.id)}><span className={styles.processNowLabel}>{isProcessing === job.id ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}<span>Processar agora</span></span></Button></div>}
             </aside>}
           </div>
         </Dialog.Content>

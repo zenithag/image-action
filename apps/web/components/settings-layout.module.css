@@ -1,0 +1,29 @@
+.page { min-width: 0; }
+.header { grid-template-columns: minmax(0, 1fr) auto; }
+.header > :global([data-slot=search]) { display: none; }
+.tabs { flex-shrink: 0; padding: 4px 24px 0; background: var(--cf-chrome-bg, var(--card)); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
+.tabs :global(sp-tab) { font-weight: 400; }
+.content { min-height: 0; flex: 1; overflow: auto; padding: 24px; scrollbar-width: thin; }
+.card { min-width: 0; padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--cf-chrome-bg, var(--card)); box-shadow: 0 3px 12px rgb(15 23 42 / .025); }
+.card > header { padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.card h3 { font-size: 18px; font-weight: 600; }
+.card h4 { font-weight: 600; }
+.card p { line-height: 1.6; }
+.card > header p { font-size: 13px; }
+.field { display: block; min-width: 0; }
+.field > span:first-child { display: block; font-size: 13px; font-weight: 500; }
+.card input:not([type=color]):not([type=range]), .card textarea, .card select { border-radius: 8px; font-weight: 400; }
+.card textarea { line-height: 1.6; }
+.card :global(sp-button) { --spectrum-button-font-weight: 400; }
+.branding { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); align-items: start; gap: 20px; }
+.preview { position: sticky; top: 0; }
+@media (max-width: 1200px) {
+  .branding { grid-template-columns: minmax(0, 1fr); }
+  .preview { position: static; }
+}
+@media (max-width: 650px) {
+  .header { grid-template-columns: minmax(0, 1fr); }
+  .content { padding: 16px; }
+  .card { padding: 18px; }
+  .tabs { padding-inline: 16px; }
+}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input, NativeSelect } from "@/components/spectrum/fields"
 import { useEffect, useRef, useState } from "react"
 import type { CSSProperties, MutableRefObject } from "react"
-import { Check, Loader2, Paintbrush, Save, X } from "@/components/spectrum/icons"
+import { Check, ChevronLeft, ChevronRight, Loader2, Paintbrush, Save, X } from "@/components/spectrum/icons"
 import { SafeImage } from "@/components/safe-image"
 import type { CatalogItem } from "@/lib/catalog-types"
 import type { CompositionJob } from "@/lib/composition-types"
@@ -47,6 +47,26 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
   const placement = ""
   const [uploadingReference, setUploadingReference] = useState(false)
   const [room, setRoom] = useState<StudioImageArtifact["roomType"]>(base.roomType && base.roomType !== "auto" ? base.roomType : "auto")
+  const slidesRef = useRef<HTMLDivElement>(null)
+  const [slideEdges, setSlideEdges] = useState({ start: true, end: false })
+  const updateSlideEdges = () => {
+    const rail = slidesRef.current
+    if (rail) setSlideEdges({ start: rail.scrollLeft < 2, end: rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2 })
+  }
+  const moveSlides = (direction: number) => {
+    const rail = slidesRef.current
+    if (rail) rail.scrollBy({ left: direction * Math.max(92, rail.clientWidth - 92), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" })
+  }
+  useEffect(() => {
+    const rail = slidesRef.current
+    if (!rail) return
+    rail.scrollLeft = 0
+    updateSlideEdges()
+    const observer = new ResizeObserver(updateSlideEdges)
+    observer.observe(rail)
+    for (const child of rail.children) observer.observe(child)
+    return () => observer.disconnect()
+  }, [preset, open, catalogActive, loading, items])
   const catalogRef = useRef<HTMLElement>(null)
   const requestIds = useRef(new Map<string, string>())
   const submittingLock = useRef(false)
@@ -252,11 +272,15 @@ export function StudioPaintFlow({ slug, base, strength, preset, catalogId, open,
       {studioSettings.catalogEnabled && contextualPresets.length > 0 && <Input type="checkbox" checked={catalogActive} onChange={event => setUseCatalog(event.target.checked)}>Usar produtos do catálogo (opcional)</Input>}
       {catalogActive && (isStudioMaterialPreset(preset) || preset === "furnish") && <>
         <strong>Produtos para {presetLabel.toLowerCase()}</strong>
-        {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError}</p> : visibleItems.length === 0 ? <p>Nenhum item compatível. Você pode desmarcar o catálogo e gerar com IA.</p> : <div className={styles.paintItems} role="group" aria-label="Produtos opcionais do catálogo">
+        {loading ? <p role="status">Carregando materiais…</p> : catalogError ? <p role="alert">{catalogError}</p> : visibleItems.length === 0 ? <p>Nenhum item compatível. Você pode desmarcar o catálogo e gerar com IA.</p> : <div className={styles.paintSlider}>
+          <button type="button" className={styles.slideArrow} aria-label="Amostras anteriores" disabled={slideEdges.start} onClick={() => moveSlides(-1)}><ChevronLeft size={18} /></button>
+          <div ref={slidesRef} onScroll={updateSlideEdges} className={styles.paintItems} tabIndex={0} role="group" aria-label="Produtos opcionais do catálogo" onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); moveSlides(event.key === "ArrowRight" ? 1 : -1) } }}>
           {visibleItems.map(item => <button key={item.id} type="button" title={item.name} aria-label={item.name} disabled={disabled || submitting || pending || uploadingReference} aria-pressed={catalogSelections[preset]?.some(value => value.id === item.id) === true} onClick={() => setCatalogSelections(current => {
             const selected = current[preset] || []
             return { ...current, [preset]: selected.some(value => value.id === item.id) ? selected.filter(value => value.id !== item.id) : preset === "furnish" ? [...selected, item].slice(0, 5) : [item] }
           })}>{getStudioPaintPreviewSource(item, slug) ? <SafeImage src={getStudioPaintPreviewSource(item, slug)} alt={item.name} className={styles.paintThumbnail} /> : <Paintbrush size={24} />}<span>{item.name}</span></button>)}
+          </div>
+          <button type="button" className={styles.slideArrow} aria-label="Próximas amostras" disabled={slideEdges.end} onClick={() => moveSlides(1)}><ChevronRight size={18} /></button>
         </div>}
       </>}
       <p>Uma geração por aplicação. Móveis e acabamentos são criados pela IA; câmera e estrutura devem ser preservadas.</p>

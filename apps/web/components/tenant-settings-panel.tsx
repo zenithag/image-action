@@ -1,5 +1,7 @@
 "use client"
 
+import styles from "./settings-layout.module.css"
+import management from "./management-layout.module.css"
 import { Tabs } from "@/components/spectrum/tabs"
 import { PageHeader } from "@/components/organisms/page-header"
 import { BRAND } from "@/lib/brand-palette"
@@ -149,7 +151,7 @@ function toggleListValue(values: string[], value: string) {
  */
 function SettingsGroup({ title, description, children, className }: { title: string; description?: string; children: ReactNode; className?: string }) {
   return (
-    <section className={cn("py-8 first:pt-0 last:pb-2", className)}>
+    <section className={cn(styles.card, className)}>
       <header className="mb-5 min-w-0">
         <h3 className="text-base font-bold text-foreground">{title}</h3>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
@@ -169,7 +171,7 @@ function Field({
   className?: string
 }) {
   return (
-    <label className={cn("space-y-2", className)}>
+    <label className={cn(styles.field, "space-y-2", className)}>
       <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       {children}
     </label>
@@ -437,14 +439,14 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+    <div className={cn(management.page, styles.page)}>
       <PageHeader
-        title="configurações"
-        subtitle={`tenant · ${tenantSlug}`}
+        className={cn(management.header, styles.header)}
+        title="Configurações"
+        subtitle="Personalize sua empresa e gerencie as preferências do sistema."
         actions={
           <Button onClick={saveSettings} disabled={!settings || isSaving}>
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar
+            <span className={management.actionLabel}>{isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Salvar</span>
           </Button>
         }
       />
@@ -462,14 +464,14 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
 
       <div className="flex min-h-0 flex-1 flex-col">
           <Tabs
-            className="mx-8 shrink-0"
+            className={styles.tabs}
             aria-label="Seções das configurações"
             value={activeSection}
             onValueChange={(next) => setActiveSection(next as SectionId)}
             items={sections.map((section) => ({ value: section.id, label: section.title }))}
           />
 
-          <div className="min-h-0 overflow-auto px-8 py-6">
+          <div className={styles.content}>
             {isLoading || !settings ? (
               <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -478,7 +480,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
           ) : (
             <div className="w-full">
               {activeSection === "branding" && (
-                <div className="grid items-start gap-x-12 max-xl:divide-y max-xl:divide-border xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
+                <div className={styles.branding}>
                   <SettingsGroup title="Identidade da marca" description="Logo, cores e dados que aparecem no portal do tenant.">
 <div className="grid gap-4 md:grid-cols-2">
                       <Field label="Nome da empresa">
@@ -631,7 +633,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                       </div>
                     </div>
                   </SettingsGroup>
-                  <SettingsGroup title="Pré-visualização" description="Como a marca aparece para os clientes." className="xl:sticky xl:top-0 xl:pt-0">
+                  <SettingsGroup title="Pré-visualização" description="Como a marca aparece para os clientes." className={styles.preview}>
 <div className="grid gap-4">
                       {/* Sidebar preview */}
                       <div className="overflow-hidden rounded-md border border-border">

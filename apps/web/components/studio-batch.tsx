@@ -108,7 +108,7 @@ function UploadCollection({ title, count, description, reference = false, images
     <div id={contentId} hidden={!expanded}>
     <div className={styles.dropzone}>
       <ImageIcon size={20} aria-hidden="true" />
-      <Button variant="outline" type="button" onClick={() => input.current?.click()} disabled={disabled}><FolderOpen size={16} />Selecionar arquivos</Button>
+      <Button variant="outline" type="button" onClick={() => input.current?.click()} disabled={disabled}><span className={styles.uploadLabel}><FolderOpen size={16} /><span>Selecionar arquivos</span></span></Button>
       <Input ref={input} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" aria-label={reference ? "Selecionar referências" : "Selecionar ambientes"} disabled={disabled} onChange={onUpload} />
     </div>
     {images.length > 0 && <div className={styles.uploaded}>{images.map((image, index) => <div key={`${getStudioArtifactKey(image)}:${index}`}><SafeImage src={image.mediaUrl} alt={image.caption || `${title} ${index + 1}`} className={styles.thumbnail} /><Button variant="ghost" size="icon" type="button" aria-label={`Remover ${reference ? "referência" : "ambiente"} ${index + 1}`} disabled={disabled} onClick={() => onRemove(index)}><X size={14} /></Button></div>)}</div>}
