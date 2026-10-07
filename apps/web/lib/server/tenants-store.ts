@@ -1,5 +1,6 @@
 import type { Tenant, TenantBusinessVertical, TenantInput, TenantPlanCode, TenantStatus } from "@/lib/tenant-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { listTenantNiches } from "./tenant-niches-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type TenantsData = {
@@ -9,8 +10,6 @@ type TenantsData = {
 const dataFile = getRuntimeDataFile("tenants.json")
 const storeKey = "tenants"
 const tenantStatuses = new Set<TenantStatus>(["draft", "active", "suspended", "archived"])
-const tenantPlans = new Set<TenantPlanCode>(["starter", "pro", "enterprise", "custom"])
-const tenantVerticals = new Set<TenantBusinessVertical>(["generic", "decor", "fashion", "automotive", "furniture"])
 
 let mutationQueue = Promise.resolve()
 
@@ -31,6 +30,12 @@ export function slugifyTenant(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+function normalizeCustomPlan(value: TenantInput["customPlan"]) {
+  if (value === undefined) return undefined
+  if (!value || !Number.isSafeInteger(value.priceCents) || value.priceCents < 0 || !Number.isSafeInteger(value.tokensIncluded) || value.tokensIncluded < 0) throw new Error("Preço e tokens personalizados devem ser inteiros não negativos.")
+  return { priceCents: value.priceCents, tokensIncluded: value.tokensIncluded }
+}
+
 function normalizeTenant(value: unknown): Tenant | null {
   const tenant = value as Partial<Tenant> | null
 
@@ -42,8 +47,8 @@ function normalizeTenant(value: unknown): Tenant | null {
   const name = normalizeText(tenant.name)
   const slug = slugifyTenant(normalizeText(tenant.slug))
   const status = tenantStatuses.has(tenant.status as TenantStatus) ? tenant.status as TenantStatus : "draft"
-  const planCode = tenantPlans.has(tenant.planCode as TenantPlanCode) ? tenant.planCode as TenantPlanCode : "starter"
-  const businessVertical = tenantVerticals.has(tenant.businessVertical as TenantBusinessVertical)
+  const planCode = typeof tenant.planCode === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(tenant.planCode) ? tenant.planCode : "starter"
+  const businessVertical = typeof tenant.businessVertical === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(tenant.businessVertical)
     ? tenant.businessVertical as TenantBusinessVertical
     : "generic"
 
@@ -60,6 +65,7 @@ function normalizeTenant(value: unknown): Tenant | null {
     status,
     planCode,
     businessVertical,
+    customPlan: normalizeCustomPlan(tenant.customPlan),
     domain: normalizeText(tenant.domain) || undefined,
     contactEmail: normalizeText(tenant.contactEmail).toLowerCase() || undefined,
     contactName: normalizeText(tenant.contactName) || undefined,
@@ -134,8 +140,8 @@ function assertTenantInput(input: TenantInput) {
   const name = normalizeText(input.name)
   const slug = slugifyTenant(normalizeText(input.slug) || name)
   const status = tenantStatuses.has(input.status as TenantStatus) ? input.status as TenantStatus : "draft"
-  const planCode = tenantPlans.has(input.planCode as TenantPlanCode) ? input.planCode as TenantPlanCode : "starter"
-  const businessVertical = tenantVerticals.has(input.businessVertical as TenantBusinessVertical)
+  const planCode = typeof input.planCode === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(input.planCode) ? input.planCode : "starter"
+  const businessVertical = typeof input.businessVertical === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(input.businessVertical)
     ? input.businessVertical as TenantBusinessVertical
     : "generic"
 
@@ -153,6 +159,7 @@ function assertTenantInput(input: TenantInput) {
     status,
     planCode,
     businessVertical,
+    customPlan: normalizeCustomPlan(input.customPlan),
     domain: normalizeText(input.domain) || undefined,
     contactEmail: normalizeText(input.contactEmail).toLowerCase() || undefined,
     contactName: normalizeText(input.contactName) || undefined,
@@ -174,6 +181,7 @@ export async function createTenant(input: TenantInput) {
     const data = await readTenantsData()
     const normalized = assertTenantInput(input)
 
+    if (!(await listTenantNiches()).some(niche => niche.code === normalized.businessVertical)) throw new Error("Nicho não cadastrado.")
     assertSlugAvailable(data.tenants, normalized.slug)
 
     const timestamp = new Date().toISOString()
@@ -210,6 +218,7 @@ export async function updateTenant(id: string, input: Partial<TenantInput>) {
       status: input.status ?? existing.status,
       planCode: input.planCode ?? existing.planCode,
       businessVertical: input.businessVertical ?? existing.businessVertical,
+      customPlan: input.customPlan ?? existing.customPlan,
       domain: input.domain ?? existing.domain,
       contactEmail: input.contactEmail ?? existing.contactEmail,
       contactName: input.contactName ?? existing.contactName,
@@ -217,6 +226,7 @@ export async function updateTenant(id: string, input: Partial<TenantInput>) {
       website: input.website ?? existing.website,
     })
 
+    if (!(await listTenantNiches()).some(niche => niche.code === merged.businessVertical)) throw new Error("Nicho não cadastrado.")
     assertSlugAvailable(data.tenants, merged.slug, existing.id)
 
     const updated: Tenant = {

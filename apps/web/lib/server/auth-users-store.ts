@@ -1,8 +1,10 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto"
 import { promisify } from "node:util"
 
-import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { readJsonStore, writeJsonStore, withJsonStoreLock } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
+
+import { findTenant, listTenants } from "@/lib/server/tenants-store"
 
 const scrypt = promisify(scryptCallback)
 const dataFile = getRuntimeDataFile("auth-users.json")
@@ -93,7 +95,7 @@ function getTenantRoleFromRoles(roles: string[]): TenantTeamSyncMember["role"] {
 }
 
 async function withAuthUsersMutation<T>(mutation: () => Promise<T>) {
-  const run = mutationQueue.then(mutation, mutation)
+  const run = mutationQueue.then(() => withJsonStoreLock(storeKey, dataFile, mutation), () => withJsonStoreLock(storeKey, dataFile, mutation))
   mutationQueue = run.then(() => undefined, () => undefined)
 
   return run
@@ -182,7 +184,7 @@ function readBootstrapUsers(): BootstrapUserInput[] {
       password: tenantPassword,
       tenantId: normalizeText(process.env.AUTH_BOOTSTRAP_TENANT_ID) || tenantSlug,
       tenantSlug,
-      roles: parseRoles(process.env.AUTH_BOOTSTRAP_TENANT_ROLES, ["tenant"]),
+      roles: parseRoles(process.env.AUTH_BOOTSTRAP_TENANT_ROLES, ["tenant", "tenant_admin"]),
     })
   }
 
@@ -266,6 +268,32 @@ export async function createStoredAuthUser(input: CreateAuthUserInput) {
     })
 
     return user
+  })
+}
+
+export async function deleteStoredAuthUserById(idInput: unknown) {
+  const id = normalizeText(idInput)
+  if (!id) return false
+  return withAuthUsersMutation(async () => {
+    const data = await readAuthUsersData()
+    const user = data.users.find((item) => item.id === id)
+    if (!user || isSuperadminUser(user)) return false
+    await writeAuthUsersData({ users: data.users.filter((item) => item.id !== id) })
+    return true
+  })
+}
+
+export async function setTenantAuthUsersStatus(tenantId: string, status: AuthUserStatus) {
+  return withAuthUsersMutation(async () => {
+    const data = await readAuthUsersData()
+    let changed = false
+    const users = data.users.map((user) => {
+      if (user.tenantId !== tenantId || !user.roles.includes("tenant")) return user
+      changed = changed || user.status !== status
+      return user.status === status ? user : { ...user, status, updatedAt: new Date().toISOString() }
+    })
+    if (changed) await writeAuthUsersData({ users })
+    return changed
   })
 }
 
@@ -495,6 +523,10 @@ export async function syncStoredTenantUsers(input: {
       globalByEmail.set(email, createdUser)
     }
 
+    if (!syncedUsers.some(user => user.status === "active" && user.roles.includes("tenant_admin"))) {
+      throw new Error("Mantenha pelo menos um administrador ativo na empresa.")
+    }
+
     for (const user of tenantUsers) {
       if (retainedIds.has(user.id)) continue
 
@@ -520,7 +552,20 @@ async function ensureBootstrapUsersUnlocked() {
   const existingEmails = new Set(data.users.map((user) => user.email.toLowerCase()))
   const missingBootstrapUsers = bootstrapUsers.filter((user) => !existingEmails.has(user.email))
 
+  // Repair legacy principal accounts when the company has no active administrator.
+  const tenants = await listTenants()
+  let repaired = false
+  for (const tenant of tenants) {
+    const principal = data.users.filter(user => isTenantScopedUser(user, tenant.slug))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]
+    if (principal && principal.status === "active" && principal.email === tenant.contactEmail && !data.users.some(user => isTenantScopedUser(user, tenant.slug) && user.status === "active" && user.roles.includes("tenant_admin"))) {
+      principal.roles = ["tenant", "tenant_admin"]
+      principal.updatedAt = new Date().toISOString()
+      repaired = true
+    }
+  }
   if (missingBootstrapUsers.length === 0) {
+    if (repaired) await writeAuthUsersData(data)
     return data
   }
 
@@ -552,6 +597,8 @@ export async function authenticateStoredUser(emailInput: unknown, passwordInput:
   if (!user || !(await verifyPassword(password, user))) {
     return null
   }
+
+  if (user.tenantSlug && (await findTenant(user.tenantSlug))?.status !== "active") return null
 
   await withAuthUsersMutation(async () => {
     const latestData = await readAuthUsersData()

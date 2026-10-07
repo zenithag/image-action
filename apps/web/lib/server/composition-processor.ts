@@ -1,3 +1,4 @@
+import { findTenant } from "@/lib/server/tenants-store"
 import type { CompositionJob } from "@/lib/composition-types"
 import {
   ensureCompositionJobShareToken,
@@ -321,6 +322,8 @@ export async function processCompositionJob(tenantSlug: string, jobId: string): 
       message: "Job de composicao nao encontrado.",
     }
   }
+
+  if ((await findTenant(tenantSlug))?.status !== "active") return { ok: false, job, message: "Cliente inativo; processamento pausado." }
 
   if (job.status === "processing") {
     return {

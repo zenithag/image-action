@@ -38,6 +38,7 @@ import {
 import { listCatalogItems } from "@/lib/server/catalog-store"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimePublicDir } from "@/lib/server/runtime-paths"
+import { findTenant } from "@/lib/server/tenants-store"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
 import { getTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
 import type { StoredTenantChannelInstance } from "@/lib/server/tenant-channel-instances-store"
@@ -2215,6 +2216,7 @@ export async function processInboundMessageWithAi(input: {
     return { ok: true, skipped: "no_new_inbound_message" }
   }
 
+  if ((await findTenant(input.tenantSlug))?.status !== "active") return { ok: true, skipped: "inactive_tenant" }
   const inboundMessage = input.message
   const allMessages = await listInboxMessages(input.tenantSlug, input.conversationId)
   const conversation = await findInboxConversation(input.tenantSlug, input.conversationId)

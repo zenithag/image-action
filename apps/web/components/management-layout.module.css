@@ -21,3 +21,22 @@
 @media(max-width:1400px) { .productGrid { grid-template-columns:repeat(3,minmax(0,1fr)); } .header { grid-template-columns:minmax(0,1fr) auto; } .header > :global([data-slot=search]) { grid-column:1 / -1; order:3; } }
 @media(max-width:1100px) { .productGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:650px) { .header { padding:16px; grid-template-columns:minmax(0,1fr); } .header > :last-child { justify-content:flex-start; } .categories { padding:12px 16px; } .catalogContent,.contactsContent { padding:16px; } .productGrid { grid-template-columns:minmax(0,1fr); } }
+
+/* Columns respond to available content width, including an expanded sidebar. */
+.contactsContent { container-type:inline-size; container-name:contacts; }
+.contactsPage .table { min-width:0; table-layout:fixed; }
+.contactSelection { width:48px; }
+.contactCompany { width:120px; }
+.contactConversations { width:100px; }
+.contactLastSeen { width:136px; }
+.contactTags { width:120px; }
+.contactAction { width:104px; }
+.contactOpen { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:44px; min-height:44px; }
+@container contacts (max-width:900px) { .contactTags { display:none; } }
+@container contacts (max-width:700px) {
+  .contactCompany,.contactLastSeen { display:none; }
+  .contactAction { width:64px; }
+  .contactOpenLabel { display:none; }
+  .contactsPage .table th,.contactsPage .table td { padding-left:10px; padding-right:10px; }
+}
+@container contacts (max-width:500px) { .contactConversations,.contactSelection { display:none; } }

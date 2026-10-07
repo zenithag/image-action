@@ -1,4 +1,4 @@
-import type { AbacatePayPlanConfig, AbacatePaySettings } from "@/lib/billing-types"
+import type { AbacatePayPlanConfig, AbacatePaySettings, PlanCatalogEntry } from "@/lib/billing-types"
 
 type AbacatePayProductResponse = {
   data?: {
@@ -66,7 +66,7 @@ async function requestAbacatePay<T>(settings: AbacatePaySettings, path: string, 
   return data
 }
 
-export async function createAbacatePayProduct(settings: AbacatePaySettings, plan: AbacatePayPlanConfig) {
+export async function createAbacatePayProduct(settings: AbacatePaySettings, plan: PlanCatalogEntry & AbacatePayPlanConfig) {
   const payload = {
     externalId: plan.productExternalId,
     name: plan.productName,

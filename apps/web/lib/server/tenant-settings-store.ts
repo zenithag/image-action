@@ -143,13 +143,13 @@ async function hydrateTeamMembersFromAuth(tenantSlug: string, currentMembers: Te
 }
 
 function normalizeSegmentationProfile(value: unknown): TenantSegmentationProfile {
-  return value === "decor" || value === "fashion" || value === "automotive" || value === "furniture"
+  return typeof value === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(value)
     ? value
     : "generic"
 }
 
 function defaultSegmentationByProfile(profile: TenantSegmentationProfile) {
-  if (profile === "decor") {
+  if (profile === "decor" || profile === "real-estate" || profile === "construction") {
     return {
       editableTargets: ["painted_wall", "wall_finish", "floor", "ceiling", "furniture"],
       protectedTargets: ["window", "door", "baseboard", "fixed_structure"],
@@ -188,9 +188,9 @@ function defaultSegmentationByProfile(profile: TenantSegmentationProfile) {
   }
 }
 
-function defaultTenantSettings(tenantSlug: string): TenantSettings {
+function defaultTenantSettings(tenantSlug: string, profile: TenantSegmentationProfile = "generic"): TenantSettings {
   const now = new Date().toISOString()
-  const segmentationDefaults = defaultSegmentationByProfile("generic")
+  const segmentationDefaults = defaultSegmentationByProfile(profile)
 
   return {
     tenantSlug,
@@ -249,7 +249,7 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
       sessionTimeoutMinutes: 480,
     },
     segmentation: {
-      profile: "generic",
+      profile,
       editableTargets: segmentationDefaults.editableTargets,
       protectedTargets: segmentationDefaults.protectedTargets,
       promptHints: segmentationDefaults.promptHints,
@@ -305,6 +305,9 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
   }
 
   const segmentationProfile = normalizeSegmentationProfile(next.segmentation.profile)
+  if (input.segmentation?.profile && input.segmentation.profile !== existing.segmentation.profile) {
+    Object.assign(next.segmentation, defaultSegmentationByProfile(segmentationProfile), input.segmentation)
+  }
   const segmentationDefaults = defaultSegmentationByProfile(segmentationProfile)
 
   return {
@@ -391,11 +394,10 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
 export async function getTenantSettings(tenantSlug: string) {
   const data = await readSettingsData()
   const existing = data.settings.find((settings) => settings.tenantSlug === tenantSlug)
-  const baseSettings = existing
-    ? mergeTenantSettings(defaultTenantSettings(tenantSlug), existing)
-    : defaultTenantSettings(tenantSlug)
-
   const tenant = await findTenant(tenantSlug)
+  const baseSettings = existing
+    ? mergeTenantSettings(defaultTenantSettings(tenantSlug, tenant?.businessVertical), existing)
+    : defaultTenantSettings(tenantSlug, tenant?.businessVertical)
   const companyName = baseSettings.general.companyName
 
   return {

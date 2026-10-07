@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import type { TenantPlanCode } from "@/lib/tenant-types"
 import {
   getConfiguredStripePlan,
+  getPlanCatalog,
   getStripeSettings,
   getTenantBillingSubscription,
   toPublicStripeSettings,
@@ -10,7 +11,7 @@ import {
 } from "@/lib/server/billing-store"
 import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 import { attachReferralToTenant } from "@/lib/server/commercial-benefits-store"
-import { createStripeCustomer, createStripeSubscriptionCheckout } from "@/lib/server/stripe-client"
+import { createStripeProductAndPrice, createStripeCustomer, createStripeSubscriptionCheckout } from "@/lib/server/stripe-client"
 import { findTenant } from "@/lib/server/tenants-store"
 
 export const runtime = "nodejs"
@@ -32,7 +33,7 @@ function normalizeText(value: unknown) {
 }
 
 function normalizePlanCode(value: unknown, fallback: TenantPlanCode): TenantPlanCode {
-  return value === "starter" || value === "pro" || value === "enterprise" || value === "custom" ? value : fallback
+  return typeof value === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(value) ? value : fallback
 }
 
 function getOrigin(request: Request) {
@@ -78,6 +79,7 @@ export async function POST(request: Request, context: RouteContext) {
     const email = normalizeText(payload?.email || tenant.contactEmail).toLowerCase()
     const name = normalizeText(payload?.name || tenant.contactName || tenant.name)
     const planCode = normalizePlanCode(payload?.planCode, tenant.planCode)
+    if (planCode !== tenant.planCode) throw new Error("Salve o plano do cliente antes de gerar o checkout.")
     const referralCode = normalizeText(payload?.referralCode)
 
     if (!email) {
@@ -88,11 +90,18 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Informe o nome do cliente antes de gerar o checkout Stripe." }, { status: 400 })
     }
 
-    const settings = await getStripeSettings()
-    const plan = getConfiguredStripePlan(settings, planCode)
+    const [settings, planCatalog] = await Promise.all([getStripeSettings(), getPlanCatalog()])
+    const plan = getConfiguredStripePlan(settings, planCatalog, planCode, tenant)
 
     if (planCode === "custom" && (plan.priceCents <= 0 || plan.tokensIncluded <= 0)) {
       return NextResponse.json({ error: "Configure um preço e uma cota positiva de créditos para o plano Personalizado antes de gerar o checkout." }, { status: 400 })
+    }
+    if (planCode === "custom" && tenant.customPlan) {
+      const previous = await getTenantBillingSubscription(tenant)
+      if (previous?.status === "active") throw new Error("Este cliente já possui uma assinatura ativa. Cancele-a no provedor antes de gerar uma nova contratação.")
+      const reusable = previous?.provider === "stripe" && previous.amountCents === plan.priceCents && previous.tokensIncluded === plan.tokensIncluded
+      if (reusable && previous.priceId) plan.priceId = previous.priceId
+      else Object.assign(plan, await createStripeProductAndPrice(settings, plan))
     }
     const origin = getOrigin(request)
     const customer = await createStripeCustomer(settings, {
@@ -134,6 +143,9 @@ export async function POST(request: Request, context: RouteContext) {
       checkoutUrl: checkout.checkoutUrl,
       subscriptionId: checkout.subscriptionId,
       externalId,
+      tokensIncluded: plan.tokensIncluded,
+      productId: plan.productId,
+      priceId: plan.priceId,
       amountCents: plan.priceCents,
       currency: settings.currency.toUpperCase(),
       createdAt: new Date().toISOString(),

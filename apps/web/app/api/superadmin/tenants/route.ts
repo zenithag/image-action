@@ -53,7 +53,7 @@ export async function POST(request: Request) {
         password: initialPassword,
         tenantId: tenant.id,
         tenantSlug: tenant.slug,
-        roles: ["tenant"],
+        roles: ["tenant", "tenant_admin"],
       })
     } catch (error) {
       await deleteTenant(tenant.id)

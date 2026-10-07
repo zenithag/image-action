@@ -103,7 +103,7 @@ test('operator cannot remove own quota: settings mutations require tenant admin 
   let writes = 0
   const route = await load('../app/api/tenant/[slug]/settings/route.ts', name => {
     if (name === 'next/server') return { NextResponse: { json: (body, opts) => ({ body, status: opts?.status ?? 200 }) } }
-    if (name.includes('next-auth/jwt')) return { getToken: async () => token }
+    if (name.includes('current-tenant-token')) return { getCurrentTenantToken: async () => token }
     if (name.includes('studio-surface-access')) return access
     if (name.includes('tenants-store')) return { findTenant: async slug => ({ id: 'id-t', slug, status: 'active' }) }
     if (name.includes('tenant-catalog-access')) return { getTenantCatalogAccess: async () => ({ included: true, enabled: true }) }

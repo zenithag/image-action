@@ -20,6 +20,8 @@ import {
   Zap,
   Bot,
   CreditCard,
+  PackagePlus,
+  Gift,
   Sun,
   Moon,
   LogOut,
@@ -50,12 +52,14 @@ const tenantNavItems: NavItem[] = [
 ]
 
 const superadminNavItems: NavItem[] = [
-  { href: "/superadmin", label: "Tenants", icon: Building2 },
+  { href: "/superadmin", label: "Clientes", icon: Building2 },
   { href: "/superadmin/users", label: "Usuários", icon: Users },
   { href: "/superadmin/usage", label: "Uso & Custos", icon: BarChart3 },
   { href: "/superadmin/channels", label: "Canais", icon: Zap },
   { href: "/superadmin/ai", label: "IA & Modelos", icon: Bot },
   { href: "/superadmin/billing", label: "Pagamentos", icon: CreditCard },
+  { href: "/superadmin/plans", label: "Planos", icon: PackagePlus },
+  { href: "/superadmin/benefits", label: "Benefícios", icon: Gift },
 ]
 
 interface AppSidebarProps {
@@ -150,10 +154,11 @@ export function AppSidebar({
       className={cn(
         "relative z-40 flex h-dvh flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200",
         collapsed ? "w-[64px]" : "w-[196px]",
+        variant === "tenant" && "max-md:hidden",
         "shrink-0 bg-[var(--cf-chrome-bg,var(--background))]",
       )}
     >
-      {/* Keep the platform logo and workspace name consistent across tenant and admin navigation. */}
+      {/* Keep the platform logo and workspace name consistent across cliente and admin navigation. */}
       <div
         className={cn(
           "flex shrink-0 flex-col gap-2",

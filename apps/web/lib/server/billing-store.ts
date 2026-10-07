@@ -4,6 +4,7 @@ import type {
   AbacatePaySettings,
   AbacatePayWebhookEventRecord,
   BillingProvider,
+  PlanCatalogEntry,
   PublicAbacatePaySettings,
   PublicStripeSettings,
   StripeInterval,
@@ -12,11 +13,12 @@ import type {
   TenantBillingStatus,
   TenantBillingSubscription,
 } from "@/lib/billing-types"
-import type { Tenant, TenantPlanCode } from "@/lib/tenant-types"
+import type { BuiltInTenantPlanCode, Tenant, TenantPlanCode } from "@/lib/tenant-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type BillingData = {
+  planCatalog: Record<TenantPlanCode, PlanCatalogEntry>
   abacatePay: AbacatePaySettings
   stripe: StripeSettings
   subscriptions: TenantBillingSubscription[]
@@ -25,93 +27,32 @@ type BillingData = {
 
 const dataFile = getRuntimeDataFile("billing.json")
 const storeKey = "billing"
-const planCodes: TenantPlanCode[] = ["starter", "pro", "enterprise", "custom"]
+const builtInPlanCodes: BuiltInTenantPlanCode[] = ["starter", "pro", "enterprise", "custom"]
 const cycles = new Set<AbacatePayCycle>(["WEEKLY", "MONTHLY", "SEMIANNUALLY", "ANNUALLY"])
 const stripeIntervals = new Set<StripeInterval>(["day", "week", "month", "year"])
 const statuses = new Set<TenantBillingStatus>(["none", "checkout_pending", "active", "cancelled", "past_due", "failed"])
 
 let mutationQueue = Promise.resolve()
 
-const defaultPlans: Record<TenantPlanCode, AbacatePayPlanConfig> = {
-  starter: {
-    planCode: "starter",
-    enabled: true,
-    productExternalId: "comofica-starter-monthly",
-    productName: "ComoFica Starter",
-    description: "Plano inicial ComoFica com 100 créditos mensais de composição.",
-    priceCents: 9700,
-    tokensIncluded: 100,
-    cycle: "MONTHLY",
-  },
-  pro: {
-    planCode: "pro",
-    enabled: true,
-    productExternalId: "comofica-pro-monthly",
-    productName: "ComoFica Pro",
-    description: "Plano profissional ComoFica com 500 créditos mensais de composição.",
-    priceCents: 29700,
-    tokensIncluded: 500,
-    cycle: "MONTHLY",
-  },
-  enterprise: {
-    planCode: "enterprise",
-    enabled: true,
-    productExternalId: "comofica-enterprise-monthly",
-    productName: "ComoFica Enterprise",
-    description: "Plano enterprise ComoFica com 2000 créditos mensais de composição.",
-    priceCents: 99700,
-    tokensIncluded: 2000,
-    cycle: "MONTHLY",
-  },
-  custom: {
-    planCode: "custom",
-    enabled: false,
-    productExternalId: "comofica-personalizado-monthly",
-    productName: "ComoFica Personalizado",
-    description: "Plano personalizado ComoFica com limites definidos por cliente.",
-    priceCents: 0,
-    tokensIncluded: 0,
-    cycle: "MONTHLY",
-  },
+const defaultPlanCatalog: Record<BuiltInTenantPlanCode, PlanCatalogEntry> = {
+  starter: { planCode: "starter", enabled: true, productName: "ComoFica Starter", description: "Plano inicial ComoFica com 100 créditos mensais de composição.", priceCents: 9700, tokensIncluded: 100, cycle: "MONTHLY" },
+  pro: { planCode: "pro", enabled: true, productName: "ComoFica Pro", description: "Plano profissional ComoFica com 500 créditos mensais de composição.", priceCents: 29700, tokensIncluded: 500, cycle: "MONTHLY" },
+  enterprise: { planCode: "enterprise", enabled: true, productName: "ComoFica Enterprise", description: "Plano enterprise ComoFica com 2000 créditos mensais de composição.", priceCents: 99700, tokensIncluded: 2000, cycle: "MONTHLY" },
+  custom: { planCode: "custom", enabled: false, productName: "ComoFica Personalizado", description: "Plano personalizado ComoFica com limites definidos por cliente.", priceCents: 0, tokensIncluded: 0, cycle: "MONTHLY" },
 }
 
-const defaultStripePlans: Record<TenantPlanCode, StripePlanConfig> = {
-  starter: {
-    planCode: "starter",
-    enabled: true,
-    productName: "ComoFica Starter",
-    description: "Plano inicial ComoFica com 100 créditos mensais de composição.",
-    priceCents: 9700,
-    tokensIncluded: 100,
-    interval: "month",
-  },
-  pro: {
-    planCode: "pro",
-    enabled: true,
-    productName: "ComoFica Pro",
-    description: "Plano profissional ComoFica com 500 créditos mensais de composição.",
-    priceCents: 29700,
-    tokensIncluded: 500,
-    interval: "month",
-  },
-  enterprise: {
-    planCode: "enterprise",
-    enabled: true,
-    productName: "ComoFica Enterprise",
-    description: "Plano enterprise ComoFica com 2000 créditos mensais de composição.",
-    priceCents: 99700,
-    tokensIncluded: 2000,
-    interval: "month",
-  },
-  custom: {
-    planCode: "custom",
-    enabled: false,
-    productName: "ComoFica Personalizado",
-    description: "Plano personalizado ComoFica com limites definidos por cliente.",
-    priceCents: 0,
-    tokensIncluded: 0,
-    interval: "month",
-  },
+const defaultAbacatePayPlans: Record<BuiltInTenantPlanCode, AbacatePayPlanConfig> = {
+  starter: { planCode: "starter", enabled: true, productExternalId: "comofica-starter-monthly" },
+  pro: { planCode: "pro", enabled: true, productExternalId: "comofica-pro-monthly" },
+  enterprise: { planCode: "enterprise", enabled: true, productExternalId: "comofica-enterprise-monthly" },
+  custom: { planCode: "custom", enabled: false, productExternalId: "comofica-personalizado-monthly" },
+}
+
+const defaultStripePlans: Record<BuiltInTenantPlanCode, StripePlanConfig> = {
+  starter: { planCode: "starter", enabled: true },
+  pro: { planCode: "pro", enabled: true },
+  enterprise: { planCode: "enterprise", enabled: true },
+  custom: { planCode: "custom", enabled: false },
 }
 
 function now() {
@@ -132,7 +73,8 @@ function normalizeNumber(value: unknown, fallback = 0) {
 }
 
 function normalizePlanCode(value: unknown): TenantPlanCode {
-  return value === "pro" || value === "enterprise" || value === "custom" ? value : "starter"
+  const code = normalizeText(value).toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+  return code || "starter"
 }
 
 function normalizeCycle(value: unknown, fallback: AbacatePayCycle): AbacatePayCycle {
@@ -151,7 +93,7 @@ function buildDefaultSettings(): AbacatePaySettings {
     baseUrl: "https://api.abacatepay.com/v2",
     webhookSecret: crypto.randomUUID().replaceAll("-", ""),
     devMode: false,
-    plans: defaultPlans,
+    plans: defaultAbacatePayPlans,
     createdAt: timestamp,
     updatedAt: timestamp,
   }
@@ -172,26 +114,56 @@ function buildDefaultStripeSettings(): StripeSettings {
   }
 }
 
-function normalizePlan(value: unknown, fallback: AbacatePayPlanConfig): AbacatePayPlanConfig {
+function normalizeAbacatePayPlanLink(value: unknown, fallback: AbacatePayPlanConfig): AbacatePayPlanConfig {
   const plan = value as Partial<AbacatePayPlanConfig> | null
-  const productId = normalizeText(plan?.productId)
-
   return {
     planCode: fallback.planCode,
     enabled: normalizeBoolean(plan?.enabled, fallback.enabled),
-    productId: productId || undefined,
+    productId: normalizeText(plan?.productId) || undefined,
     productExternalId: normalizeText(plan?.productExternalId) || fallback.productExternalId,
-    productName: normalizeText(plan?.productName) || fallback.productName,
-    description: normalizeText(plan?.description) || fallback.description,
-    priceCents: Math.max(0, Math.round(normalizeNumber(plan?.priceCents, fallback.priceCents))),
-    tokensIncluded: Math.max(0, Math.round(normalizeNumber(plan?.tokensIncluded, fallback.tokensIncluded))),
-    cycle: normalizeCycle(plan?.cycle, fallback.cycle),
   }
+}
+
+function normalizePlanCatalog(value: unknown, legacyAbacate: unknown, legacyStripe: unknown): Record<TenantPlanCode, PlanCatalogEntry> {
+  const input = value as Record<string, unknown> | null
+  const oldAbacate = (legacyAbacate as { plans?: Record<string, unknown> } | null)?.plans ?? {}
+  const oldStripe = (legacyStripe as { plans?: Record<string, unknown> } | null)?.plans ?? {}
+  const codes = new Set<string>([...builtInPlanCodes, ...Object.keys(oldAbacate), ...Object.keys(oldStripe), ...Object.keys(input ?? {})])
+  const result: Record<string, PlanCatalogEntry> = {}
+
+  for (const rawCode of codes) {
+    const planCode = normalizePlanCode(rawCode)
+    const fallback = defaultPlanCatalog[planCode as BuiltInTenantPlanCode] ?? {
+      planCode,
+      enabled: false,
+      productName: planCode,
+      description: "",
+      priceCents: 0,
+      tokensIncluded: 0,
+      cycle: "MONTHLY" as const,
+    }
+    const central = (input?.[rawCode] ?? input?.[planCode]) as Partial<PlanCatalogEntry> | undefined
+    const stripe = oldStripe[rawCode] as (Partial<PlanCatalogEntry> & { interval?: unknown }) | undefined
+    const abacate = oldAbacate[rawCode] as (Partial<PlanCatalogEntry> & { cycle?: unknown }) | undefined
+    const source = central ?? (stripe?.enabled ? stripe : abacate?.enabled ? abacate : stripe ?? abacate)
+    const oldStripeCycle = stripe?.interval === "week" ? "WEEKLY" : stripe?.interval === "year" ? "ANNUALLY" : "MONTHLY"
+    result[planCode] = {
+      planCode,
+      enabled: normalizeBoolean(central?.enabled, Boolean(stripe?.enabled || abacate?.enabled || fallback.enabled)),
+      productName: normalizeText(source?.productName) || fallback.productName,
+      description: normalizeText(source?.description) || fallback.description,
+      priceCents: Math.max(0, Math.round(normalizeNumber(source?.priceCents, fallback.priceCents))),
+      tokensIncluded: Math.max(0, Math.round(normalizeNumber(source?.tokensIncluded, fallback.tokensIncluded))),
+      cycle: normalizeCycle(source?.cycle ?? abacate?.cycle ?? oldStripeCycle, fallback.cycle),
+    }
+  }
+
+  return result
 }
 
 function normalizeSettings(value: unknown): AbacatePaySettings {
   const defaults = buildDefaultSettings()
-  const settings = value as Partial<AbacatePaySettings> | null
+  const settings = value as (Partial<AbacatePaySettings> & { plans?: Record<string, unknown> }) | null
   const baseUrl = normalizeText(settings?.baseUrl)
   const plans = settings?.plans as Partial<Record<TenantPlanCode, unknown>> | undefined
 
@@ -204,38 +176,29 @@ function normalizeSettings(value: unknown): AbacatePaySettings {
     devMode: normalizeBoolean(settings?.devMode, defaults.devMode),
     returnUrl: normalizeText(settings?.returnUrl) || undefined,
     completionUrl: normalizeText(settings?.completionUrl) || undefined,
-    plans: {
-      starter: normalizePlan(plans?.starter, defaults.plans.starter),
-      pro: normalizePlan(plans?.pro, defaults.plans.pro),
-      enterprise: normalizePlan(plans?.enterprise, defaults.plans.enterprise),
-      custom: normalizePlan(plans?.custom, defaults.plans.custom),
-    },
+    plans: Object.fromEntries([...builtInPlanCodes, ...Object.keys(plans ?? {})].map((code) => {
+      const planCode = normalizePlanCode(code)
+      const fallback = defaultAbacatePayPlans[planCode as BuiltInTenantPlanCode] ?? { planCode, enabled: false, productExternalId: `comofica-${planCode}` }
+      return [planCode, normalizeAbacatePayPlanLink(plans?.[code], fallback)]
+    })),
     createdAt: normalizeText(settings?.createdAt) || defaults.createdAt,
     updatedAt: normalizeText(settings?.updatedAt) || defaults.updatedAt,
   }
 }
 
-function normalizeStripePlan(value: unknown, fallback: StripePlanConfig): StripePlanConfig {
+function normalizeStripePlanLink(value: unknown, fallback: StripePlanConfig): StripePlanConfig {
   const plan = value as Partial<StripePlanConfig> | null
-  const productId = normalizeText(plan?.productId)
-  const priceId = normalizeText(plan?.priceId)
-
   return {
     planCode: fallback.planCode,
     enabled: normalizeBoolean(plan?.enabled, fallback.enabled),
-    productId: productId || undefined,
-    priceId: priceId || undefined,
-    productName: normalizeText(plan?.productName) || fallback.productName,
-    description: normalizeText(plan?.description) || fallback.description,
-    priceCents: Math.max(0, Math.round(normalizeNumber(plan?.priceCents, fallback.priceCents))),
-    tokensIncluded: Math.max(0, Math.round(normalizeNumber(plan?.tokensIncluded, fallback.tokensIncluded))),
-    interval: normalizeStripeInterval(plan?.interval, fallback.interval),
+    productId: normalizeText(plan?.productId) || undefined,
+    priceId: normalizeText(plan?.priceId) || undefined,
   }
 }
 
 function normalizeStripeSettings(value: unknown): StripeSettings {
   const defaults = buildDefaultStripeSettings()
-  const settings = value as Partial<StripeSettings> | null
+  const settings = value as (Partial<StripeSettings> & { plans?: Record<string, unknown> }) | null
   const plans = settings?.plans as Partial<Record<TenantPlanCode, unknown>> | undefined
   const currency = normalizeText(settings?.currency || defaults.currency).toLowerCase()
 
@@ -247,12 +210,11 @@ function normalizeStripeSettings(value: unknown): StripeSettings {
     cancelUrl: normalizeText(settings?.cancelUrl) || undefined,
     apiVersion: normalizeText(settings?.apiVersion) || defaults.apiVersion,
     currency: currency || defaults.currency,
-    plans: {
-      starter: normalizeStripePlan(plans?.starter, defaults.plans.starter),
-      pro: normalizeStripePlan(plans?.pro, defaults.plans.pro),
-      enterprise: normalizeStripePlan(plans?.enterprise, defaults.plans.enterprise),
-      custom: normalizeStripePlan(plans?.custom, defaults.plans.custom),
-    },
+    plans: Object.fromEntries([...builtInPlanCodes, ...Object.keys(plans ?? {})].map((code) => {
+      const planCode = normalizePlanCode(code)
+      const fallback = defaultStripePlans[planCode as BuiltInTenantPlanCode] ?? { planCode, enabled: false }
+      return [planCode, normalizeStripePlanLink(plans?.[code], fallback)]
+    })),
     createdAt: normalizeText(settings?.createdAt) || defaults.createdAt,
     updatedAt: normalizeText(settings?.updatedAt) || defaults.updatedAt,
   }
@@ -280,6 +242,9 @@ function normalizeSubscription(value: unknown): TenantBillingSubscription | null
     checkoutUrl: normalizeText(item?.checkoutUrl) || undefined,
     subscriptionId: normalizeText(item?.subscriptionId) || undefined,
     externalId: normalizeText(item?.externalId) || undefined,
+    tokensIncluded: item?.tokensIncluded == null ? undefined : Math.max(0, Math.round(normalizeNumber(item.tokensIncluded))),
+    productId: normalizeText(item?.productId) || undefined,
+    priceId: normalizeText(item?.priceId) || undefined,
     amountCents: item?.amountCents == null ? undefined : Math.max(0, Math.round(normalizeNumber(item.amountCents))),
     paidAmountCents: item?.paidAmountCents == null ? undefined : Math.max(0, Math.round(normalizeNumber(item.paidAmountCents))),
     currency: normalizeText(item?.currency) || "BRL",
@@ -316,8 +281,9 @@ function normalizeWebhookEvent(value: unknown): AbacatePayWebhookEventRecord | n
 }
 
 function normalizeBillingData(value: unknown): BillingData {
-  const source = value as Partial<BillingData> | null
+  const source = value as (Partial<BillingData> & { planCatalog?: unknown }) | null
   return {
+    planCatalog: normalizePlanCatalog(source?.planCatalog, source?.abacatePay, source?.stripe),
     abacatePay: normalizeSettings(source?.abacatePay),
     stripe: normalizeStripeSettings(source?.stripe),
     subscriptions: Array.isArray(source?.subscriptions)
@@ -374,6 +340,59 @@ export function toPublicAbacatePaySettings(settings: AbacatePaySettings, origin?
 export async function getAbacatePaySettings() {
   const data = await readBillingData()
   return data.abacatePay
+}
+
+export async function getPlanCatalog() {
+  return (await readBillingData()).planCatalog
+}
+
+export async function updatePlanCatalog(input: Partial<Record<TenantPlanCode, Partial<PlanCatalogEntry>>>) {
+  return withBillingMutation(async () => {
+    const data = await readBillingData()
+    const next: Record<string, PlanCatalogEntry> = { ...data.planCatalog }
+    for (const [rawCode, patch] of Object.entries(input)) {
+      const planCode = normalizePlanCode(rawCode)
+      const current = next[planCode]
+      if (!current || !patch) continue
+      next[planCode] = {
+        ...current,
+        ...patch,
+        planCode,
+        productName: normalizeText(patch.productName ?? current.productName) || current.productName,
+        description: normalizeText(patch.description ?? current.description),
+        priceCents: Math.max(0, Math.round(normalizeNumber(patch.priceCents, current.priceCents))),
+        tokensIncluded: Math.max(0, Math.round(normalizeNumber(patch.tokensIncluded, current.tokensIncluded))),
+        cycle: normalizeCycle(patch.cycle, current.cycle),
+      }
+    }
+    await writeBillingData({ ...data, planCatalog: next })
+    return next
+  })
+}
+
+export async function createPlanCatalogEntry(input: { planCode: string; productName: string; description?: string }) {
+  return withBillingMutation(async () => {
+    const data = await readBillingData()
+    const planCode = normalizePlanCode(input.planCode)
+    if (!/^[a-z][a-z0-9-]{1,39}$/.test(planCode)) throw new Error("Use um código de 2 a 40 caracteres, começando por letra e contendo apenas letras, números ou hífens.")
+    if (data.planCatalog[planCode]) throw new Error("Já existe um plano com esse código.")
+    const productName = normalizeText(input.productName)
+    if (!productName) throw new Error("Informe o nome do plano.")
+    const plan: PlanCatalogEntry = {
+      planCode,
+      enabled: false,
+      productName,
+      description: normalizeText(input.description),
+      priceCents: 0,
+      tokensIncluded: 0,
+      cycle: "MONTHLY",
+    }
+    const planCatalog = { ...data.planCatalog, [planCode]: plan }
+    const abacatePay = { ...data.abacatePay, plans: { ...data.abacatePay.plans, [planCode]: { planCode, enabled: false, productExternalId: `comofica-${planCode}` } } }
+    const stripe = { ...data.stripe, plans: { ...data.stripe.plans, [planCode]: { planCode, enabled: false } } }
+    await writeBillingData({ ...data, planCatalog, abacatePay, stripe })
+    return plan
+  })
 }
 
 export async function updateAbacatePaySettings(input: Partial<AbacatePaySettings> & { clearApiKey?: boolean }) {
@@ -546,8 +565,12 @@ export async function markAbacatePayWebhookEventProcessed(id: string) {
   })
 }
 
-export function getConfiguredPlan(settings: AbacatePaySettings, planCode: TenantPlanCode) {
-  const plan = settings.plans[planCode]
+export function getConfiguredPlan(settings: AbacatePaySettings, planCatalog: Record<TenantPlanCode, PlanCatalogEntry>, planCode: TenantPlanCode, tenant?: Tenant) {
+  const configured = planCatalog[planCode]
+  const plan = configured && tenant?.planCode === "custom" && planCode === "custom" && tenant.customPlan ? { ...configured, ...tenant.customPlan, cycle: "MONTHLY" as const } : configured
+  const paymentLink = settings.plans[planCode]
+
+  if (!plan) throw new Error(`O plano ${planCode} não existe.`)
 
   if (!settings.enabled) {
     throw new Error("AbacatePay ainda nao esta habilitado.")
@@ -557,19 +580,23 @@ export function getConfiguredPlan(settings: AbacatePaySettings, planCode: Tenant
     throw new Error("Configure a API key da AbacatePay antes de gerar assinaturas.")
   }
 
-  if (!plan.enabled) {
-    throw new Error(`O plano ${planCode} nao esta habilitado para assinatura.`)
+  if (!plan.enabled || !paymentLink?.enabled) {
+    throw new Error(`O plano ${planCode} nao esta habilitado para assinatura AbacatePay.`)
   }
 
-  if (!plan.productId) {
+  if (!paymentLink.productId && !(planCode === "custom" && tenant?.planCode === "custom" && tenant.customPlan)) {
     throw new Error(`Cadastre ou informe o productId da AbacatePay para o plano ${planCode}.`)
   }
 
-  return plan
+  return { ...plan, ...paymentLink }
 }
 
-export function getConfiguredStripePlan(settings: StripeSettings, planCode: TenantPlanCode) {
-  const plan = settings.plans[planCode]
+export function getConfiguredStripePlan(settings: StripeSettings, planCatalog: Record<TenantPlanCode, PlanCatalogEntry>, planCode: TenantPlanCode, tenant?: Tenant) {
+  const configured = planCatalog[planCode]
+  const plan = configured && tenant?.planCode === "custom" && planCode === "custom" && tenant.customPlan ? { ...configured, ...tenant.customPlan, cycle: "MONTHLY" as const } : configured
+  const paymentLink = settings.plans[planCode]
+
+  if (!plan) throw new Error(`O plano ${planCode} não existe.`)
 
   if (!settings.enabled) {
     throw new Error("Stripe esta configurado como fallback, mas ainda nao esta habilitado.")
@@ -579,17 +606,23 @@ export function getConfiguredStripePlan(settings: StripeSettings, planCode: Tena
     throw new Error("Configure a secret key do Stripe antes de gerar checkouts.")
   }
 
-  if (!plan.enabled) {
+  if (!plan.enabled || !paymentLink?.enabled) {
     throw new Error(`O plano ${planCode} nao esta habilitado para checkout Stripe.`)
   }
 
-  if (!plan.priceId) {
+  if (!paymentLink.priceId && !(planCode === "custom" && tenant?.planCode === "custom" && tenant.customPlan)) {
     throw new Error(`Crie ou informe o priceId Stripe para o plano ${planCode}.`)
   }
 
-  return plan
+  return { ...plan, ...paymentLink, interval: cycleToStripeInterval(plan.cycle) }
 }
 
-export function getPlanCodes() {
-  return planCodes
+export function cycleToStripeInterval(cycle: AbacatePayCycle): StripeInterval {
+  if (cycle === "WEEKLY") return "week"
+  if (cycle === "ANNUALLY") return "year"
+  return "month"
+}
+
+export function getPlanCodes(planCatalog: Record<TenantPlanCode, PlanCatalogEntry>) {
+  return Object.keys(planCatalog)
 }

@@ -1,4 +1,4 @@
-import { getToken } from "next-auth/jwt"
+import { getCurrentTenantToken as getToken } from "@/lib/server/current-tenant-token"
 import { findTenant } from "@/lib/server/tenants-store"
 import { checkStudioSurfaceAccess } from "@/lib/server/studio-surface-access"
 import { NextRequest, NextResponse } from "next/server"

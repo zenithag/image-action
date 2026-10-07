@@ -1,13 +1,11 @@
 import type { ChannelPlanLimit } from "@/lib/channel-plan-types"
 import { channelPlanOrder, defaultChannelPlanLimits } from "@/lib/channel-plan-types"
-import type { TenantPlanCode } from "@/lib/tenant-types"
+import type { BuiltInTenantPlanCode, TenantPlanCode } from "@/lib/tenant-types"
 import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 const dataFile = getRuntimeDataFile("channel-plan-limits.json")
 const storeKey = "channel-plan-limits"
-const planCodes = new Set<TenantPlanCode>(channelPlanOrder)
-
 function now() {
   return new Date().toISOString()
 }
@@ -24,8 +22,18 @@ function normalizeNumber(value: unknown, fallback: number) {
 }
 
 function buildDefaultPlan(planCode: TenantPlanCode): ChannelPlanLimit {
+  const defaults = defaultChannelPlanLimits[planCode as BuiltInTenantPlanCode] ?? {
+    planCode,
+    label: planCode,
+    whatsapp: 0,
+    instagram: 0,
+    telegram: 0,
+    catalogIncluded: false,
+    conversationsLimit: 0,
+    extra: "Configure os limites deste plano.",
+  }
   return {
-    ...defaultChannelPlanLimits[planCode],
+    ...defaults,
     updatedAt: now(),
   }
 }
@@ -34,11 +42,12 @@ function normalizePlan(value: unknown): ChannelPlanLimit | null {
   const plan = value as Partial<ChannelPlanLimit> | null
   const planCode = plan?.planCode
 
-  if (!planCode || !planCodes.has(planCode)) {
+  if (typeof planCode !== "string" || !/^[a-z][a-z0-9-]{1,39}$/.test(planCode)) {
     return null
   }
+  if (!plan) return null
 
-  const defaults = defaultChannelPlanLimits[planCode]
+  const defaults = defaultChannelPlanLimits[planCode as BuiltInTenantPlanCode] ?? buildDefaultPlan(planCode)
 
   return {
     planCode,
@@ -70,7 +79,8 @@ function normalizePlans(parsed: unknown) {
     }
   }
 
-  return channelPlanOrder.map((planCode) => plans.get(planCode) as ChannelPlanLimit)
+  return [...channelPlanOrder, ...[...plans.keys()].filter((code) => !channelPlanOrder.includes(code as BuiltInTenantPlanCode))]
+    .map((planCode) => plans.get(planCode) ?? buildDefaultPlan(planCode))
 }
 
 export async function readChannelPlanLimits() {
@@ -105,7 +115,8 @@ export async function updateChannelPlanLimits(input: Array<Partial<ChannelPlanLi
     return accumulator
   }, {} as Record<TenantPlanCode, ChannelPlanLimit>)
 
-  const nextPlans = channelPlanOrder.map((planCode) => {
+  const allPlanCodes = [...new Set([...currentPlans.map((plan) => plan.planCode), ...input.map((plan) => plan.planCode)])]
+  const nextPlans = allPlanCodes.map((planCode) => {
     const current = currentMap[planCode] ?? buildDefaultPlan(planCode)
     const patch = input.find((item) => item.planCode === planCode)
 

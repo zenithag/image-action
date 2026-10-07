@@ -36,7 +36,7 @@ test('availability endpoint rejects anonymous, expired and cross-tenant access b
   let reads = 0
   const route = await load('../app/api/tenant/[slug]/channels/availability/route.ts', name => {
     if (name === 'next/server') return { NextResponse: { json: (body, opts) => ({ body, status: opts?.status ?? 200, headers: opts?.headers }) } }
-    if (name === 'next-auth/jwt') return { getToken: async () => token }
+    if (name === '@/lib/server/current-tenant-token') return { getCurrentTenantToken: async () => token }
     if (name.includes('tenant-channel-availability')) return summarize
     if (name.includes('studio-surface-access')) return access
     if (name.includes('tenants-store')) return { findTenant: async slug => ({ id: 'tenant-id', slug, status: 'active' }) }

@@ -56,14 +56,17 @@ export const authConfig: NextAuthConfig = {
   providers,
   callbacks: {
     async jwt({ token, account, profile, user, trigger }) {
-      if (trigger === "update" && token.sub) {
+      if (token.sub && !user) {
         const stored = await getStoredAuthUserById(token.sub)
 
         if (stored) {
           token.name = stored.name
           token.email = stored.email
+          token.roles = stored.status === "active" ? stored.roles : []
         }
       }
+
+      if (account) token.authProvider = account.provider
 
       if (user) {
         token.sub = user.id
