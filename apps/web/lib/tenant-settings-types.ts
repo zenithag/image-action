@@ -22,6 +22,7 @@ export const DEFAULT_STUDIO_SETTINGS = {
 }
 
 export type TenantSettings = {
+  navigation: { catalogVisible: boolean }
   studio: { catalogEnabled: boolean; environmentTypes: string[]; propertyContexts: string[] }
   tenantSlug: string
   general: {
@@ -91,6 +92,7 @@ export type TenantSettings = {
 }
 
 export type TenantSettingsInput = Partial<{
+  navigation: Partial<TenantSettings["navigation"]>
   studio: Partial<TenantSettings["studio"]>
   general: Partial<TenantSettings["general"]>
   branding: Partial<TenantSettings["branding"]>

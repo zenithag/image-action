@@ -12,7 +12,7 @@ export type ChannelPlanLimit = {
   updatedAt: string
 }
 
-export const channelPlanOrder: TenantPlanCode[] = ["starter", "pro", "enterprise"]
+export const channelPlanOrder: TenantPlanCode[] = ["starter", "pro", "enterprise", "custom"]
 
 export const defaultChannelPlanLimits: Record<TenantPlanCode, Omit<ChannelPlanLimit, "updatedAt">> = {
   starter: {
@@ -37,12 +37,22 @@ export const defaultChannelPlanLimits: Record<TenantPlanCode, Omit<ChannelPlanLi
   },
   enterprise: {
     planCode: "enterprise",
-    label: "Enterprise",
+    label: "Advanced",
     whatsapp: 10,
     instagram: 5,
     telegram: 5,
     catalogIncluded: false,
     conversationsLimit: 10000,
     extra: "Limite negociado",
+  },
+  custom: {
+    planCode: "custom",
+    label: "Personalizado",
+    whatsapp: 0,
+    instagram: 0,
+    telegram: 0,
+    catalogIncluded: false,
+    conversationsLimit: 0,
+    extra: "Limites definidos para este cliente",
   },
 }

@@ -39,9 +39,10 @@ const statusConfig: Record<TenantStatus, { label: string; icon: typeof Clock; cl
 }
 
 const planLabels: Record<TenantPlanCode, { label: string; color: string }> = {
-  starter: { label: "Starter", color: "bg-muted text-muted-foreground" },
+  starter: { label: "Start", color: "bg-muted text-muted-foreground" },
   pro: { label: "Pro", color: "bg-info/10 text-info" },
-  enterprise: { label: "Enterprise", color: "bg-violet-500/10 text-violet-600" },
+  enterprise: { label: "Advanced", color: "bg-violet-500/10 text-violet-600" },
+  custom: { label: "Personalizado", color: "bg-primary/10 text-primary" },
 }
 
 const initialForm: TenantCreateForm = {
@@ -94,6 +95,7 @@ export function SuperadminTenants() {
     starter: { ...defaultChannelPlanLimits.starter, updatedAt: "" },
     pro: { ...defaultChannelPlanLimits.pro, updatedAt: "" },
     enterprise: { ...defaultChannelPlanLimits.enterprise, updatedAt: "" },
+    custom: { ...defaultChannelPlanLimits.custom, updatedAt: "" },
   })
   const [search, setSearch] = useState("")
   const [isLoading, setIsLoading] = useState(true)
@@ -143,6 +145,7 @@ export function SuperadminTenants() {
           starter: data.find((item) => item.planCode === "starter") ?? { ...defaultChannelPlanLimits.starter, updatedAt: "" },
           pro: data.find((item) => item.planCode === "pro") ?? { ...defaultChannelPlanLimits.pro, updatedAt: "" },
           enterprise: data.find((item) => item.planCode === "enterprise") ?? { ...defaultChannelPlanLimits.enterprise, updatedAt: "" },
+          custom: data.find((item) => item.planCode === "custom") ?? { ...defaultChannelPlanLimits.custom, updatedAt: "" },
         })
       } catch {
         // keep defaults when the plan API is unavailable
@@ -260,7 +263,7 @@ export function SuperadminTenants() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-8">
+      <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-4 py-2 sm:px-8">
         <div className="mr-auto flex flex-col">
           <h1 className="text-sm font-semibold tracking-tight text-foreground">tenants</h1>
           <p className="text-xs leading-none text-muted-foreground">plataforma · {stats.total} tenants</p>
@@ -272,7 +275,7 @@ export function SuperadminTenants() {
           </Button>
         </div>
         <UserMenu />
-      </div>
+      </header>
 
       {error ? (
         <div className="border-b border-destructive/20 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive">
@@ -317,9 +320,10 @@ export function SuperadminTenants() {
                   onChange={(event) => updateField("planCode", event.target.value as TenantPlanCode)}
                   className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  <option value="starter">Starter</option>
+                  <option value="starter">Start</option>
                   <option value="pro">Pro</option>
-                  <option value="enterprise">Enterprise</option>
+                  <option value="enterprise">Advanced</option>
+                  <option value="custom">Personalizado</option>
                 </NativeSelect>
               </div>
 
@@ -470,7 +474,7 @@ export function SuperadminTenants() {
 
       <div className="flex-1 overflow-y-auto px-7 py-6 scrollbar-hide">
         <div className="overflow-hidden rounded-md border border-border bg-card">
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[920px] border-collapse">
             <thead>
               <tr className="border-b border-border bg-secondary">
                 <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Tenant</th>

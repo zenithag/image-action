@@ -36,3 +36,15 @@ test('catalog auth isolates tenants and rejects foreign origins for writes',asyn
  globalThis.catalogFixture.token=fixture().token
  assert.equal((await requireTenantCatalogAccess({...request,headers:new Headers({host:'127.0.0.1:3000',origin:'https://unrelated.example'})},'test',true)).status,403)
 })
+
+test('tenant settings preserve admin catalog access and keep menu visibility independent', async () => {
+ const route = await readFile(new URL('../app/api/tenant/[slug]/settings/route.ts', import.meta.url), 'utf8')
+ const detail = await readFile(new URL('../app/api/superadmin/tenants/[id]/settings/route.ts', import.meta.url), 'utf8')
+ const settingsType = await readFile(new URL('../lib/tenant-settings-types.ts', import.meta.url), 'utf8')
+ const layout = await readFile(new URL('../app/tenant/[slug]/layout.tsx', import.meta.url), 'utf8')
+ assert.match(route, /delete payload\.studio\.catalogEnabled/, 'tenant PATCH cannot grant itself catalog access')
+ assert.match(route, /delete \(payload as TenantSettingsInput & \{ catalogAccess\?: unknown \}\)\.catalogAccess/)
+ assert.match(detail, /getTenantCatalogAccess/, 'admin endpoint returns effective entitlement')
+ assert.match(settingsType, /navigation: \{ catalogVisible: boolean \}/)
+ assert.match(layout, /catalogAccess && settings\.navigation\?\.catalogVisible !== false/)
+})

@@ -78,6 +78,8 @@ export async function GET() {
     readTenantInstances(),
     listAllInboxConversations(),
   ])
+  const activeTenants = tenants.filter((tenant) => tenant.status === "active")
+  const activeTenantSlugs = new Set(activeTenants.map((tenant) => tenant.slug))
 
   const buckets = createBuckets(7)
   const currentStart = buckets[0]?.start ?? startOfDay(new Date())
@@ -96,7 +98,9 @@ export async function GET() {
   const topTenants = tenantMetrics
     .map(({ tenant, contacts, jobs }) => {
       const tenantConversations = conversations.filter((conversation) => conversation.tenantSlug === tenant.slug)
-      const connectedInstances = instances.filter((instance) => instance.tenantSlug === tenant.slug && instance.connected).length
+      const connectedInstances = tenant.status === "active"
+        ? instances.filter((instance) => instance.tenantSlug === tenant.slug && instance.connected && instance.status === "connected" && instance.loggedIn).length
+        : 0
 
       return {
         id: tenant.id,
@@ -123,10 +127,12 @@ export async function GET() {
     generationCosts: summarizeGenerationCosts(tenantMetrics.flatMap(item => item.jobs)),
     totals: {
       tenants: tenants.length,
+      activeTenants: activeTenants.length,
       conversations: conversations.length,
       compositions: tenantMetrics.flatMap((item) => item.jobs).length,
       contacts: tenantMetrics.flatMap((item) => item.contacts).length,
-      connectedInstances: instances.filter((instance) => instance.connected).length,
+      connectedInstances: instances.filter((instance) => activeTenantSlugs.has(instance.tenantSlug) && instance.connected && instance.status === "connected" && instance.loggedIn).length,
+      jobsToday: tenantMetrics.flatMap((item) => item.jobs).filter((job) => isWithin(job.createdAt, startOfDay(new Date()), endOfDay(new Date()))).length,
       activeProviders: providers.filter((provider) => provider.status === "active").length,
     },
     deltas: {

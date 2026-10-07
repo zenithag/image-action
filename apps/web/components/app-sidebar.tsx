@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import type * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -21,31 +20,14 @@ import {
   Zap,
   Bot,
   CreditCard,
-  Globe,
   Sun,
   Moon,
   LogOut,
   ChevronLeft,
-  ChevronRight,
 } from "@/components/spectrum/icons"
 
 import { cn } from "@/lib/utils"
 import { SideNav } from "@/components/molecules/side-nav"
-
-function DarkWhenAdmin({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
-  if (!enabled) return <>{children}</>
-
-  return (
-    <sp-theme
-      system="spectrum-two"
-      scale="medium"
-      color="dark"
-      style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--spectrum-gray-75)", color: "var(--spectrum-gray-900)" }}
-    >
-      {children}
-    </sp-theme>
-  )
-}
 
 interface NavItem {
   href: string
@@ -71,20 +53,10 @@ const superadminNavItems: NavItem[] = [
   { href: "/superadmin", label: "Tenants", icon: Building2 },
   { href: "/superadmin/users", label: "Usuários", icon: Users },
   { href: "/superadmin/usage", label: "Uso & Custos", icon: BarChart3 },
-  { href: "/superadmin/domains", label: "Domínios", icon: Globe },
   { href: "/superadmin/channels", label: "Canais", icon: Zap },
   { href: "/superadmin/ai", label: "IA & Modelos", icon: Bot },
   { href: "/superadmin/billing", label: "Pagamentos", icon: CreditCard },
 ]
-
-// Superadmin uses Spectrum's dark theme for its navigation bar.
-const adminSidebarStyle = {
-  "--sidebar": "var(--spectrum-gray-75)",
-  "--sidebar-foreground": "var(--spectrum-gray-900)",
-  "--sidebar-border": "var(--spectrum-gray-300)",
-  "--sidebar-accent": "var(--spectrum-gray-200)",
-  "--sidebar-accent-foreground": "var(--spectrum-gray-900)",
-} as React.CSSProperties
 
 interface AppSidebarProps {
   variant?: "tenant" | "superadmin"
@@ -112,9 +84,8 @@ export function AppSidebar({
   const { data: session } = useSession()
   const [mounted, setMounted] = useState(false)
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
-  // Platform symbol (full-colour logo). Dark surfaces use the variant whose dark-blue parts are white,
-  // so the mark stays readable; the superadmin bar is always dark.
-  const onDarkSurface = variant === "superadmin" || (mounted && (resolvedTheme ?? theme) === "dark")
+  // Use the matching platform logo variant for the active theme.
+  const onDarkSurface = mounted && (resolvedTheme ?? theme) === "dark"
   const platformSymbol = onDarkSurface ? "/simbolo-branco.svg" : "/simbolo-azul.svg"
   const platformLogo = onDarkSurface ? "/logo-horizontal-branco.svg" : "/logo-horizontal-azul.svg"
   const navItems = variant === "superadmin" ? superadminNavItems : tenantNavItems.filter(item => item.href !== "/tenant/catalog" || catalogEnabled)
@@ -176,19 +147,17 @@ export function AppSidebar({
 
   return (
     <aside
-      style={variant === "superadmin" ? adminSidebarStyle : undefined}
       className={cn(
         "relative z-40 flex h-dvh flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200",
-        collapsed ? (variant === "tenant" ? "w-[64px]" : "w-[52px]") : variant === "tenant" ? "w-[196px]" : "w-[180px]",
-        variant === "tenant" && "hidden md:flex shrink-0 bg-[var(--cf-chrome-bg,var(--background))]",
+        collapsed ? "w-[64px]" : "w-[196px]",
+        "shrink-0 bg-[var(--cf-chrome-bg,var(--background))]",
       )}
     >
-      <DarkWhenAdmin enabled={variant === "superadmin"}>
-      {/* Header: the platform logo as it is (never recoloured), the tenant's name below it */}
+      {/* Keep the platform logo and workspace name consistent across tenant and admin navigation. */}
       <div
         className={cn(
           "flex shrink-0 flex-col gap-2",
-          variant === "tenant" ? "px-4 pb-3 pt-4" : "border-b border-sidebar-border px-5 py-3",
+          "px-4 pb-3 pt-4",
           collapsed && "items-center px-0",
         )}
       >
@@ -244,7 +213,7 @@ export function AppSidebar({
                 title={collapsed ? item.label : undefined}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  variant === "tenant" ? "group relative flex items-center gap-3 rounded-md px-3 py-3 transition-colors" : "group relative flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors",
+                  "group relative flex items-center gap-3 rounded-md px-3 py-3 transition-colors",
                   collapsed ? "justify-center" : "",
                   "text-sidebar-foreground/80 hover:text-sidebar-foreground"
                 )}
@@ -258,12 +227,12 @@ export function AppSidebar({
                   )}
                 >
                 <item.icon
-                  className={cn(variant === "tenant" ? "h-5 w-5 shrink-0" : "h-[17px] w-[17px] shrink-0", collapsed ? "" : "ml-0.5")}
+                  className={cn("h-5 w-5 shrink-0", collapsed ? "" : "ml-0.5")}
                   strokeWidth={1.5}
                 />
                 </span>
                 {!collapsed && (
-                  <span className={variant === "tenant" ? "truncate text-sm font-medium" : "truncate text-xs font-medium"}>{item.label}</span>
+                  <span className="truncate text-sm font-medium">{item.label}</span>
                 )}
                 {item.hot && (
                   <span
@@ -316,11 +285,10 @@ export function AppSidebar({
           )}
         >
           <LogOut className="h-[17px] w-[17px] shrink-0" strokeWidth={1.5} />
-          {!collapsed && <span className={variant === "tenant" ? "text-sm font-medium" : "text-xs font-medium"}>Sair</span>}
+          {!collapsed && <span className="text-sm font-medium">Sair</span>}
         </button>
 
       </div>
-      </DarkWhenAdmin>
     </aside>
   )
 }

@@ -39,6 +39,7 @@ import { listCatalogItems } from "@/lib/server/catalog-store"
 import { getPublicAppBaseUrl } from "@/lib/server/public-url"
 import { getRuntimePublicDir } from "@/lib/server/runtime-paths"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
+import { getTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
 import type { StoredTenantChannelInstance } from "@/lib/server/tenant-channel-instances-store"
 import { sendUazapiText } from "@/lib/server/uazapi-client"
 import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
@@ -2245,6 +2246,8 @@ export async function processInboundMessageWithAi(input: {
   const autoStartTrigger = getComoFicaTriggerMatch(inboundMessage.content)
   const autoStartRequested = Boolean(autoStartTrigger)
   const settings = await getTenantSettings(input.tenantSlug)
+  const catalogAccess = await getTenantCatalogAccess(input.tenantSlug)
+  const catalogEnabled = settings.assistant.catalogEnabled && catalogAccess.enabled
 
   if (conversation.handledBy !== "ai" && !autoStartRequested) {
     return { ok: true, skipped: "operator_conversation" }
@@ -2348,7 +2351,7 @@ export async function processInboundMessageWithAi(input: {
     })
   }
 
-  const catalogItems = settings.assistant.catalogEnabled
+  const catalogItems = catalogEnabled
     ? filterCatalogItemsForAssistant(
       await listCatalogItems(input.tenantSlug),
       settings.assistant.catalogCategories,
@@ -2374,7 +2377,7 @@ export async function processInboundMessageWithAi(input: {
     ? findSessionProductItem(compositionSession, catalogItems)
     : null
   const genericCatalogItems = getCatalogItemsForGenericRequest(catalogItems, messages, input.message.content)
-  const catalogLinkRequested = settings.assistant.catalogEnabled && !skuReference && (
+  const catalogLinkRequested = catalogEnabled && !skuReference && (
     isCatalogBrowseRequest(input.message.content) ||
     (genericCatalogItems.length > 0 && (
       isCatalogMoreRequest(input.message.content) ||
@@ -2491,7 +2494,7 @@ export async function processInboundMessageWithAi(input: {
     reply = getDefaultReply(nextAction)
   }
 
-  if (settings.assistant.catalogEnabled && (catalogLinkRequested || nextAction === "show_catalog_options")) {
+  if (catalogEnabled && (catalogLinkRequested || nextAction === "show_catalog_options")) {
     reply = ensureCatalogLinkInReply(reply, input.tenantSlug)
   }
 
@@ -2859,7 +2862,7 @@ export async function processInboundMessageWithAi(input: {
                 hasVisualReference: false,
                 hasDirection: currentMessageHasDirection,
                 tenantSlug: input.tenantSlug,
-                catalogEnabled: settings.assistant.catalogEnabled,
+                catalogEnabled,
               }),
             }
             : null

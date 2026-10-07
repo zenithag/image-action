@@ -194,6 +194,7 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
 
   return {
     tenantSlug,
+    navigation: { catalogVisible: true },
     studio: structuredClone(DEFAULT_STUDIO_SETTINGS),
     general: {
       companyName: tenantSlug,
@@ -262,6 +263,7 @@ function defaultTenantSettings(tenantSlug: string): TenantSettings {
 function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInput): TenantSettings {
   const next: TenantSettings = {
     ...existing,
+    navigation: { ...existing.navigation, ...input.navigation },
     studio: { ...DEFAULT_STUDIO_SETTINGS, ...existing.studio, ...input.studio },
     general: {
       ...existing.general,
@@ -307,6 +309,9 @@ function mergeTenantSettings(existing: TenantSettings, input: TenantSettingsInpu
 
   return {
     ...next,
+    navigation: {
+      catalogVisible: normalizeBoolean(next.navigation?.catalogVisible, existing.navigation?.catalogVisible ?? true),
+    },
     studio: {
       catalogEnabled: normalizeBoolean(next.studio.catalogEnabled, existing.studio?.catalogEnabled ?? false),
       environmentTypes: normalizeUniqueList(next.studio.environmentTypes).slice(0, 30).map(value => value.slice(0, 80)),

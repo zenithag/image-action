@@ -38,9 +38,10 @@ const statusConfig: Record<TenantStatus, { label: string; className: string }> =
 }
 
 const planLabels: Record<TenantPlanCode, string> = {
-  starter: "Starter",
+  starter: "Start",
   pro: "Pro",
-  enterprise: "Enterprise",
+  enterprise: "Advanced",
+  custom: "Personalizado",
 }
 
 const verticalLabels: Record<TenantBusinessVertical, string> = {
@@ -140,6 +141,7 @@ export default function TenantDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingTenant, setIsSavingTenant] = useState(false)
   const [isSavingSettings, setIsSavingSettings] = useState(false)
+  const [isSavingCatalogAccess, setIsSavingCatalogAccess] = useState(false)
   const [isGrantingTokens, setIsGrantingTokens] = useState(false)
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -283,6 +285,28 @@ export default function TenantDetailPage() {
       setError(saveError instanceof Error ? saveError.message : "Nao foi possivel salvar as configuracoes de segmentacao.")
     } finally {
       setIsSavingSettings(false)
+    }
+  }
+
+  async function saveCatalogAccess(enabled: boolean) {
+    if (!tenant || !settings || isSavingCatalogAccess) return
+    setIsSavingCatalogAccess(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const response = await fetch(`/api/superadmin/tenants/${encodeURIComponent(tenant.id)}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studio: { catalogEnabled: enabled } }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || "Não foi possível alterar o acesso ao catálogo.")
+      setSettings(data as TenantSettings)
+      setNotice(enabled ? "Catálogo liberado para esta conta." : "Catálogo desativado para esta conta.")
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Não foi possível alterar o acesso ao catálogo.")
+    } finally {
+      setIsSavingCatalogAccess(false)
     }
   }
 
@@ -500,6 +524,19 @@ export default function TenantDetailPage() {
         <div className="mx-auto max-w-6xl space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="space-y-6 lg:col-span-2">
+              <div className="rounded-md border border-border bg-card px-6 py-4">
+                <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+                  <div>
+                    <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Catálogo nesta conta</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Liberar acesso ao catálogo nesta conta. O plano também precisa incluir o recurso.</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Input type="checkbox" checked={settings.studio.catalogEnabled} disabled={isSavingCatalogAccess || !(settings as TenantSettings & { catalogAccess?: { included?: boolean } }).catalogAccess?.included} onChange={(event) => void saveCatalogAccess(event.target.checked)} />
+                    Liberado
+                  </label>
+                </div>
+                {!(settings as TenantSettings & { catalogAccess?: { included?: boolean } }).catalogAccess?.included && <p className="px-6 pt-3 text-xs text-muted-foreground">O plano atual não inclui catálogo. Habilite-o na configuração dos planos para liberar este tenant.</p>}
+              </div>
               <div className="rounded-md border border-border bg-card">
                 <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Shield className="h-4 w-4 text-primary" />
@@ -520,9 +557,10 @@ export default function TenantDetailPage() {
                   </Field>
                   <Field label="Plano">
                     <NativeSelect value={tenantForm.planCode} onChange={(event) => setTenantForm((current) => current ? { ...current, planCode: event.target.value as TenantPlanCode } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                      <option value="starter">Starter</option>
+                      <option value="starter">Start</option>
                       <option value="pro">Pro</option>
-                      <option value="enterprise">Enterprise</option>
+                      <option value="enterprise">Advanced</option>
+                      <option value="custom">Personalizado</option>
                     </NativeSelect>
                   </Field>
                   <Field label="Status">

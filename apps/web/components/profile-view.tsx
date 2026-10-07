@@ -33,7 +33,7 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Pagamento não concluído",
 }
 
-const PLAN_LABEL: Record<string, string> = { starter: "Starter", pro: "Pro", enterprise: "Enterprise" }
+const PLAN_LABEL: Record<string, string> = { starter: "Start", pro: "Pro", enterprise: "Advanced", custom: "Personalizado" }
 const PROVIDER_LABEL: Record<string, string> = { stripe: "Stripe", abacatepay: "AbacatePay" }
 
 type Message = { kind: "ok" | "error"; text: string } | null

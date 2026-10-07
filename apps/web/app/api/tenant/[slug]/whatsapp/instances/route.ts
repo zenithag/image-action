@@ -7,6 +7,8 @@ import {
 } from "@/lib/server/channel-providers-store"
 import { getPublicWebhookUrl } from "@/lib/server/public-url"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
+import { getChannelPlanLimitMap } from "@/lib/server/channel-plan-limits-store"
+import { findTenant } from "@/lib/server/tenants-store"
 import {
   type StoredTenantChannelInstance,
   readTenantInstances,
@@ -95,6 +97,15 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const instances = await readTenantInstances()
+  const tenant = await findTenant(slug)
+  const planLimits = await getChannelPlanLimitMap()
+  const whatsappLimit = tenant ? planLimits[tenant.planCode]?.whatsapp ?? 0 : 0
+  const tenantWhatsappCount = instances.filter((instance) => instance.tenantSlug === slug && instance.channel === "whatsapp").length
+
+  if (tenantWhatsappCount >= whatsappLimit) {
+    return NextResponse.json({ error: `O plano permite até ${whatsappLimit} instância(s) WhatsApp.` }, { status: 409 })
+  }
+
   const duplicatedName = instances.some((instance) =>
     instance.tenantSlug === slug &&
     instance.channel === "whatsapp" &&

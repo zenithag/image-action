@@ -278,19 +278,19 @@ export default function SuperadminAiPage() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-7">
+      <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-4 py-2 sm:px-8">
         <div className="mr-auto flex flex-col">
-          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Núcleo</p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">IA & Modelos</h1>
+          <p className="text-xs leading-tight text-muted-foreground">Núcleo</p>
+          <h1 className="text-base font-bold leading-tight text-foreground">IA & Modelos</h1>
         </div>
         <Button size="sm" onClick={() => void syncModels()} disabled={syncingModels}>
           {syncingModels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
           Sincronizar modelos
         </Button>
         <UserMenu />
-      </div>
+      </header>
 
-      <section className="grid grid-cols-4 gap-3 px-7 py-4">
+      <section className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,210px),1fr))] gap-3 px-4 py-4 sm:px-7">
         <MetricCard label="Providers" value={providers.length} icon={Bot} tone="text-primary" />
         <MetricCard label="Provider ativo" value={activeProvider ? "Sim" : "Nao"} icon={ShieldCheck} tone={activeProvider ? "text-primary" : "text-warning"} />
         <MetricCard label="Perfis" value={profiles.length} icon={Brain} tone="text-foreground" />
@@ -304,7 +304,7 @@ export default function SuperadminAiPage() {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-      <div className="grid grid-cols-[0.85fr_1.15fr] gap-4 px-7 py-6">
+      <div className="grid min-w-0 gap-4 px-4 py-6 2xl:grid-cols-[0.85fr_1.15fr] sm:px-7">
         <section className="space-y-6">
           <div className="rounded-md border border-border bg-card p-5">
             <div className="mb-5 flex items-start justify-between gap-3">
@@ -435,7 +435,7 @@ export default function SuperadminAiPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
+        <section className="min-w-0 space-y-4">
           <div className="rounded-md border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -450,6 +450,7 @@ export default function SuperadminAiPage() {
             </div>
           </div>
 
+          <div className="grid items-start gap-4 xl:grid-cols-2">
           {profiles.map((profile) => {
             const model = modelsById.get(profile.modelId)
 
@@ -480,7 +481,7 @@ export default function SuperadminAiPage() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Field label="Modelo principal">
                     <Input
                       list="openrouter-models"
@@ -544,6 +545,7 @@ export default function SuperadminAiPage() {
               </article>
             )
           })}
+          </div>
         </section>
       </div>
 

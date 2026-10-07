@@ -32,7 +32,7 @@ function normalizeText(value: unknown) {
 }
 
 function normalizePlanCode(value: unknown, fallback: TenantPlanCode): TenantPlanCode {
-  return value === "starter" || value === "pro" || value === "enterprise" ? value : fallback
+  return value === "starter" || value === "pro" || value === "enterprise" || value === "custom" ? value : fallback
 }
 
 function getOrigin(request: Request) {
@@ -90,6 +90,10 @@ export async function POST(request: Request, context: RouteContext) {
 
     const settings = await getStripeSettings()
     const plan = getConfiguredStripePlan(settings, planCode)
+
+    if (planCode === "custom" && (plan.priceCents <= 0 || plan.tokensIncluded <= 0)) {
+      return NextResponse.json({ error: "Configure um preço e uma cota positiva de créditos para o plano Personalizado antes de gerar o checkout." }, { status: 400 })
+    }
     const origin = getOrigin(request)
     const customer = await createStripeCustomer(settings, {
       name,

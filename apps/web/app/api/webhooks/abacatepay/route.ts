@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import { NextResponse } from "next/server"
 
 import type { TenantBillingStatus } from "@/lib/billing-types"
+import type { TenantPlanCode } from "@/lib/tenant-types"
 import {
   findBillingSubscriptionByAbacatePayReference,
   getAbacatePaySettings,
@@ -163,7 +164,7 @@ async function processSubscriptionEvent(payload: AbacateWebhookPayload, eventId:
   return true
 }
 
-async function getTokensForSubscription(planCode: "starter" | "pro" | "enterprise") {
+async function getTokensForSubscription(planCode: TenantPlanCode) {
   const settings = await getAbacatePaySettings()
   return settings.plans[planCode]?.tokensIncluded || 1
 }

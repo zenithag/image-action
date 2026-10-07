@@ -307,6 +307,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
   }
 
   const [catalogIncluded, setCatalogIncluded] = useState(false)
+  const [catalogAccessEnabled, setCatalogAccessEnabled] = useState(false)
 
   async function loadSettings() {
     setIsLoading(true)
@@ -314,12 +315,13 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
 
     try {
       const [settingsData, tokensData, referralData, catalogItems] = await Promise.all([
-        requestJson<TenantSettings & { catalogAccess?: { included: boolean } }>(`/api/tenant/${tenantSlug}/settings`, { cache: "no-store" }),
+        requestJson<TenantSettings & { catalogAccess?: { included: boolean; enabled: boolean } }>(`/api/tenant/${tenantSlug}/settings`, { cache: "no-store" }),
         requestJson<TenantTokenSnapshot>(`/api/tenant/${tenantSlug}/billing/tokens`, { cache: "no-store" }),
         requestJson<TenantReferralProgram>(`/api/tenant/${tenantSlug}/billing/referrals`, { cache: "no-store" }),
         requestJson<CatalogItem[]>(`/api/tenant/${tenantSlug}/catalog/items`, { cache: "no-store" }).catch(() => []),
       ])
       setCatalogIncluded(settingsData.catalogAccess?.included === true)
+      setCatalogAccessEnabled(settingsData.catalogAccess?.enabled === true)
       const categories = getCatalogCategories(catalogItems)
       setSettings({
         ...settingsData,
@@ -703,7 +705,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                           <span className="text-sm font-bold text-foreground">{settings.general.companyName || "Empresa"}</span>
                         </div>
                         <div className="space-y-1 p-3">
-                          {["Inbox", "Composições", ...(catalogIncluded && settings.studio.catalogEnabled ? ["Catálogo"] : []), "Contatos"].map((item) => (
+                          {["Inbox", "Composições", ...(catalogAccessEnabled && settings.navigation.catalogVisible ? ["Catálogo"] : []), "Contatos"].map((item) => (
                             <div key={item} className="rounded-lg px-3 py-2 text-xs text-muted-foreground">{item}</div>
                           ))}
                         </div>
@@ -794,8 +796,10 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               {activeSection === "studio" && (
                 <SettingsGroup title="Estúdio & presets" description="A IA gera móveis e acabamentos sem exigir produtos cadastrados.">
                   <div className="grid gap-4">
-                    {catalogIncluded && <Toggle checked={settings.studio.catalogEnabled} onChange={checked => updateSection("studio", { catalogEnabled: checked })} label="Ativar catálogo" />}
-                    <p className="text-xs text-muted-foreground">Quando ativado, o operador pode optar por produtos do catálogo. Desativado: o catálogo fica oculto e os presets usam somente a IA.</p>
+                    {catalogAccessEnabled && <Toggle checked={settings.navigation.catalogVisible} onChange={checked => updateSection("navigation", { catalogVisible: checked })} label="Mostrar catálogo na barra lateral" />}
+                    {catalogIncluded && !catalogAccessEnabled && <p className="text-xs text-muted-foreground">O administrador ainda não liberou o catálogo para esta conta.</p>}
+                    {!catalogIncluded && <p className="text-xs text-muted-foreground">O plano desta conta não inclui catálogo.</p>}
+                    <p className="text-xs text-muted-foreground">Esta opção apenas mostra ou esconde o acesso no menu. A disponibilidade do catálogo é controlada pelo plano e pelo administrador da plataforma.</p>
                     <Field label="Tipos de ambiente (um por linha)"><TextArea rows={7} value={asLines(settings.studio.environmentTypes)} onChange={event => updateSection("studio", { environmentTypes: fromLines(event.target.value) })} /></Field>
                     <Field label="Contextos do imóvel (um por linha)"><TextArea rows={6} value={asLines(settings.studio.propertyContexts)} onChange={event => updateSection("studio", { propertyContexts: fromLines(event.target.value) })} /></Field>
                   </div>
@@ -806,7 +810,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
                 <SettingsGroup title="IA & prompts" description="Configurações do assistente de IA e prompts do sistema.">
 <div className="grid gap-4">
                     <Toggle checked={settings.assistant.enabled} onChange={(checked) => updateSection("assistant", { enabled: checked })} label="Assistente IA habilitado" />
-                    {catalogIncluded && <Toggle checked={settings.assistant.catalogEnabled} onChange={(checked) => updateSection("assistant", { catalogEnabled: checked })} label="Usar catálogo no WhatsApp" />}
+                    {catalogAccessEnabled && <Toggle checked={settings.assistant.catalogEnabled} onChange={(checked) => updateSection("assistant", { catalogEnabled: checked })} label="Usar catálogo no WhatsApp" />}
                     <p className="-mt-2 text-xs text-muted-foreground">
                       Desligado: a IA usa apenas referências enviadas pelo cliente no WhatsApp e não solicita produto ou link do catálogo.
                     </p>

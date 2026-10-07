@@ -263,7 +263,7 @@ export function SuperadminUsers() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-8">
+      <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-4 py-2 sm:px-8">
         <div className="mr-auto flex flex-col">
           <h1 className="text-sm font-semibold tracking-tight text-foreground">usuarios</h1>
           <p className="text-xs leading-none text-muted-foreground">acesso · superadmin</p>
@@ -277,7 +277,7 @@ export function SuperadminUsers() {
           </Button>
         </div>
         <UserMenu />
-      </div>
+      </header>
 
       {error ? (
         <div className="border-b border-destructive/20 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive">

@@ -16,10 +16,12 @@ type UsagePayload = {
   generationCosts: ReturnType<typeof summarizeGenerationCosts>
   totals: {
     tenants: number
+    activeTenants: number
     conversations: number
     compositions: number
     contacts: number
     connectedInstances: number
+    jobsToday: number
     activeProviders: number
   }
   deltas: {
@@ -110,17 +112,17 @@ export default function UsagePage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-7">
+      <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-4 py-2 sm:px-8">
         <div className="mr-auto flex flex-col">
-          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Observabilidade</p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Uso da plataforma</h1>
+          <p className="text-xs leading-tight text-muted-foreground">Observabilidade</p>
+          <h1 className="text-base font-bold leading-tight text-foreground">Uso da plataforma</h1>
         </div>
         <Button variant="outline" size="sm" onClick={loadUsage} disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Atualizar
         </Button>
         <UserMenu />
-      </div>
+      </header>
 
       {error ? (
         <div className="border-b border-destructive/20 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive">
@@ -128,10 +130,11 @@ export default function UsagePage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-4 gap-3 px-7 py-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3 px-4 py-4 sm:px-7">
         {[
           { label: "Mensagens", value: data?.totals.conversations ?? 0, delta: data?.deltas.conversations, icon: MessageSquare },
-          { label: "Jobs IA", value: data?.totals.compositions ?? 0, delta: data?.deltas.compositions, icon: Zap },
+          { label: "Jobs IA · total", value: data?.totals.compositions ?? 0, delta: data?.deltas.compositions, icon: Zap },
+          { label: "Jobs de hoje", value: data?.totals.jobsToday ?? 0, delta: null, icon: Zap },
           { label: "Contatos", value: data?.totals.contacts ?? 0, delta: data?.deltas.contacts, icon: Users },
           { label: "Instâncias conectadas", value: data?.totals.connectedInstances ?? 0, delta: null, icon: Smartphone },
         ].map((kpi) => (
@@ -146,7 +149,7 @@ export default function UsagePage() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-7 py-2 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-4 py-2 scrollbar-hide sm:px-7">
         {isLoading && !data ? (
           <div className="flex h-full items-center justify-center rounded-md border border-border bg-card">
             <div className="text-center">
@@ -157,25 +160,25 @@ export default function UsagePage() {
         ) : data ? (
           <>
             <Section title="Custo por tipo de geração" aside={<span className="text-xs text-muted-foreground">Custos do provedor em USD, incluindo tentativas e fallbacks</span>}>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm"><thead><tr className="border-b border-border"><th className="py-3">Tipo</th><th>Jobs</th><th>Concluídos / falhos</th><th>Chamadas</th><th>Custo conhecido</th><th>Média por chamada informada</th><th>Média por job finalizado</th><th>Média por geração concluída</th><th>Média por falha</th><th>Custo por resultado, incluindo falhas</th><th>Cobertura de jobs finalizados</th><th>Custos ausentes</th></tr></thead><tbody>
+              <div className="max-w-full overflow-x-auto">
+                <table className="w-full min-w-[1180px] text-left text-sm"><thead><tr className="border-b border-border"><th className="whitespace-nowrap px-4 py-3">Tipo</th><th className="whitespace-nowrap px-4 py-3">Jobs</th><th className="whitespace-nowrap px-4 py-3">Concluídos / falhos</th><th className="whitespace-nowrap px-4 py-3">Chamadas</th><th className="whitespace-nowrap px-4 py-3">Custo conhecido</th><th className="whitespace-nowrap px-4 py-3">Média por chamada informada</th><th className="whitespace-nowrap px-4 py-3">Média por job finalizado</th><th className="whitespace-nowrap px-4 py-3">Média por geração concluída</th><th className="whitespace-nowrap px-4 py-3">Média por falha</th><th className="whitespace-nowrap px-4 py-3">Custo por resultado, incluindo falhas</th><th className="whitespace-nowrap px-4 py-3">Cobertura de jobs finalizados</th><th className="whitespace-nowrap px-4 py-3">Custos ausentes</th></tr></thead><tbody>
                   {data.generationCosts?.map(row => <tr key={row.type} className="border-b border-border">
-                    <td className="py-3">{row.type === "composition" ? "Composição" : row.type.replace("combination:", "").split(",").map(id => STUDIO_PRESETS.find(preset => preset.id === id)?.label || id).join(" + ")}</td>
-                    <td>{row.jobs}</td><td>{row.completed} / {row.failed}</td><td>{row.attempts}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{row.type === "composition" ? "Composição" : row.type.replace("combination:", "").split(",").map(id => STUDIO_PRESETS.find(preset => preset.id === id)?.label || id).join(" + ")}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{row.jobs}</td><td className="whitespace-nowrap px-4 py-3">{row.completed} / {row.failed}</td><td className="whitespace-nowrap px-4 py-3">{row.attempts}</td>
                     <td>{formatCost(row.knownCostUsd)}</td>
                     <td>{formatCost(row.knownCostAttempts > 0 ? row.knownCostUsd / row.knownCostAttempts : null)}</td>
                     <td>{formatCost(row.averageTerminalJobCostUsd)}</td>
                     <td>{formatCost(row.averageCompletedCostUsd)}</td><td>{formatCost(row.averageFailedCostUsd)}</td>
                     <td>{formatCost(row.costPerSuccessfulResultUsd)}</td>
-                    <td>{row.completedWithCompleteCost + row.failedWithCompleteCost} / {row.completed + row.failed}</td>
-                    <td>{row.unknownCosts} em {row.jobsWithUnknownCost} jobs</td>
+                    <td className="whitespace-nowrap px-4 py-3">{row.completedWithCompleteCost + row.failedWithCompleteCost} / {row.completed + row.failed}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{row.unknownCosts} em {row.jobsWithUnknownCost} jobs</td>
                   </tr>)}
                 </tbody></table>
               </div>
               <p className="mt-3 text-xs text-muted-foreground">Médias somam todas as chamadas e tentativas de cada job, considerando apenas jobs finalizados com todos os custos informados. O custo por resultado inclui também as falhas desse conjunto. Jobs em andamento entram apenas no custo conhecido. Valores ausentes não significam custo zero; a cobertura mostra quantos jobs finalizados possuem custo completo. Histórico anterior à coleta pode estar incompleto. Esta visão usa todo o histórico disponível e não inclui infraestrutura nem taxas comerciais.</p>
             </Section>
 
-            <div className="grid grid-cols-[1.6fr_1fr] gap-4">
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[1.6fr_1fr]">
               <div className="rounded-md border border-border bg-card p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
@@ -243,7 +246,7 @@ export default function UsagePage() {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="rounded-md border border-border bg-secondary/50 p-4">
                     <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Tenants cadastrados</p>
-                    <p className="mt-2 text-2xl font-medium text-foreground">{data.totals.tenants}</p>
+                    <p className="mt-2 text-2xl font-medium text-foreground">{data.totals.activeTenants} <span className="text-sm text-muted-foreground">ativos / {data.totals.tenants}</span></p>
                   </div>
                   <div className="rounded-md border border-border bg-secondary/50 p-4">
                     <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Providers ativos</p>

@@ -30,7 +30,7 @@ function normalizeText(value: unknown) {
 }
 
 function normalizePlanCode(value: unknown): TenantPlanCode {
-  return value === "pro" || value === "enterprise" ? value : "starter"
+  return value === "pro" || value === "enterprise" || value === "custom" ? value : "starter"
 }
 
 function getMetadata(object: Record<string, unknown>) {

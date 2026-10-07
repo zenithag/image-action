@@ -33,7 +33,8 @@ async function loadTenantBranding(tenantSlug: string) {
   }
 
   const settings = await response.json() as TenantSettings
-  return { catalogEnabled: (settings as TenantSettings & { catalogAccess?: { enabled: boolean } }).catalogAccess?.enabled === true, branding: normalizeTenantBrandingSnapshot({
+  const catalogAccess = (settings as TenantSettings & { catalogAccess?: { enabled: boolean } }).catalogAccess?.enabled === true
+  return { catalogEnabled: catalogAccess && settings.navigation?.catalogVisible !== false, branding: normalizeTenantBrandingSnapshot({
     companyName: settings.general.companyName,
     primaryColor: settings.branding.primaryColor,
     logoUrl: settings.branding.logoUrl,

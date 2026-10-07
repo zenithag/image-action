@@ -9,7 +9,7 @@ type TenantsData = {
 const dataFile = getRuntimeDataFile("tenants.json")
 const storeKey = "tenants"
 const tenantStatuses = new Set<TenantStatus>(["draft", "active", "suspended", "archived"])
-const tenantPlans = new Set<TenantPlanCode>(["starter", "pro", "enterprise"])
+const tenantPlans = new Set<TenantPlanCode>(["starter", "pro", "enterprise", "custom"])
 const tenantVerticals = new Set<TenantBusinessVertical>(["generic", "decor", "fashion", "automotive", "furniture"])
 
 let mutationQueue = Promise.resolve()

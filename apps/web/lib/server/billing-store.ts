@@ -25,7 +25,7 @@ type BillingData = {
 
 const dataFile = getRuntimeDataFile("billing.json")
 const storeKey = "billing"
-const planCodes: TenantPlanCode[] = ["starter", "pro", "enterprise"]
+const planCodes: TenantPlanCode[] = ["starter", "pro", "enterprise", "custom"]
 const cycles = new Set<AbacatePayCycle>(["WEEKLY", "MONTHLY", "SEMIANNUALLY", "ANNUALLY"])
 const stripeIntervals = new Set<StripeInterval>(["day", "week", "month", "year"])
 const statuses = new Set<TenantBillingStatus>(["none", "checkout_pending", "active", "cancelled", "past_due", "failed"])
@@ -63,6 +63,16 @@ const defaultPlans: Record<TenantPlanCode, AbacatePayPlanConfig> = {
     tokensIncluded: 2000,
     cycle: "MONTHLY",
   },
+  custom: {
+    planCode: "custom",
+    enabled: false,
+    productExternalId: "comofica-personalizado-monthly",
+    productName: "ComoFica Personalizado",
+    description: "Plano personalizado ComoFica com limites definidos por cliente.",
+    priceCents: 0,
+    tokensIncluded: 0,
+    cycle: "MONTHLY",
+  },
 }
 
 const defaultStripePlans: Record<TenantPlanCode, StripePlanConfig> = {
@@ -93,6 +103,15 @@ const defaultStripePlans: Record<TenantPlanCode, StripePlanConfig> = {
     tokensIncluded: 2000,
     interval: "month",
   },
+  custom: {
+    planCode: "custom",
+    enabled: false,
+    productName: "ComoFica Personalizado",
+    description: "Plano personalizado ComoFica com limites definidos por cliente.",
+    priceCents: 0,
+    tokensIncluded: 0,
+    interval: "month",
+  },
 }
 
 function now() {
@@ -113,7 +132,7 @@ function normalizeNumber(value: unknown, fallback = 0) {
 }
 
 function normalizePlanCode(value: unknown): TenantPlanCode {
-  return value === "pro" || value === "enterprise" ? value : "starter"
+  return value === "pro" || value === "enterprise" || value === "custom" ? value : "starter"
 }
 
 function normalizeCycle(value: unknown, fallback: AbacatePayCycle): AbacatePayCycle {
@@ -189,6 +208,7 @@ function normalizeSettings(value: unknown): AbacatePaySettings {
       starter: normalizePlan(plans?.starter, defaults.plans.starter),
       pro: normalizePlan(plans?.pro, defaults.plans.pro),
       enterprise: normalizePlan(plans?.enterprise, defaults.plans.enterprise),
+      custom: normalizePlan(plans?.custom, defaults.plans.custom),
     },
     createdAt: normalizeText(settings?.createdAt) || defaults.createdAt,
     updatedAt: normalizeText(settings?.updatedAt) || defaults.updatedAt,
@@ -231,6 +251,7 @@ function normalizeStripeSettings(value: unknown): StripeSettings {
       starter: normalizeStripePlan(plans?.starter, defaults.plans.starter),
       pro: normalizeStripePlan(plans?.pro, defaults.plans.pro),
       enterprise: normalizeStripePlan(plans?.enterprise, defaults.plans.enterprise),
+      custom: normalizeStripePlan(plans?.custom, defaults.plans.custom),
     },
     createdAt: normalizeText(settings?.createdAt) || defaults.createdAt,
     updatedAt: normalizeText(settings?.updatedAt) || defaults.updatedAt,

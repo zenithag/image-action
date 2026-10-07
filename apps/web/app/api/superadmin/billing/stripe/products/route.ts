@@ -12,7 +12,7 @@ type ProductPayload = {
 }
 
 function normalizePlanCode(value: unknown): TenantPlanCode | null {
-  return value === "starter" || value === "pro" || value === "enterprise" ? value : null
+  return value === "starter" || value === "pro" || value === "enterprise" || value === "custom" ? value : null
 }
 
 function getOrigin(request: Request) {
@@ -34,6 +34,10 @@ export async function POST(request: Request) {
 
     const settings = await getStripeSettings()
     const plan = settings.plans[planCode]
+
+    if (planCode === "custom" && (plan.priceCents <= 0 || plan.tokensIncluded <= 0)) {
+      return NextResponse.json({ error: "Configure um preço e uma cota positiva de créditos para o plano Personalizado antes de criar o produto." }, { status: 400 })
+    }
 
     if (!settings.enabled) {
       return NextResponse.json({ error: "Habilite o Stripe antes de criar produtos." }, { status: 400 })

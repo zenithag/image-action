@@ -1,5 +1,5 @@
 export type TenantStatus = "draft" | "active" | "suspended" | "archived"
-export type TenantPlanCode = "starter" | "pro" | "enterprise"
+export type TenantPlanCode = "starter" | "pro" | "enterprise" | "custom"
 export type TenantBusinessVertical = "generic" | "decor" | "fashion" | "automotive" | "furniture"
 
 export type TenantStats = {

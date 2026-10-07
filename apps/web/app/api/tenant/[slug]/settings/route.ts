@@ -47,9 +47,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   try {
     const catalogAccess = await getTenantCatalogAccess(slug)
-    if (!catalogAccess.included && payload.studio?.catalogEnabled === true) return NextResponse.json({ error: "O plano desta empresa não inclui catálogo." }, { status: 403 })
-    // Entitlements are derived from the server's plan configuration, never from the payload.
-    if (!catalogAccess.included) payload.studio = { ...payload.studio, catalogEnabled: false }
+    // Tenant admins control navigation visibility only. Access is exclusively granted by superadmin.
+    if (payload.studio?.catalogEnabled !== undefined) delete payload.studio.catalogEnabled
+    delete (payload as TenantSettingsInput & { catalogAccess?: unknown }).catalogAccess
     const settings = await updateTenantSettings(slug, payload)
     const nextCatalogAccess = await getTenantCatalogAccess(slug)
     return NextResponse.json({ ...settings, studio: { ...settings.studio, catalogEnabled: nextCatalogAccess.enabled }, catalogAccess: nextCatalogAccess })

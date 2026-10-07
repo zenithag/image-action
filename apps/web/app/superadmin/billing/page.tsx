@@ -8,17 +8,20 @@ import { CheckCircle2, Copy, CreditCard, ExternalLink, Gift, Loader2, PackagePlu
 
 import { Button } from "@/components/ui/button"
 import type { PublicAbacatePaySettings, PublicStripeSettings } from "@/lib/billing-types"
+import type { ChannelPlanLimit } from "@/lib/channel-plan-types"
+import { defaultChannelPlanLimits } from "@/lib/channel-plan-types"
 import type { CreditCoupon, CreditCouponRedemption, ReferralProgramSettings, TenantReferral } from "@/lib/commercial-benefits-types"
 import type { TenantPlanCode } from "@/lib/tenant-types"
 import { cn } from "@/lib/utils"
 
 const planLabels: Record<TenantPlanCode, string> = {
-  starter: "Starter",
+  starter: "Start",
   pro: "Pro",
-  enterprise: "Enterprise",
+  enterprise: "Advanced",
+  custom: "Personalizado",
 }
 
-const planCodes: TenantPlanCode[] = ["starter", "pro", "enterprise"]
+const planCodes: TenantPlanCode[] = ["starter", "pro", "enterprise", "custom"]
 
 type CouponsPayload = {
   coupons: CreditCoupon[]
@@ -49,8 +52,12 @@ function formatMoney(cents: number) {
 }
 
 export default function SuperadminBillingPage() {
+  const [selectedProvider, setSelectedProvider] = useState<"abacatepay" | "stripe">("abacatepay")
   const [settings, setSettings] = useState<PublicAbacatePaySettings | null>(null)
   const [stripeSettings, setStripeSettings] = useState<PublicStripeSettings | null>(null)
+  const [customLimits, setCustomLimits] = useState<Omit<ChannelPlanLimit, "updatedAt">>({
+    ...defaultChannelPlanLimits.custom,
+  })
   const [couponsPayload, setCouponsPayload] = useState<CouponsPayload | null>(null)
   const [referralsPayload, setReferralsPayload] = useState<ReferralsPayload | null>(null)
   const [apiKey, setApiKey] = useState("")
@@ -66,6 +73,7 @@ export default function SuperadminBillingPage() {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isSavingLimits, setIsSavingLimits] = useState(false)
   const [creatingProduct, setCreatingProduct] = useState<TenantPlanCode | null>(null)
   const [creatingStripeProduct, setCreatingStripeProduct] = useState<TenantPlanCode | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -76,16 +84,19 @@ export default function SuperadminBillingPage() {
     setError(null)
 
     try {
-      const [abacatePayload, stripePayload, couponsData, referralsData] = await Promise.all([
+      const [abacatePayload, stripePayload, couponsData, referralsData, channelPlans] = await Promise.all([
         requestJson<PublicAbacatePaySettings>("/api/superadmin/billing/abacatepay"),
         requestJson<PublicStripeSettings>("/api/superadmin/billing/stripe"),
         requestJson<CouponsPayload>("/api/superadmin/billing/coupons"),
         requestJson<ReferralsPayload>("/api/superadmin/billing/referrals"),
+        requestJson<ChannelPlanLimit[]>("/api/superadmin/channel-plan-limits"),
       ])
       setSettings(abacatePayload)
       setStripeSettings(stripePayload)
       setCouponsPayload(couponsData)
       setReferralsPayload(referralsData)
+      const customPlan = channelPlans.find((plan) => plan.planCode === "custom")
+      if (customPlan) setCustomLimits(customPlan)
       setApiKey("")
       setStripeSecretKey("")
       setStripeWebhookSecret("")
@@ -93,6 +104,29 @@ export default function SuperadminBillingPage() {
       setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os pagamentos.")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function saveCustomLimits() {
+    if (isSavingLimits) return
+
+    setIsSavingLimits(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const plans = await requestJson<ChannelPlanLimit[]>("/api/superadmin/channel-plan-limits", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plans: [{ ...customLimits, planCode: "custom" }] }),
+      })
+      const saved = plans.find((plan) => plan.planCode === "custom")
+      if (saved) setCustomLimits(saved)
+      setNotice("Cotas e limites do plano Personalizado salvos.")
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Não foi possível salvar as cotas do plano.")
+    } finally {
+      setIsSavingLimits(false)
     }
   }
 
@@ -316,17 +350,17 @@ export default function SuperadminBillingPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background px-7">
+      <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-4 py-2 sm:px-8">
         <div className="mr-auto">
-          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Financeiro</p>
-          <h1 className="font-display text-xl font-semibold leading-tight tracking-[-0.02em] text-foreground">Pagamentos</h1>
+          <p className="text-xs leading-tight text-muted-foreground">Financeiro</p>
+          <h1 className="text-base font-bold leading-tight text-foreground">Pagamentos</h1>
         </div>
         <Button variant="outline" size="sm" onClick={loadSettings} disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Atualizar
         </Button>
         <UserMenu />
-      </div>
+      </header>
 
       {error ? (
         <div className="border-b border-destructive/20 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive">
@@ -339,7 +373,7 @@ export default function SuperadminBillingPage() {
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto px-7 py-6 scrollbar-hide">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 scrollbar-hide sm:px-7">
         {isLoading && !settings ? (
           <div className="flex h-full items-center justify-center rounded-md border border-border bg-card">
             <div className="text-center">
@@ -349,6 +383,22 @@ export default function SuperadminBillingPage() {
           </div>
         ) : settings && stripeSettings ? (
           <div className="mx-auto max-w-6xl space-y-6">
+            <section aria-label="Provedores de pagamento" className="grid gap-3 sm:grid-cols-2">
+              {([
+                { id: "abacatepay", name: "AbacatePay", mark: "abacate.pay", enabled: settings.enabled, configured: settings.apiKeyConfigured },
+                { id: "stripe", name: "Stripe", mark: "stripe", enabled: stripeSettings.enabled, configured: stripeSettings.secretKeyConfigured },
+              ] as const).map((provider) => (
+                <button key={provider.id} type="button" onClick={() => setSelectedProvider(provider.id)} aria-pressed={selectedProvider === provider.id}
+                  className={cn("flex min-h-20 items-center justify-between rounded-md border bg-card px-5 py-4 text-left transition-colors", selectedProvider === provider.id ? "border-primary ring-1 ring-primary/30" : "border-border hover:border-primary/50")}>
+                  <span className="flex items-center gap-4">
+                    <span aria-hidden="true" className={cn("text-xl font-bold tracking-tight", provider.id === "stripe" ? "text-[#635bff]" : "text-green-700")}>{provider.mark}</span>
+                    <span><span className="block text-sm font-semibold text-foreground">{provider.name}</span><span className="mt-1 block text-xs text-muted-foreground">{provider.configured ? "Credencial configurada" : "Configure as credenciais"}</span></span>
+                  </span>
+                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", provider.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{provider.enabled ? "Ativo" : "Inativo"}</span>
+                </button>
+              ))}
+            </section>
+            {selectedProvider === "abacatepay" ? (
             <section aria-labelledby="abacatepay-heading" className="overflow-hidden rounded-md border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                 <CreditCard className="h-4 w-4 text-primary" />
@@ -426,7 +476,7 @@ export default function SuperadminBillingPage() {
               <div className="border-t border-border p-4 sm:p-6">
                 <h3 className="mb-1 text-sm font-semibold">Planos do AbacatePay</h3>
                 <p className="mb-4 text-xs text-muted-foreground">Estes planos usam exclusivamente o AbacatePay. Salvar atualiza as configurações e os planos deste provedor.</p>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {planCodes.map((planCode) => {
                     const plan = settings.plans[planCode]
                     return (
@@ -441,6 +491,10 @@ export default function SuperadminBillingPage() {
                           </span>
                         </div>
                         <div className="space-y-3">
+                          <label className="flex items-center gap-2 text-sm">
+                            <Input type="checkbox" checked={plan.enabled} onChange={(event) => updatePlan(planCode, { enabled: event.target.checked })} />
+                            Plano disponível para novas assinaturas
+                          </label>
                           <Field label="Nome">
                             <Input value={plan.productName} onChange={(event) => updatePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                           </Field>
@@ -500,7 +554,7 @@ export default function SuperadminBillingPage() {
                 </Button>
               </div>
             </section>
-
+            ) : (
             <section aria-labelledby="stripe-heading" className="overflow-hidden rounded-md border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                 <CreditCard className="h-4 w-4 text-primary" />
@@ -582,7 +636,7 @@ export default function SuperadminBillingPage() {
               <div className="border-t border-border p-4 sm:p-6">
                 <h3 className="mb-1 text-sm font-semibold">Planos do Stripe</h3>
                 <p className="mb-4 text-xs text-muted-foreground">Estes planos usam exclusivamente o Stripe. Salvar atualiza as configurações e os planos deste provedor.</p>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {planCodes.map((planCode) => {
                     const plan = stripeSettings.plans[planCode]
                     return (
@@ -597,6 +651,10 @@ export default function SuperadminBillingPage() {
                           </span>
                         </div>
                         <div className="space-y-3">
+                          <label className="flex items-center gap-2 text-sm">
+                            <Input type="checkbox" checked={plan.enabled} onChange={(event) => updateStripePlan(planCode, { enabled: event.target.checked })} />
+                            Plano disponível para novas assinaturas
+                          </label>
                           <Field label="Nome">
                             <Input value={plan.productName} onChange={(event) => updateStripePlan(planCode, { productName: event.target.value })} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                           </Field>
@@ -657,6 +715,36 @@ export default function SuperadminBillingPage() {
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Salvar Stripe
                 </Button>
+              </div>
+            </section>
+            )}
+
+            <section aria-labelledby="custom-plan-limits-heading" className="overflow-hidden rounded-md border border-border bg-card">
+              <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+                <div>
+                  <h2 id="custom-plan-limits-heading" className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Cotas do plano Personalizado</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">O limite de WhatsApp bloqueia novas instâncias acima da cota; o acesso ao catálogo respeita a inclusão do plano e conversas alimentam o indicador de uso.</p>
+                </div>
+                <Button onClick={() => void saveCustomLimits()} disabled={isSavingLimits || isLoading}>
+                  {isSavingLimits ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Salvar cotas
+                </Button>
+              </div>
+              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+                {([
+                  ["WhatsApp", "whatsapp"], ["Instagram", "instagram"], ["Telegram", "telegram"], ["Conversas", "conversationsLimit"],
+                ] as const).map(([label, key]) => (
+                  <Field key={key} label={key === "conversationsLimit" ? `${label} (referência de uso)` : `${label} (máximo permitido)`}>
+                    <Input type="number" min={0} step={1} value={customLimits[key]} onChange={(event) => setCustomLimits((current) => ({ ...current, [key]: Math.max(0, Number(event.target.value) || 0) }))} className="h-10 w-full rounded-md border border-input bg-muted/20 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </Field>
+                ))}
+                <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-4">
+                  <Input type="checkbox" checked={customLimits.catalogIncluded} onChange={(event) => setCustomLimits((current) => ({ ...current, catalogIncluded: event.target.checked }))} />
+                  Incluir acesso ao catálogo neste plano
+                </label>
+                <Field label="Observação operacional">
+                  <Textarea value={customLimits.extra} onChange={(event) => setCustomLimits((current) => ({ ...current, extra: event.target.value }))} rows={2} className="w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                </Field>
               </div>
             </section>
 

@@ -4,6 +4,7 @@ import type { TenantSettingsInput } from "@/lib/tenant-settings-types"
 import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 import { getTenantSettings, updateTenantSettings } from "@/lib/server/tenant-settings-store"
 import { findTenant } from "@/lib/server/tenants-store"
+import { getTenantCatalogAccess } from "@/lib/server/tenant-catalog-access"
 
 export const runtime = "nodejs"
 
@@ -23,7 +24,8 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const settings = await getTenantSettings(tenant.slug)
-  return NextResponse.json(settings)
+  const catalogAccess = await getTenantCatalogAccess(tenant.slug)
+  return NextResponse.json({ ...settings, studio: { ...settings.studio, catalogEnabled: catalogAccess.enabled }, catalogAccess })
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -40,8 +42,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const payload = await request.json() as TenantSettingsInput
     const settings = await updateTenantSettings(tenant.slug, payload)
+    const catalogAccess = await getTenantCatalogAccess(tenant.slug)
 
-    return NextResponse.json(settings)
+    return NextResponse.json({ ...settings, studio: { ...settings.studio, catalogEnabled: catalogAccess.enabled }, catalogAccess })
   } catch (error) {
     return NextResponse.json({
       error: error instanceof Error ? error.message : "Nao foi possivel salvar as configuracoes do tenant.",

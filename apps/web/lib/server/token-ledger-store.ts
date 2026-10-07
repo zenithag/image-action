@@ -23,6 +23,7 @@ const PLAN_TOKEN_CREDITS: Record<TenantPlanCode, number> = {
   starter: 100,
   pro: 500,
   enterprise: 2000,
+  custom: 0,
 }
 
 function normalizeText(value: unknown) {
@@ -39,7 +40,7 @@ function normalizeBoolean(value: unknown, fallback: boolean) {
 }
 
 function normalizePlanCode(value: unknown): TenantPlanCode {
-  return value === "pro" || value === "enterprise" ? value : "starter"
+  return value === "pro" || value === "enterprise" || value === "custom" ? value : "starter"
 }
 
 function normalizeAccount(value: unknown): TenantTokenAccount | null {
