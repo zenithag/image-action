@@ -31,7 +31,7 @@ type SectionId = "branding" | "domain" | "studio" | "assistant" | "limits" | "te
 
 const sections: Array<{ id: SectionId; title: string }> = [
   { id: "branding", title: "Marca & dados" },
-  { id: "domain", title: "Domínio & canais" },
+  { id: "domain", title: "Canais" },
   { id: "studio", title: "Estúdio & presets" },
   { id: "assistant", title: "IA & prompts" },
   { id: "limits", title: "Limites" },
@@ -750,7 +750,7 @@ export function TenantSettingsPanel({ tenantSlug }: TenantSettingsPanelProps) {
               )}
 
               {activeSection === "domain" && (
-                <SettingsGroup title="Domínio & canais" description="Habilitar o canal autoriza seu uso; a conexão é configurada separadamente.">
+                <SettingsGroup title="Canais" description="Habilitar o canal autoriza seu uso; a conexão é configurada separadamente.">
 <div className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2">
                       <Toggle checked={settings.channels.whatsappEnabled} onChange={(checked) => updateSection("channels", { whatsappEnabled: checked })} label="Permitir uso do WhatsApp" />
