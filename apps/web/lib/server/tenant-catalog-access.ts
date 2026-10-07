@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { getToken } from "next-auth/jwt"
+import { getCurrentTenantToken as getToken } from "@/lib/server/current-tenant-token"
 import { findTenant } from "./tenants-store"
 import { getTenantSettings } from "./tenant-settings-store"
 import { getChannelPlanLimitMap } from "./channel-plan-limits-store"
@@ -7,10 +7,10 @@ import { checkStudioRequestOrigin, checkStudioSurfaceAccess } from "./studio-sur
 
 export async function getTenantCatalogAccess(slug: string) {
   const tenant = await findTenant(slug)
-  if (!tenant || tenant.status !== "active") return { included: false, enabled: false }
+  if (!tenant) return { included: false, enabled: false }
   const [plans, settings] = await Promise.all([getChannelPlanLimitMap(), getTenantSettings(slug)])
   const included = plans[tenant.planCode]?.catalogIncluded === true
-  return { included, enabled: included && settings.studio.catalogEnabled }
+  return { included, enabled: tenant.status === "active" && included && settings.studio.catalogEnabled }
 }
 
 export async function requireTenantCatalogAccess(request: NextRequest, slug: string, write = false) {

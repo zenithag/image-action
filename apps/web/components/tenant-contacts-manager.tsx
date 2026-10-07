@@ -5,7 +5,7 @@ import styles from "./management-layout.module.css"
 import { PageHeader } from "@/components/organisms/page-header"
 import { Input, Textarea } from "@/components/spectrum/fields"
 import { useEffect, useMemo, useState } from "react"
-import { Filter, Loader2, Plus, UserRound, X } from "@/components/spectrum/icons"
+import { ArrowRight, Filter, Loader2, Plus, UserRound, X } from "@/components/spectrum/icons"
 
 import { Button } from "@/components/ui/button"
 import type { CompositionJob } from "@/lib/composition-types"
@@ -265,7 +265,7 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
   }
 
   return (
-    <div className={styles.page}>
+    <div className={cn(styles.page, styles.contactsPage)}>
       <PageHeader
         className={styles.header}
         title="Contatos"
@@ -311,13 +311,13 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
               <table className={styles.table}>
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th className="w-10 px-4 py-3"><Input type="checkbox" className="rounded-md border-border" /></th>
+                    <th className={cn("w-10 px-4 py-3", styles.contactSelection)}><Input type="checkbox" className="rounded-md border-border" /></th>
                     <th className="px-4 py-3">Contato</th>
-                    <th className="px-4 py-3">Cidade</th>
-                    <th className="px-4 py-3">Conversas</th>
-                    <th className="px-4 py-3">Último contato</th>
-                    <th className="px-4 py-3">Tag</th>
-                    <th className="px-4 py-3"></th>
+                    <th className={cn("px-4 py-3", styles.contactCompany)}>Cidade</th>
+                    <th className={cn("px-4 py-3", styles.contactConversations)}>Conversas</th>
+                    <th className={cn("px-4 py-3", styles.contactLastSeen)}>Último contato</th>
+                    <th className={cn("px-4 py-3", styles.contactTags)}>Tag</th>
+                    <th className={cn("px-4 py-3", styles.contactAction)}><span className="sr-only">Abrir contato</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -329,9 +329,9 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
                         selectedContact?.id === contact.id && "bg-primary/5"
                       )}
                     >
-                      <td className="px-4 py-3"><Input type="checkbox" className="rounded-md border-border" /></td>
+                      <td className={cn("px-4 py-3", styles.contactSelection)}><Input type="checkbox" className="rounded-md border-border" /></td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
                             {contact.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                           </div>
@@ -341,10 +341,10 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{contact.company || "—"}</td>
-                      <td className="px-4 py-3 text-sm">{contact.conversationsCount}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{formatDate(contact.lastContactAt)}</td>
-                      <td className="px-4 py-3">
+                      <td className={cn("px-4 py-3 truncate text-sm text-muted-foreground", styles.contactCompany)}>{contact.company || "—"}</td>
+                      <td className={cn("px-4 py-3 text-sm", styles.contactConversations)}>{contact.conversationsCount}</td>
+                      <td className={cn("px-4 py-3 text-sm text-muted-foreground", styles.contactLastSeen)}>{formatDate(contact.lastContactAt)}</td>
+                      <td className={cn("px-4 py-3", styles.contactTags)}>
                         <div className="flex flex-wrap gap-1">
                           {contact.tags.slice(0, 2).map((tag) => (
                             <span key={tag} className={cn("rounded-full border px-2 py-0.5 text-xs font-medium", tagColor(tag))}>{tag}</span>
@@ -355,10 +355,10 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
                           {contact.tags.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" type="button" 
+                      <td className={cn("px-4 py-3 text-right", styles.contactAction)}>
+                        <Button variant="ghost" type="button" className={styles.contactOpen} aria-label={`Abrir contato ${contact.name}`} title={`Abrir contato ${contact.name}`}
                           onClick={() => setSelectedContact(contact)}>
-                          Abrir →
+                          <span className={styles.contactOpenLabel}>Abrir</span><ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                         </Button>
                       </td>
                     </tr>
@@ -371,10 +371,10 @@ export function TenantContactsManager({ tenantSlug }: TenantContactsManagerProps
       </div>
 
       {selectedContact && (
-        <div className="fixed inset-y-0 right-0 z-40 flex w-[420px] flex-col border-l border-border bg-card animate-in slide-in-from-right duration-200">
+        <div className="fixed inset-y-0 right-0 z-40 flex w-[420px] max-w-full flex-col pb-[72px] md:pb-0 border-l border-border bg-card animate-in slide-in-from-right duration-200">
           <div className="flex items-center justify-between border-b border-border p-5">
             <h2 className="font-display text-lg font-bold text-foreground">{selectedContact.name}</h2>
-            <Button variant="ghost" size="icon" type="button"  onClick={() => setSelectedContact(null)}>
+            <Button variant="ghost" size="icon" type="button" aria-label="Fechar detalhes do contato" onClick={() => setSelectedContact(null)}>
               <X className="h-5 w-5" />
             </Button>
           </div>

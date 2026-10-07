@@ -7,12 +7,14 @@ import type { TenantPlanCode } from "@/lib/tenant-types"
 import {
   findBillingSubscriptionByAbacatePayReference,
   getAbacatePaySettings,
+  getPlanCatalog,
   markAbacatePayWebhookEventProcessed,
   recordAbacatePayWebhookEvent,
   upsertTenantBillingSubscription,
 } from "@/lib/server/billing-store"
 import { attachReferralToTenant, grantReferralConversionCredits } from "@/lib/server/commercial-benefits-store"
 import { grantTenantManualTokens } from "@/lib/server/token-ledger-store"
+import { setTenantAuthUsersStatus } from "@/lib/server/auth-users-store"
 import { findTenant, updateTenant } from "@/lib/server/tenants-store"
 
 export const runtime = "nodejs"
@@ -123,14 +125,15 @@ async function processSubscriptionEvent(payload: AbacateWebhookPayload, eventId:
     cancelledAt,
   })
 
-  if (tenant && status === "active" && event !== "billing.failed") {
-    const tokensIncluded = await getTokensForSubscription(subscription.planCode)
+  if (tenant && status === "active" && ["subscription.completed", "subscription.renewed"].includes(event)) {
+    const tokensIncluded = subscription.tokensIncluded ?? await getTokensForSubscription(subscription.planCode)
     const referralCode = normalizeText(payload.data?.metadata?.referralCode)
 
     await updateTenant(tenant.id, {
       status: "active",
       planCode: subscription.planCode,
     })
+    if (tenant.status === "draft") await setTenantAuthUsersStatus(tenant.id, "active")
 
     if (referralCode) {
       await attachReferralToTenant({
@@ -140,7 +143,7 @@ async function processSubscriptionEvent(payload: AbacateWebhookPayload, eventId:
       })
     }
 
-    await grantTenantManualTokens({
+    if (tokensIncluded > 0) await grantTenantManualTokens({
       tenantSlug: tenant.slug,
       amount: tokensIncluded,
       description: `Crédito da assinatura AbacatePay ${subscription.planCode}.`,
@@ -165,8 +168,8 @@ async function processSubscriptionEvent(payload: AbacateWebhookPayload, eventId:
 }
 
 async function getTokensForSubscription(planCode: TenantPlanCode) {
-  const settings = await getAbacatePaySettings()
-  return settings.plans[planCode]?.tokensIncluded || 1
+  const planCatalog = await getPlanCatalog()
+  return planCatalog[planCode]?.tokensIncluded || 1
 }
 
 export async function POST(request: Request) {

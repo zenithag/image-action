@@ -1,5 +1,6 @@
 "use client"
 
+import { TenantNicheSelect } from "@/components/tenant-niche-select"
 import { Input, NativeSelect, Textarea } from "@/components/spectrum/fields"
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
@@ -24,7 +25,7 @@ import {
 } from "@/components/spectrum/icons"
 
 import { Button } from "@/components/ui/button"
-import type { PublicAbacatePaySettings, PublicStripeSettings, TenantBillingSubscription } from "@/lib/billing-types"
+import type { PlanCatalogEntry, PublicAbacatePaySettings, PublicStripeSettings, TenantBillingSubscription } from "@/lib/billing-types"
 import type { TenantTokenSnapshot } from "@/lib/token-ledger-types"
 import type { Tenant, TenantBusinessVertical, TenantPlanCode, TenantStatus } from "@/lib/tenant-types"
 import type { TenantSettings } from "@/lib/tenant-settings-types"
@@ -37,7 +38,7 @@ const statusConfig: Record<TenantStatus, { label: string; className: string }> =
   archived: { label: "Arquivado", className: "bg-muted text-muted-foreground" },
 }
 
-const planLabels: Record<TenantPlanCode, string> = {
+const planLabels: Partial<Record<TenantPlanCode, string>> = {
   starter: "Start",
   pro: "Pro",
   enterprise: "Advanced",
@@ -60,11 +61,7 @@ type TenantFormState = {
   contactEmail: string
   contactName: string
   phone: string
-}
-
-type TokenCreditFormState = {
-  amount: string
-  description: string
+  customPlan?: Tenant["customPlan"]
 }
 
 type AbacateBillingPayload = {
@@ -116,6 +113,7 @@ function buildTenantForm(tenant: Tenant): TenantFormState {
     contactEmail: tenant.contactEmail ?? "",
     contactName: tenant.contactName ?? "",
     phone: tenant.phone ?? "",
+    customPlan: tenant.customPlan,
   }
 }
 
@@ -128,10 +126,7 @@ export default function TenantDetailPage() {
   const [tokenSnapshot, setTokenSnapshot] = useState<TenantTokenSnapshot | null>(null)
   const [abacateBilling, setAbacateBilling] = useState<AbacateBillingPayload | null>(null)
   const [stripeBilling, setStripeBilling] = useState<StripeBillingPayload | null>(null)
-  const [tokenCreditForm, setTokenCreditForm] = useState<TokenCreditFormState>({
-    amount: "50",
-    description: "",
-  })
+  const [planCatalog, setPlanCatalog] = useState<PlanCatalogEntry[]>([])
   const [checkoutForm, setCheckoutForm] = useState<CheckoutFormState>({
     name: "",
     email: "",
@@ -142,7 +137,6 @@ export default function TenantDetailPage() {
   const [isSavingTenant, setIsSavingTenant] = useState(false)
   const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [isSavingCatalogAccess, setIsSavingCatalogAccess] = useState(false)
-  const [isGrantingTokens, setIsGrantingTokens] = useState(false)
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -153,38 +147,41 @@ export default function TenantDetailPage() {
       setError(null)
 
       try {
-        const [tenantResponse, settingsResponse, tokenResponse, billingResponse, stripeResponse] = await Promise.all([
+        const [tenantResponse, settingsResponse, tokenResponse, billingResponse, stripeResponse, plansResponse] = await Promise.all([
           fetch(`/api/superadmin/tenants/${encodeURIComponent(params.id)}`, { cache: "no-store" }),
           fetch(`/api/superadmin/tenants/${encodeURIComponent(params.id)}/settings`, { cache: "no-store" }),
           fetch(`/api/superadmin/tenants/${encodeURIComponent(params.id)}/billing/tokens`, { cache: "no-store" }),
           fetch(`/api/superadmin/tenants/${encodeURIComponent(params.id)}/billing/abacatepay`, { cache: "no-store" }),
           fetch(`/api/superadmin/tenants/${encodeURIComponent(params.id)}/billing/stripe`, { cache: "no-store" }),
+          fetch("/api/superadmin/billing/plans", { cache: "no-store" }),
         ])
         const tenantData = await tenantResponse.json()
         const settingsData = await settingsResponse.json()
         const tokenData = await tokenResponse.json()
         const billingData = await billingResponse.json()
         const stripeData = await stripeResponse.json()
+        const plansData = await plansResponse.json()
 
         if (!tenantResponse.ok) {
           throw new Error(tenantData?.error || "Tenant nao encontrado.")
         }
 
         if (!settingsResponse.ok) {
-          throw new Error(settingsData?.error || "Nao foi possivel carregar as configuracoes do tenant.")
+          throw new Error(settingsData?.error || "Nao foi possivel carregar as configuracoes do cliente.")
         }
 
         if (!tokenResponse.ok) {
-          throw new Error(tokenData?.error || "Nao foi possivel carregar os tokens do tenant.")
+          throw new Error(tokenData?.error || "Nao foi possivel carregar os tokens do cliente.")
         }
 
         if (!billingResponse.ok) {
-          throw new Error(billingData?.error || "Nao foi possivel carregar a assinatura do tenant.")
+          throw new Error(billingData?.error || "Nao foi possivel carregar a assinatura do cliente.")
         }
 
         if (!stripeResponse.ok) {
           throw new Error(stripeData?.error || "Nao foi possivel carregar o fallback Stripe.")
         }
+        if (!plansResponse.ok || !Array.isArray(plansData)) throw new Error("Não foi possível carregar os planos.")
 
         const nextTenant = tenantData as Tenant
         setTenant(nextTenant)
@@ -193,6 +190,7 @@ export default function TenantDetailPage() {
         setTokenSnapshot(tokenData as TenantTokenSnapshot)
         setAbacateBilling(billingData as AbacateBillingPayload)
         setStripeBilling(stripeData as StripeBillingPayload)
+        setPlanCatalog(plansData as PlanCatalogEntry[])
         setCheckoutForm({
           name: nextTenant.contactName || nextTenant.name,
           email: nextTenant.contactEmail || "",
@@ -210,7 +208,7 @@ export default function TenantDetailPage() {
   }, [params.id])
 
   async function removeTenant() {
-    if (!tenant || !window.confirm(`Remover o tenant "${tenant.name}"?`)) {
+    if (!tenant || !window.confirm(`Remover o cliente "${tenant.name}"?`)) {
       return
     }
 
@@ -225,7 +223,7 @@ export default function TenantDetailPage() {
     }
 
     const data = await response.json()
-    setError(data?.error || "Nao foi possivel remover o tenant.")
+    setError(data?.error || "Nao foi possivel remover o cliente.")
   }
 
   async function saveTenantProfile() {
@@ -244,15 +242,18 @@ export default function TenantDetailPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data?.error || "Nao foi possivel salvar o tenant.")
+        throw new Error(data?.error || "Nao foi possivel salvar o cliente.")
       }
 
       const updatedTenant = data as Tenant
       setTenant(updatedTenant)
       setTenantForm(buildTenantForm(updatedTenant))
-      setNotice("Cadastro do tenant atualizado.")
+      const settingsResponse = await fetch(`/api/superadmin/tenants/${encodeURIComponent(updatedTenant.id)}/settings`, { cache: "no-store" })
+      if (!settingsResponse.ok) throw new Error("Cadastro salvo; não foi possível atualizar o acesso ao catálogo. Recarregue a página.")
+      setSettings(await settingsResponse.json())
+      setNotice("Cadastro do cliente atualizado.")
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Nao foi possivel salvar o tenant.")
+      setError(saveError instanceof Error ? saveError.message : "Nao foi possivel salvar o cliente.")
     } finally {
       setIsSavingTenant(false)
     }
@@ -310,47 +311,6 @@ export default function TenantDetailPage() {
     }
   }
 
-  async function grantTokens() {
-    if (!tenant || isGrantingTokens) return
-
-    setIsGrantingTokens(true)
-    setError(null)
-    setNotice(null)
-
-    try {
-      const response = await fetch(`/api/superadmin/tenants/${encodeURIComponent(tenant.id)}/billing/tokens`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: Number(tokenCreditForm.amount),
-          description: tokenCreditForm.description,
-        }),
-      })
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Nao foi possivel liberar os tokens.")
-      }
-
-      const snapshotResponse = await fetch(`/api/superadmin/tenants/${encodeURIComponent(tenant.id)}/billing/tokens`, {
-        cache: "no-store",
-      })
-      const snapshotData = await snapshotResponse.json()
-
-      if (!snapshotResponse.ok) {
-        throw new Error(snapshotData?.error || "Tokens liberados, mas o saldo nao foi recarregado.")
-      }
-
-      setTokenSnapshot(snapshotData as TenantTokenSnapshot)
-      setTokenCreditForm((current) => ({ ...current, description: "" }))
-      setNotice("Tokens liberados com sucesso.")
-    } catch (grantError) {
-      setError(grantError instanceof Error ? grantError.message : "Nao foi possivel liberar os tokens.")
-    } finally {
-      setIsGrantingTokens(false)
-    }
-  }
-
   async function createAbacateCheckout() {
     if (!tenant || !tenantForm || !abacateBilling || isCreatingCheckout) return
 
@@ -380,10 +340,10 @@ export default function TenantDetailPage() {
       })
 
       if (subscription.checkoutUrl) {
-        await navigator.clipboard.writeText(subscription.checkoutUrl)
+        await navigator.clipboard.writeText(subscription.checkoutUrl).catch(() => undefined)
       }
 
-      setNotice("Checkout de assinatura criado e copiado.")
+      setNotice("Checkout de assinatura criado.")
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : "Nao foi possivel gerar o checkout da assinatura.")
     } finally {
@@ -420,10 +380,10 @@ export default function TenantDetailPage() {
       })
 
       if (subscription.checkoutUrl) {
-        await navigator.clipboard.writeText(subscription.checkoutUrl)
+        await navigator.clipboard.writeText(subscription.checkoutUrl).catch(() => undefined)
       }
 
-      setNotice("Checkout Stripe criado e copiado.")
+      setNotice("Checkout Stripe criado.")
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : "Nao foi possivel gerar o checkout Stripe.")
     } finally {
@@ -454,7 +414,7 @@ export default function TenantDetailPage() {
       <div className="flex h-full items-center justify-center bg-background">
         <div className="text-center">
           <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Carregando tenant...</p>
+          <p className="text-sm text-muted-foreground">Carregando cliente...</p>
         </div>
       </div>
     )
@@ -471,13 +431,14 @@ export default function TenantDetailPage() {
           </Button>
           <div>
             <h1 className="font-display text-xl font-bold text-foreground">Tenant nao encontrado</h1>
-            <p className="text-sm text-muted-foreground">{error || "Esse tenant nao existe no cadastro real."}</p>
+            <p className="text-sm text-muted-foreground">{error || "Esse cliente nao existe no cadastro real."}</p>
           </div>
         </div>
       </div>
     )
   }
 
+  const hasUnsavedPlan = tenantForm.planCode !== tenant.planCode || JSON.stringify(tenantForm.customPlan) !== JSON.stringify(tenant.customPlan)
   const status = statusConfig[tenant.status]
 
   return (
@@ -535,12 +496,12 @@ export default function TenantDetailPage() {
                     Liberado
                   </label>
                 </div>
-                {!(settings as TenantSettings & { catalogAccess?: { included?: boolean } }).catalogAccess?.included && <p className="px-6 pt-3 text-xs text-muted-foreground">O plano atual não inclui catálogo. Habilite-o na configuração dos planos para liberar este tenant.</p>}
+                {!(settings as TenantSettings & { catalogAccess?: { included?: boolean } }).catalogAccess?.included && <p className="px-6 pt-3 text-xs text-muted-foreground">O plano atual não inclui catálogo. Habilite-o na configuração dos planos para liberar este cliente.</p>}
               </div>
               <div className="rounded-md border border-border bg-card">
                 <div className="flex items-center gap-2 border-b border-border px-6 py-4">
                   <Shield className="h-4 w-4 text-primary" />
-                  <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Cadastro do tenant</h2>
+                  <h2 className="font-display text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">Cadastro do cliente</h2>
                 </div>
                 <div className="grid gap-4 p-6 sm:grid-cols-2">
                   <Field label="Nome da empresa">
@@ -557,12 +518,18 @@ export default function TenantDetailPage() {
                   </Field>
                   <Field label="Plano">
                     <NativeSelect value={tenantForm.planCode} onChange={(event) => setTenantForm((current) => current ? { ...current, planCode: event.target.value as TenantPlanCode } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                      <option value="starter">Start</option>
-                      <option value="pro">Pro</option>
-                      <option value="enterprise">Advanced</option>
-                      <option value="custom">Personalizado</option>
+                      {planCatalog.map((plan) => <option key={plan.planCode} value={plan.planCode}>{plan.productName}</option>)}
                     </NativeSelect>
                   </Field>
+                  {tenantForm.planCode === "custom" && <>
+                    <Field label="Assinatura mensal personalizada (R$)">
+                      <Input type="number" min={0} step="0.01" value={(tenantForm.customPlan?.priceCents ?? 0) / 100} onChange={event => setTenantForm(current => current ? { ...current, customPlan: { tokensIncluded: current.customPlan?.tokensIncluded ?? 0, priceCents: Math.round(Number(event.target.value) * 100) } } : current)} />
+                    </Field>
+                    <Field label="Tokens por pagamento mensal">
+                      <Input type="number" min={0} step={1} value={tenantForm.customPlan?.tokensIncluded ?? 0} onChange={event => setTenantForm(current => current ? { ...current, customPlan: { priceCents: current.customPlan?.priceCents ?? 0, tokensIncluded: Number(event.target.value) } } : current)} />
+                    </Field>
+                    <p className="text-xs text-muted-foreground sm:col-span-2">Valores exclusivos deste cliente. Salve antes de gerar o checkout; o saldo será creditado após o pagamento. Assinaturas existentes mantêm o contrato anterior.</p>
+                  </>}
                   <Field label="Status">
                     <NativeSelect value={tenantForm.status} onChange={(event) => setTenantForm((current) => current ? { ...current, status: event.target.value as TenantStatus } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                       <option value="active">Ativo</option>
@@ -571,14 +538,8 @@ export default function TenantDetailPage() {
                       <option value="archived">Arquivado</option>
                     </NativeSelect>
                   </Field>
-                  <Field label="Nicho do tenant">
-                    <NativeSelect value={tenantForm.businessVertical} onChange={(event) => setTenantForm((current) => current ? { ...current, businessVertical: event.target.value as TenantBusinessVertical } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                      <option value="generic">Generico</option>
-                      <option value="decor">Decoracao</option>
-                      <option value="fashion">Moda</option>
-                      <option value="automotive">Automotivo</option>
-                      <option value="furniture">Moveis</option>
-                    </NativeSelect>
+                  <Field label="Nicho do cliente">
+                    <TenantNicheSelect value={tenantForm.businessVertical} onChange={value => setTenantForm(current => current ? { ...current, businessVertical: value } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm" />
                   </Field>
                 </div>
                 <div className="flex justify-end border-t border-border px-6 py-4">
@@ -596,20 +557,7 @@ export default function TenantDetailPage() {
                 </div>
                 <div className="grid gap-4 p-6 sm:grid-cols-2">
                   <Field label="Perfil de segmentacao">
-                    <NativeSelect
-                      value={settings.segmentation.profile}
-                      onChange={(event) => setSettings((current) => current ? {
-                        ...current,
-                        segmentation: { ...current.segmentation, profile: event.target.value as TenantBusinessVertical },
-                      } : current)}
-                      className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      <option value="generic">Generico</option>
-                      <option value="decor">Decoracao</option>
-                      <option value="fashion">Moda</option>
-                      <option value="automotive">Automotivo</option>
-                      <option value="furniture">Moveis</option>
-                    </NativeSelect>
+                    <TenantNicheSelect value={settings.segmentation.profile} onChange={value => setSettings(current => current ? { ...current, segmentation: { ...current.segmentation, profile: value } } : current)} className="h-11 w-full rounded-md border border-input bg-muted/20 px-4 text-sm" />
                   </Field>
                   <Field label="Delegacao futura ao tenant">
                     <label className="flex h-11 items-center gap-3 rounded-md border border-input bg-muted/20 px-4 text-sm">
@@ -621,7 +569,7 @@ export default function TenantDetailPage() {
                           segmentation: { ...current.segmentation, tenantCanManage: event.target.checked },
                         } : current)}
                       />
-                      <span>Permitir que o tenant edite depois</span>
+                      <span>Permitir que o cliente edite depois</span>
                     </label>
                   </Field>
                   <Field label="Targets editaveis">
@@ -684,8 +632,8 @@ export default function TenantDetailPage() {
                 </div>
                 <div className="grid gap-6 p-6">
                   <InfoItem label="Email principal" value={tenant.contactEmail || "Nao configurado"} />
-                  <InfoItem label="Plano atual" value={planLabels[tenant.planCode]} />
-                  <InfoItem label="Nicho" value={verticalLabels[tenant.businessVertical]} />
+                  <InfoItem label="Plano atual" value={planCatalog.find((plan) => plan.planCode === tenant.planCode)?.productName ?? planLabels[tenant.planCode] ?? tenant.planCode} />
+                  <InfoItem label="Nicho" value={verticalLabels[tenant.businessVertical] ?? tenant.businessVertical} />
                   <InfoItem icon={Calendar} label="Data de criacao" value={formatDate(tenant.createdAt)} />
                 </div>
               </div>
@@ -711,11 +659,11 @@ export default function TenantDetailPage() {
                         </div>
                         <div className="flex justify-between gap-3">
                           <span className="text-muted-foreground">Plano</span>
-                          <span className="font-medium">{planLabels[abacateBilling.subscription?.planCode ?? tenant.planCode]}</span>
+                          <span className="font-medium">{planCatalog.find((plan) => plan.planCode === (abacateBilling.subscription?.planCode ?? tenant.planCode))?.productName ?? planLabels[abacateBilling.subscription?.planCode ?? tenant.planCode] ?? (abacateBilling.subscription?.planCode ?? tenant.planCode)}</span>
                         </div>
                         <div className="flex justify-between gap-3">
                           <span className="text-muted-foreground">Valor</span>
-                          <span className="font-medium">{formatMoney(abacateBilling.subscription?.amountCents ?? abacateBilling.settings.plans[tenant.planCode].priceCents)}</span>
+                          <span className="font-medium">{formatMoney(abacateBilling.subscription?.amountCents ?? (tenant.planCode === "custom" ? tenant.customPlan?.priceCents : undefined) ?? planCatalog.find((plan) => plan.planCode === tenant.planCode)?.priceCents)}</span>
                         </div>
                       </div>
                     </div>
@@ -754,7 +702,7 @@ export default function TenantDetailPage() {
                       </div>
                     </div>
 
-                    <Button className="w-full" onClick={() => void createAbacateCheckout()} disabled={isCreatingCheckout || !abacateBilling.settings.enabled}>
+                    <Button className="w-full" onClick={() => void createAbacateCheckout()} disabled={isCreatingCheckout || hasUnsavedPlan || !abacateBilling.settings.enabled}>
                       {isCreatingCheckout ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
                       Gerar checkout
                     </Button>
@@ -775,7 +723,7 @@ export default function TenantDetailPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nao foi possivel carregar a assinatura deste tenant.</p>
+                  <p className="text-sm text-muted-foreground">Nao foi possivel carregar a assinatura deste cliente.</p>
                 )}
               </div>
 
@@ -803,16 +751,16 @@ export default function TenantDetailPage() {
                         </div>
                         <div className="flex justify-between gap-3">
                           <span className="text-muted-foreground">Plano</span>
-                          <span className="font-medium">{planLabels[stripeBilling.subscription?.planCode ?? tenant.planCode]}</span>
+                          <span className="font-medium">{planCatalog.find((plan) => plan.planCode === (stripeBilling.subscription?.planCode ?? tenant.planCode))?.productName ?? planLabels[stripeBilling.subscription?.planCode ?? tenant.planCode] ?? (stripeBilling.subscription?.planCode ?? tenant.planCode)}</span>
                         </div>
                         <div className="flex justify-between gap-3">
                           <span className="text-muted-foreground">Valor</span>
-                          <span className="font-medium">{formatMoney(stripeBilling.subscription?.amountCents ?? stripeBilling.settings.plans[tenant.planCode].priceCents)}</span>
+                          <span className="font-medium">{formatMoney(stripeBilling.subscription?.amountCents ?? (tenant.planCode === "custom" ? tenant.customPlan?.priceCents : undefined) ?? planCatalog.find((plan) => plan.planCode === tenant.planCode)?.priceCents)}</span>
                         </div>
                       </div>
                     </div>
 
-                    <Button className="w-full" variant="outline" onClick={() => void createStripeCheckout()} disabled={isCreatingCheckout || !stripeBilling.settings.enabled}>
+                    <Button className="w-full" variant="outline" onClick={() => void createStripeCheckout()} disabled={isCreatingCheckout || hasUnsavedPlan || !stripeBilling.settings.enabled}>
                       {isCreatingCheckout ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
                       Gerar checkout Stripe
                     </Button>
@@ -833,7 +781,7 @@ export default function TenantDetailPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nao foi possivel carregar o fallback Stripe deste tenant.</p>
+                  <p className="text-sm text-muted-foreground">Nao foi possivel carregar o fallback Stripe deste cliente.</p>
                 )}
               </div>
 
@@ -846,7 +794,7 @@ export default function TenantDetailPage() {
                   <div className="space-y-6">
                     {tokenSnapshot.isExhausted ? (
                       <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
-                        O tenant está sem tokens. Novas composições já ficam bloqueadas até receber crédito manual ou novo pacote.
+                        O cliente está sem tokens. Novas composições já ficam bloqueadas até a confirmação de um novo pagamento.
                       </div>
                     ) : tokenSnapshot.isLowBalance ? (
                       <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium text-warning-ink">
@@ -861,32 +809,7 @@ export default function TenantDetailPage() {
                       <TokenMetric label="Excedente" value={String(tokenSnapshot.account.overageTokens)} tone={tokenSnapshot.account.overageTokens > 0 ? "warning" : "default"} />
                     </div>
 
-                    <div className="space-y-3 rounded-md border border-border bg-muted/10 p-4">
-                      <p className="text-xs font-medium uppercase text-muted-foreground">Liberar tokens manualmente</p>
-                      <div className="grid gap-3">
-                        <Field label="Quantidade">
-                          <Input
-                            type="number"
-                            min={1}
-                            value={tokenCreditForm.amount}
-                            onChange={(event) => setTokenCreditForm((current) => ({ ...current, amount: event.target.value }))}
-                            className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                        </Field>
-                        <Field label="Observacao">
-                          <Input
-                            value={tokenCreditForm.description}
-                            onChange={(event) => setTokenCreditForm((current) => ({ ...current, description: event.target.value }))}
-                            placeholder="Credito manual de campanha, ajuste comercial..."
-                            className="h-11 w-full rounded-md border border-input bg-background px-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                        </Field>
-                        <Button onClick={() => void grantTokens()} disabled={isGrantingTokens}>
-                          {isGrantingTokens ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Coins className="mr-2 h-4 w-4" />}
-                          Liberar tokens
-                        </Button>
-                      </div>
-                    </div>
+                    <p className="text-sm text-muted-foreground">Créditos são liberados após a confirmação do pagamento. Alterar a cota contratada não adiciona saldo.</p>
 
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
@@ -914,7 +837,7 @@ export default function TenantDetailPage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nao foi possivel carregar o saldo deste tenant.</p>
+                  <p className="text-sm text-muted-foreground">Nao foi possivel carregar o saldo deste cliente.</p>
                 )}
               </div>
 
@@ -934,7 +857,7 @@ export default function TenantDetailPage() {
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Perfil de segmentacao</span>
-                    <span className="text-right text-xs">{verticalLabels[settings.segmentation.profile]}</span>
+                    <span className="text-right text-xs">{verticalLabels[settings.segmentation.profile] ?? settings.segmentation.profile}</span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Atualizado</span>
@@ -946,7 +869,7 @@ export default function TenantDetailPage() {
               <div className="rounded-md border border-border bg-card p-6">
                 <h3 className="font-display text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Governanca</h3>
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  O tenant continua usando o mesmo conjunto de configuracoes persistidas, mas a edicao da parte de segmentacao esta centralizada aqui no Super Admin.
+                  O cliente continua usando o mesmo conjunto de configuracoes persistidas, mas a edicao da parte de segmentacao esta centralizada aqui no Super Admin.
                 </p>
               </div>
             </div>

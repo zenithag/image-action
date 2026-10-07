@@ -25,7 +25,7 @@ test('signed operator survives storage and deduplication; Analytics counts by id
   const resolve = name => {
     if (name === 'next/server') return { NextResponse: { json: (body, opts) => ({ body, status: opts?.status || 200 }) } }
     if (name === 'zod') return require('zod')
-    if (name === 'next-auth/jwt') return { getToken: async () => token }
+    if (name === '@/lib/server/current-tenant-token') return { getCurrentTenantToken: async () => token }
     if (name.includes('studio-surface-access')) return access
     if (name.includes('tenants-store')) return { findTenant: async slug => ({ id: 'tenant-test', slug, status: 'active' }) }
     if (name.includes('composition-jobs-store')) return store
@@ -99,7 +99,7 @@ test('catalog jobs require entitlement and active tenant item, reject incompatib
   const route = await load('../app/api/tenant/[slug]/compositions/jobs/route.ts', name => {
     if (name === 'next/server') return { NextResponse: { json: (body,opts) => ({body,status:opts?.status||200}) } }
     if (name === 'zod') return require('zod')
-    if (name === 'next-auth/jwt') return {getToken:async()=>({sub:'u1',exp:Date.now()/1000+60,tenantSlug:'test',tenantId:'t1',roles:['tenant_operator']})}
+    if (name === '@/lib/server/current-tenant-token') return {getCurrentTenantToken:async()=>({sub:'u1',exp:Date.now()/1000+60,tenantSlug:'test',tenantId:'t1',roles:['tenant_operator']})}
     if (name.includes('studio-surface-access')) return access
     if (name.includes('tenants-store')) return {findTenant:async()=>({id:'t1',slug:'test',status:'active'})}
     if (name.includes('tenant-catalog-access')) return {getTenantCatalogAccess:async()=>({included:enabled,enabled})}

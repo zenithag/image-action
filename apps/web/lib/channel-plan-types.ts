@@ -1,4 +1,4 @@
-import type { TenantPlanCode } from "@/lib/tenant-types"
+import type { BuiltInTenantPlanCode, TenantPlanCode } from "@/lib/tenant-types"
 
 export type ChannelPlanLimit = {
   planCode: TenantPlanCode
@@ -12,9 +12,9 @@ export type ChannelPlanLimit = {
   updatedAt: string
 }
 
-export const channelPlanOrder: TenantPlanCode[] = ["starter", "pro", "enterprise", "custom"]
+export const channelPlanOrder: BuiltInTenantPlanCode[] = ["starter", "pro", "enterprise", "custom"]
 
-export const defaultChannelPlanLimits: Record<TenantPlanCode, Omit<ChannelPlanLimit, "updatedAt">> = {
+export const defaultChannelPlanLimits: Record<BuiltInTenantPlanCode, Omit<ChannelPlanLimit, "updatedAt">> = {
   starter: {
     planCode: "starter",
     label: "Starter",

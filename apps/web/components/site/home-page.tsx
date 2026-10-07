@@ -12,7 +12,21 @@ import { SiteHeader } from "@/components/site/site-header"
 import { StepsFlow } from "@/components/site/steps-flow"
 import { TrustLimits } from "@/components/site/trust-limits"
 import { UseCaseGrid } from "@/components/site/use-case-grid"
+import { getPlanCatalog } from "@/lib/server/billing-store"
+import { getChannelPlanLimitMap } from "@/lib/server/channel-plan-limits-store"
 import { CTA_MESSAGES, buildWhatsAppLink } from "@/lib/site-config"
+
+function formatMoney(cents: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100)
+}
+
+function billingPeriod(value: string) {
+  if (["MONTHLY", "month"].includes(value)) return "/ mês"
+  if (["ANNUALLY", "year"].includes(value)) return "/ ano"
+  if (["WEEKLY", "week"].includes(value)) return "/ semana"
+  if (value === "SEMIANNUALLY") return "/ semestre"
+  return ""
+}
 
 const heroDemoItem = {
   id: "banheiro-hero",
@@ -144,8 +158,14 @@ const homeFaq = [
   },
 ]
 
-export function HomePage() {
+export async function HomePage() {
   const homeCta = CTA_MESSAGES.home
+  const [planCatalog, channelPlans] = await Promise.all([getPlanCatalog(), getChannelPlanLimitMap()])
+  const publicPlans = Object.values(planCatalog).filter((plan) => plan.enabled).map((plan) => ({
+    ...plan,
+    period: billingPeriod(plan.cycle),
+    limits: channelPlans[plan.planCode] ?? { conversationsLimit: 0, catalogIncluded: false },
+  }))
 
   return (
     <>
@@ -260,6 +280,38 @@ export function HomePage() {
           ]}
           footerNote="Uso apenas pela equipe · Uso pelos clientes · Modelo híbrido"
         />
+
+        {publicPlans.length > 0 && (
+          <section id="planos" className="bg-brand-mist px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+            <div className="mx-auto max-w-7xl">
+              <div className="mx-auto max-w-3xl text-center">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand-tiffany-dark">Planos</p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-tight text-brand-blue sm:text-4xl">Escolha o formato para sua operação.</h2>
+                <p className="mt-4 text-muted-foreground">Conheça os planos habilitados e escolha a forma de contratação disponível para cada um.</p>
+              </div>
+              <div className="mt-10 grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                {publicPlans.map((plan) => (
+                  <article key={plan.planCode} className="flex min-w-0 flex-col rounded-2xl border border-border bg-white p-6 shadow-sm">
+                    <h3 className="break-words text-xl font-semibold text-brand-blue">{plan.productName}</h3>
+                    <p className="mt-3 min-h-12 break-words text-sm leading-6 text-muted-foreground">{plan.description}</p>
+                    <p className="mt-6 break-words text-2xl font-semibold text-brand-blue">
+                      {plan.priceCents > 0 ? formatMoney(plan.priceCents) : "Sob consulta"}
+                      {plan.priceCents > 0 && <span className="ml-1 text-sm font-normal text-muted-foreground">{plan.period}</span>}
+                    </p>
+                    <ul className="mt-6 flex-1 space-y-3 border-t border-border pt-5 text-sm text-foreground">
+                      {plan.tokensIncluded > 0 && <li>{plan.tokensIncluded.toLocaleString("pt-BR")} créditos incluídos</li>}
+                      {plan.limits.conversationsLimit > 0 && <li>{plan.limits.conversationsLimit.toLocaleString("pt-BR")} conversas por mês</li>}
+                      <li>{plan.limits.catalogIncluded ? "Catálogo incluído" : "Catálogo não incluído"}</li>
+                    </ul>
+                    <a href={plan.priceCents > 0 ? `/checkout?planCode=${encodeURIComponent(plan.planCode)}` : buildWhatsAppLink(`${homeCta.message} Tenho interesse no plano ${plan.productName}.`)} className="mt-7 inline-flex min-h-11 items-center justify-center rounded-md bg-brand-blue px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-brand-blue/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-tiffany-dark focus-visible:ring-offset-2">
+                      {plan.priceCents > 0 ? "Assinar plano" : "Falar sobre este plano"}
+                    </a>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         <UseCaseGrid tone="white" id="solucoes" eyebrow="Soluções" title="A mesma tecnologia, aplicada ao jeito de cada mercado decidir." items={marketPages} />
 

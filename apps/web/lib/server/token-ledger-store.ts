@@ -7,7 +7,8 @@ import type {
 } from "@/lib/token-ledger-types"
 import type { TenantPlanCode } from "@/lib/tenant-types"
 import { findTenant } from "@/lib/server/tenants-store"
-import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
+import { getPlanCatalog } from "@/lib/server/billing-store"
+import { readJsonStore, writeJsonStore, withJsonStoreLock } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 type TokenLedgerData = {
@@ -18,13 +19,6 @@ type TokenLedgerData = {
 const dataFile = getRuntimeDataFile("tenant-token-ledger.json")
 const storeKey = "tenant-token-ledger"
 let mutationQueue = Promise.resolve()
-
-const PLAN_TOKEN_CREDITS: Record<TenantPlanCode, number> = {
-  starter: 100,
-  pro: 500,
-  enterprise: 2000,
-  custom: 0,
-}
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
@@ -40,7 +34,7 @@ function normalizeBoolean(value: unknown, fallback: boolean) {
 }
 
 function normalizePlanCode(value: unknown): TenantPlanCode {
-  return value === "pro" || value === "enterprise" || value === "custom" ? value : "starter"
+  return typeof value === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(value) ? value : "starter"
 }
 
 function normalizeAccount(value: unknown): TenantTokenAccount | null {
@@ -101,7 +95,7 @@ function normalizeEntry(value: unknown): TenantTokenLedgerEntry | null {
 }
 
 async function withTokenLedgerMutation<T>(mutation: () => Promise<T>) {
-  const run = mutationQueue.then(mutation, mutation)
+  const run = mutationQueue.then(() => withJsonStoreLock(storeKey, dataFile, mutation), () => withJsonStoreLock(storeKey, dataFile, mutation))
   mutationQueue = run.then(() => undefined, () => undefined)
   return run
 }
@@ -140,9 +134,10 @@ function sortEntries(entries: TenantTokenLedgerEntry[]) {
   )
 }
 
-function buildDefaultAccount(tenantSlug: string, planCode: TenantPlanCode): TenantTokenAccount {
+async function buildDefaultAccount(tenantSlug: string, planCode: TenantPlanCode): Promise<TenantTokenAccount> {
   const now = new Date().toISOString()
-  const includedTokens = PLAN_TOKEN_CREDITS[planCode]
+  const tenant = await findTenant(tenantSlug)
+  const includedTokens = planCode === "custom" && tenant?.customPlan ? tenant.customPlan.tokensIncluded : (await getPlanCatalog())[planCode]?.tokensIncluded ?? 0
 
   return {
     tenantSlug,
@@ -151,7 +146,7 @@ function buildDefaultAccount(tenantSlug: string, planCode: TenantPlanCode): Tena
     bonusTokens: 0,
     consumedTokens: 0,
     overageTokens: 0,
-    balance: includedTokens,
+    balance: 0,
     lowBalanceThreshold: Math.min(10, includedTokens),
     allowOverage: false,
     createdAt: now,
@@ -163,13 +158,13 @@ function buildDefaultAccount(tenantSlug: string, planCode: TenantPlanCode): Tena
 async function buildInitialAccountForTenant(tenantSlug: string) {
   const tenant = await findTenant(tenantSlug)
   const planCode = tenant?.planCode ?? "starter"
-  const account = buildDefaultAccount(tenantSlug, planCode)
+  const account = await buildDefaultAccount(tenantSlug, planCode)
   const initialEntry = buildLedgerEntry({
     tenantSlug,
     type: "plan_credit",
-    amount: account.includedTokens,
+    amount: 0,
     balanceAfter: account.balance,
-    description: `Crédito inicial do plano ${planCode}.`,
+    description: `Conta criada para o plano ${planCode}; aguardando pagamento.`,
     referenceType: "plan",
     referenceId: planCode,
     createdBy: "system",
@@ -203,9 +198,9 @@ function buildLedgerEntry(input: {
 }
 
 function applyEntryToAccount(account: TenantTokenAccount, entry: TenantTokenLedgerEntry): TenantTokenAccount {
-  const nextConsumed = entry.amount < 0 ? account.consumedTokens + Math.abs(entry.amount) : account.consumedTokens
+  const nextConsumed = entry.type === "composition_debit" && entry.amount < 0 ? account.consumedTokens + Math.abs(entry.amount) : account.consumedTokens
   const nextBonus = entry.type === "manual_credit" || entry.type === "admin_adjustment" || entry.type === "refund"
-    ? account.bonusTokens + Math.max(0, entry.amount)
+    ? Math.max(0, account.bonusTokens + entry.amount)
     : account.bonusTokens
   const nextOverage = entry.balanceAfter < 0 ? Math.abs(entry.balanceAfter) : 0
 
@@ -284,20 +279,18 @@ export async function grantTenantManualTokens(input: {
   referenceType?: TokenLedgerReferenceType
   referenceId?: string
 }) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error("Informe uma quantidade positiva de tokens.")
-  }
+  if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new Error("Informe uma quantidade inteira positiva de tokens.")
 
   return withTokenLedgerMutation(async () => {
     const data = await readTokenLedgerData()
     const existing = data.accounts.find((account) => account.tenantSlug === input.tenantSlug)
     const initial = existing ? null : await buildInitialAccountForTenant(input.tenantSlug)
     const account = existing ?? initial!.account
-    const nextBalance = account.balance + Math.round(input.amount)
+    const nextBalance = account.balance + input.amount
     const entry = buildLedgerEntry({
       tenantSlug: input.tenantSlug,
       type: "manual_credit",
-      amount: Math.round(input.amount),
+      amount: input.amount,
       balanceAfter: nextBalance,
       description: input.description?.trim() || "Crédito manual liberado pelo superadmin.",
       referenceType: input.referenceType ?? "admin_adjustment",

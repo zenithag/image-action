@@ -1,4 +1,4 @@
-import type { StripePlanConfig, StripeSettings } from "@/lib/billing-types"
+import type { PlanCatalogEntry, StripePlanConfig, StripeSettings } from "@/lib/billing-types"
 
 type StripeCustomer = {
   id: string
@@ -68,7 +68,7 @@ async function requestStripe<T>(settings: StripeSettings, path: string, payload:
   return data as T
 }
 
-export async function createStripeProductAndPrice(settings: StripeSettings, plan: StripePlanConfig) {
+export async function createStripeProductAndPrice(settings: StripeSettings, plan: PlanCatalogEntry & StripePlanConfig & { interval: "day" | "week" | "month" | "year" }) {
   const product = await requestStripe<StripeProduct>(settings, "/products", {
     name: plan.productName,
     description: plan.description,
@@ -81,6 +81,7 @@ export async function createStripeProductAndPrice(settings: StripeSettings, plan
     currency: settings.currency || "brl",
     unit_amount: plan.priceCents,
     "recurring[interval]": plan.interval,
+    "recurring[interval_count]": plan.cycle === "SEMIANNUALLY" ? 6 : 1,
     "metadata[planCode]": plan.planCode,
     "metadata[tokensIncluded]": plan.tokensIncluded,
     "metadata[source]": "comofica",

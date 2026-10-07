@@ -9,7 +9,7 @@ const accessSource = await readFile(new URL('../lib/server/studio-surface-access
 compiled = compiled.replace('"./studio-surface-access"', JSON.stringify(moduleUrl(ts.transpileModule(accessSource, {compilerOptions: {module: ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText)))
 for (const [path, code] of Object.entries({
  'next/server': 'export const NextResponse={json:(body,init)=>({body,status:init?.status||200})}',
- 'next-auth/jwt': 'export const getToken=async()=>globalThis.catalogFixture.token',
+ '@/lib/server/current-tenant-token': 'export const getCurrentTenantToken=async()=>globalThis.catalogFixture.token',
  './tenants-store': 'export const findTenant=async()=>globalThis.catalogFixture.tenant',
  './tenant-settings-store': 'export const getTenantSettings=async()=>globalThis.catalogFixture.settings',
  './channel-plan-limits-store': 'export const getChannelPlanLimitMap=async()=>globalThis.catalogFixture.plans',

@@ -7,12 +7,14 @@ import type { TenantPlanCode } from "@/lib/tenant-types"
 import {
   findBillingSubscriptionByStripeReference,
   getStripeSettings,
+  getPlanCatalog,
   markAbacatePayWebhookEventProcessed,
   recordAbacatePayWebhookEvent,
   upsertTenantBillingSubscription,
 } from "@/lib/server/billing-store"
 import { attachReferralToTenant, grantReferralConversionCredits } from "@/lib/server/commercial-benefits-store"
 import { grantTenantManualTokens } from "@/lib/server/token-ledger-store"
+import { setTenantAuthUsersStatus } from "@/lib/server/auth-users-store"
 import { findTenant, updateTenant } from "@/lib/server/tenants-store"
 
 export const runtime = "nodejs"
@@ -30,7 +32,7 @@ function normalizeText(value: unknown) {
 }
 
 function normalizePlanCode(value: unknown): TenantPlanCode {
-  return value === "pro" || value === "enterprise" || value === "custom" ? value : "starter"
+  return typeof value === "string" && /^[a-z][a-z0-9-]{1,39}$/.test(value) ? value : "starter"
 }
 
 function getMetadata(object: Record<string, unknown>) {
@@ -98,8 +100,8 @@ async function processStripeEvent(event: StripeEvent) {
 
   const tenant = await findTenant(subscription.tenantId)
   const planCode = normalizePlanCode(metadata.planCode || subscription.planCode)
-  const settings = await getStripeSettings()
-  const tokensIncluded = settings.plans[planCode]?.tokensIncluded || 1
+  const planCatalog = await getPlanCatalog()
+  const tokensIncluded = subscription.tokensIncluded ?? planCatalog[planCode]?.tokensIncluded ?? 0
   const status = mapStripeStatus(event.type, normalizeText(object.status))
   const activatedAt = status === "active" ? new Date().toISOString() : subscription.activatedAt
   const cancelledAt = status === "cancelled" ? new Date().toISOString() : subscription.cancelledAt
@@ -126,6 +128,7 @@ async function processStripeEvent(event: StripeEvent) {
       status: "active",
       planCode,
     })
+    if (tenant.status === "draft") await setTenantAuthUsersStatus(tenant.id, "active")
 
     const referralCode = normalizeText(metadata.referralCode)
     if (referralCode) {
@@ -137,7 +140,7 @@ async function processStripeEvent(event: StripeEvent) {
     }
   }
 
-  if (tenant && event.type === "invoice.payment_succeeded") {
+  if (tenant && event.type === "invoice.payment_succeeded" && tokensIncluded > 0) {
     await grantTenantManualTokens({
       tenantSlug: tenant.slug,
       amount: tokensIncluded,

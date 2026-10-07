@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { getToken } from "next-auth/jwt"
+import { getCurrentTenantToken as getToken } from "@/lib/server/current-tenant-token"
+import { findTenant } from "@/lib/server/tenants-store"
+import { checkStudioRequestOrigin } from "@/lib/server/studio-surface-access"
 
 import {
   DEFAULT_SUPERADMIN_PATH,
@@ -19,6 +21,7 @@ export default async function middleware(req: NextRequest) {
   })
 
   if (!token) {
+    if (req.nextUrl.pathname.startsWith("/api/tenant/")) return NextResponse.json({ error: "Entre novamente para continuar." }, { status: 401 })
     const callbackUrl = `${req.nextUrl.pathname}${req.nextUrl.search}`
     const loginUrl = new URL("/login", req.url)
 
@@ -56,6 +59,20 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(getTenantHomePath(tenantSlug), req.url))
   }
 
+  if (req.nextUrl.pathname.startsWith("/api/tenant/") || req.nextUrl.pathname.startsWith("/tenant/")) {
+    const api = req.nextUrl.pathname.startsWith("/api/")
+    const requestedSlug = req.nextUrl.pathname.split("/")[api ? 3 : 2]
+    const tenant = tenantSlug ? await findTenant(tenantSlug) : null
+    if (!tenant || tenant.status !== "active" || requestedSlug !== tenantSlug || isSuperadmin(roles)) {
+      if (api) return NextResponse.json({ error: "Esta conta não tem acesso ao cliente solicitado." }, { status: 403 })
+      return NextResponse.redirect(new URL(isSuperadmin(roles) ? DEFAULT_SUPERADMIN_PATH : "/login?accountUnavailable=1", req.url))
+    }
+    if (api && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      if (roles.includes("tenant_viewer")) return NextResponse.json({ error: "Visualizadores têm acesso somente de leitura." }, { status: 403 })
+      if (!checkStudioRequestOrigin(req.headers.get("origin"), req.headers.get("host"), req.url)) return NextResponse.json({ error: "Origem inválida." }, { status: 403 })
+    }
+  }
+
   if (req.nextUrl.pathname.startsWith("/tenant/")) {
     if (isSuperadmin(roles)) {
       return NextResponse.redirect(new URL(DEFAULT_SUPERADMIN_PATH, req.url))
@@ -75,5 +92,6 @@ export default async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/tenant/:path*", "/superadmin/:path*"],
+  matcher: ["/tenant/:path*", "/superadmin/:path*", "/api/tenant/:path*"],
+  runtime: "nodejs",
 }

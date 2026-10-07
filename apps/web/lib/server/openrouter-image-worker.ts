@@ -1991,7 +1991,13 @@ export async function processCompositionWithOpenRouter(job: CompositionJob) {
     }
   }
 
-  const image = await generateImageWithOpenRouter(provider, job, baseImage, buildPrompt(job, baseImage))
+  const segmentation = (await getTenantSettings(job.tenantSlug)).segmentation
+  const segmentationPrompt = [
+    segmentation.editableTargets.length ? `Alvos de edição permitidos neste cliente: ${segmentation.editableTargets.join(", ")}.` : "",
+    segmentation.protectedTargets.length ? `Preserve estes elementos: ${segmentation.protectedTargets.join(", ")}.` : "",
+    ...segmentation.promptHints,
+  ].filter(Boolean).join("\n")
+  const image = await generateImageWithOpenRouter(provider, job, baseImage, [buildPrompt(job, baseImage), segmentationPrompt].filter(Boolean).join("\n"))
   const resultImageUrl = await saveImageResult(job, image.bytes, image.mimeType, baseImage)
 
   return {

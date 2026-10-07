@@ -4,16 +4,23 @@ export type AbacatePayCycle = "WEEKLY" | "MONTHLY" | "SEMIANNUALLY" | "ANNUALLY"
 export type StripeInterval = "day" | "week" | "month" | "year"
 export type BillingProvider = "abacatepay" | "stripe"
 
-export type AbacatePayPlanConfig = {
+export type PlanBillingCycle = AbacatePayCycle
+
+export type PlanCatalogEntry = {
   planCode: TenantPlanCode
   enabled: boolean
-  productId?: string
-  productExternalId: string
   productName: string
   description: string
   priceCents: number
   tokensIncluded: number
   cycle: AbacatePayCycle
+}
+
+export type AbacatePayPlanConfig = {
+  planCode: TenantPlanCode
+  enabled: boolean
+  productId?: string
+  productExternalId: string
 }
 
 export type AbacatePaySettings = {
@@ -25,7 +32,7 @@ export type AbacatePaySettings = {
   devMode: boolean
   returnUrl?: string
   completionUrl?: string
-  plans: Record<TenantPlanCode, AbacatePayPlanConfig>
+  plans: Partial<Record<TenantPlanCode, AbacatePayPlanConfig>>
   createdAt: string
   updatedAt: string
 }
@@ -41,11 +48,6 @@ export type StripePlanConfig = {
   enabled: boolean
   productId?: string
   priceId?: string
-  productName: string
-  description: string
-  priceCents: number
-  tokensIncluded: number
-  interval: StripeInterval
 }
 
 export type StripeSettings = {
@@ -56,7 +58,7 @@ export type StripeSettings = {
   cancelUrl?: string
   apiVersion: string
   currency: string
-  plans: Record<TenantPlanCode, StripePlanConfig>
+  plans: Partial<Record<TenantPlanCode, StripePlanConfig>>
   createdAt: string
   updatedAt: string
 }
@@ -78,6 +80,9 @@ export type TenantBillingStatus =
   | "failed"
 
 export type TenantBillingSubscription = {
+  tokensIncluded?: number
+  productId?: string
+  priceId?: string
   tenantId: string
   tenantSlug: string
   planCode: TenantPlanCode

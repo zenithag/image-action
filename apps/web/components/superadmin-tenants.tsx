@@ -1,5 +1,6 @@
 "use client"
 
+import { TenantNicheSelect } from "@/components/tenant-niche-select"
 import { UserMenu } from "@/components/molecules/user-menu"
 import { Modal } from "@/components/spectrum/modal"
 import { Input, NativeSelect } from "@/components/spectrum/fields"
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import type { ChannelPlanLimit } from "@/lib/channel-plan-types"
 import { defaultChannelPlanLimits } from "@/lib/channel-plan-types"
 import type { Tenant, TenantInput, TenantPlanCode, TenantStatus } from "@/lib/tenant-types"
+import type { PlanCatalogEntry } from "@/lib/billing-types"
 import { cn } from "@/lib/utils"
 
 type TenantCreateForm = TenantInput & {
@@ -38,7 +40,7 @@ const statusConfig: Record<TenantStatus, { label: string; icon: typeof Clock; cl
   archived: { label: "Arquivado", icon: Clock, className: "bg-muted text-muted-foreground" },
 }
 
-const planLabels: Record<TenantPlanCode, { label: string; color: string }> = {
+const planLabels: Partial<Record<TenantPlanCode, { label: string; color: string }>> = {
   starter: { label: "Start", color: "bg-muted text-muted-foreground" },
   pro: { label: "Pro", color: "bg-info/10 text-info" },
   enterprise: { label: "Advanced", color: "bg-violet-500/10 text-violet-600" },
@@ -91,7 +93,8 @@ function getPasswordChecks(password: string) {
 
 export function SuperadminTenants() {
   const [tenants, setTenants] = useState<Tenant[]>([])
-  const [planLimits, setPlanLimits] = useState<Record<TenantPlanCode, ChannelPlanLimit>>({
+  const [planCatalog, setPlanCatalog] = useState<PlanCatalogEntry[]>([])
+  const [planLimits, setPlanLimits] = useState<Record<string, ChannelPlanLimit>>({
     starter: { ...defaultChannelPlanLimits.starter, updatedAt: "" },
     pro: { ...defaultChannelPlanLimits.pro, updatedAt: "" },
     enterprise: { ...defaultChannelPlanLimits.enterprise, updatedAt: "" },
@@ -114,12 +117,12 @@ export function SuperadminTenants() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data?.error || "Nao foi possivel carregar tenants.")
+        throw new Error(data?.error || "Nao foi possivel carregar clientes.")
       }
 
       setTenants(Array.isArray(data) ? data : [])
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Nao foi possivel carregar tenants.")
+      setError(loadError instanceof Error ? loadError.message : "Nao foi possivel carregar clientes.")
     } finally {
       setIsLoading(false)
     }
@@ -134,19 +137,19 @@ export function SuperadminTenants() {
 
     async function loadPlanLimits() {
       try {
-        const response = await fetch("/api/superadmin/channel-plan-limits", { cache: "no-store" })
+        const [response, plansResponse] = await Promise.all([
+          fetch("/api/superadmin/channel-plan-limits", { cache: "no-store" }),
+          fetch("/api/superadmin/billing/plans", { cache: "no-store" }),
+        ])
         const data = await response.json().catch(() => []) as ChannelPlanLimit[]
+        const plans = await plansResponse.json().catch(() => []) as PlanCatalogEntry[]
 
-        if (!response.ok || !Array.isArray(data) || !isMounted) {
+        if (!response.ok || !plansResponse.ok || !Array.isArray(data) || !Array.isArray(plans) || !isMounted) {
           return
         }
 
-        setPlanLimits({
-          starter: data.find((item) => item.planCode === "starter") ?? { ...defaultChannelPlanLimits.starter, updatedAt: "" },
-          pro: data.find((item) => item.planCode === "pro") ?? { ...defaultChannelPlanLimits.pro, updatedAt: "" },
-          enterprise: data.find((item) => item.planCode === "enterprise") ?? { ...defaultChannelPlanLimits.enterprise, updatedAt: "" },
-          custom: data.find((item) => item.planCode === "custom") ?? { ...defaultChannelPlanLimits.custom, updatedAt: "" },
-        })
+        setPlanLimits(Object.fromEntries(data.map((item) => [item.planCode, item])))
+        setPlanCatalog(plans)
       } catch {
         // keep defaults when the plan API is unavailable
       }
@@ -224,20 +227,20 @@ export function SuperadminTenants() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data?.error || "Nao foi possivel criar o tenant.")
+        throw new Error(data?.error || "Nao foi possivel criar o cliente.")
       }
 
       setTenants((current) => [data as Tenant, ...current].sort((left, right) => left.name.localeCompare(right.name, "pt-BR")))
       closeNewTenantModal()
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Nao foi possivel criar o tenant.")
+      setError(saveError instanceof Error ? saveError.message : "Nao foi possivel criar o cliente.")
     } finally {
       setIsSaving(false)
     }
   }
 
   async function removeTenant(tenant: Tenant) {
-    const shouldDelete = window.confirm(`Remover o tenant "${tenant.name}"? Esta acao nao remove dados de conversas ja existentes.`)
+    const shouldDelete = window.confirm(`Remover o cliente "${tenant.name}"? Esta acao nao remove dados de conversas ja existentes.`)
 
     if (!shouldDelete) {
       return
@@ -252,12 +255,12 @@ export function SuperadminTenants() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data?.error || "Nao foi possivel remover o tenant.")
+        throw new Error(data?.error || "Nao foi possivel remover o cliente.")
       }
 
       setTenants((current) => current.filter((item) => item.id !== tenant.id))
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Nao foi possivel remover o tenant.")
+      setError(deleteError instanceof Error ? deleteError.message : "Nao foi possivel remover o cliente.")
     }
   }
 
@@ -266,7 +269,7 @@ export function SuperadminTenants() {
       <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border bg-[var(--cf-chrome-bg,var(--background))] px-4 py-2 sm:px-8">
         <div className="mr-auto flex flex-col">
           <h1 className="text-sm font-semibold tracking-tight text-foreground">tenants</h1>
-          <p className="text-xs leading-none text-muted-foreground">plataforma · {stats.total} tenants</p>
+          <p className="text-xs leading-none text-muted-foreground">plataforma · {stats.total} clientes</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="h-8 text-xs">filters</Button>
@@ -286,7 +289,7 @@ export function SuperadminTenants() {
       {isNewModalOpen ? (
         <Modal onClose={closeNewTenantModal} className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto p-6 animate-in fade-in zoom-in duration-200">
             <div className="mb-6">
-              <h2 className="font-display text-xl font-bold">Novo Tenant</h2>
+              <h2 className="font-display text-xl font-bold">Novo cliente</h2>
               <p className="text-sm text-muted-foreground">Cadastre uma empresa real. Nenhum dado mockado sera criado.</p>
             </div>
 
@@ -320,26 +323,17 @@ export function SuperadminTenants() {
                   onChange={(event) => updateField("planCode", event.target.value as TenantPlanCode)}
                   className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  <option value="starter">Start</option>
-                  <option value="pro">Pro</option>
-                  <option value="enterprise">Advanced</option>
-                  <option value="custom">Personalizado</option>
+                  {planCatalog.map((plan) => <option key={plan.planCode} value={plan.planCode}>{plan.productName}</option>)}
                 </NativeSelect>
               </div>
 
+              {form.planCode === "custom" && <>
+                <label className="space-y-2 text-sm">Assinatura mensal (R$)<Input type="number" min={0} step="0.01" value={(form.customPlan?.priceCents ?? 0) / 100} onChange={event => updateField("customPlan", { tokensIncluded: form.customPlan?.tokensIncluded ?? 0, priceCents: Math.round(Number(event.target.value) * 100) })} /></label>
+                <label className="space-y-2 text-sm">Tokens por pagamento mensal<Input type="number" min={0} step={1} value={form.customPlan?.tokensIncluded ?? 0} onChange={event => updateField("customPlan", { priceCents: form.customPlan?.priceCents ?? 0, tokensIncluded: Number(event.target.value) })} /></label>
+              </>}
               <div className="space-y-2">
                 <label className="text-xs font-medium uppercase text-muted-foreground">Nicho</label>
-                <NativeSelect
-                  value={form.businessVertical}
-                  onChange={(event) => updateField("businessVertical", event.target.value as TenantCreateForm["businessVertical"])}
-                  className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="generic">Generico</option>
-                  <option value="decor">Decoracao</option>
-                  <option value="fashion">Moda</option>
-                  <option value="automotive">Automotivo</option>
-                  <option value="furniture">Moveis</option>
-                </NativeSelect>
+                <TenantNicheSelect value={form.businessVertical ?? "generic"} onChange={value => updateField("businessVertical", value)} className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm" />
               </div>
 
               <div className="space-y-2">
@@ -365,7 +359,7 @@ export function SuperadminTenants() {
                   autoComplete="email"
                   className="w-full rounded-md border border-input bg-muted/20 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
-                <p className="text-xs text-muted-foreground">Esse email sera o login inicial do tenant.</p>
+                <p className="text-xs text-muted-foreground">Esse email sera o login inicial do cliente.</p>
               </div>
 
               <div className="space-y-2">
@@ -446,7 +440,7 @@ export function SuperadminTenants() {
 
       <div className="flex items-center gap-3 px-7 py-4">
         {[
-          { label: "Tenants ativos", value: stats.active, note: `↑ ${stats.total - stats.active} no mês` },
+          { label: "Clientes ativos", value: stats.active, note: `↑ ${stats.total - stats.active} no mês` },
           { label: "Instâncias WhatsApp", value: "—", note: "—" },
           { label: "Jobs/dia", value: stats.compositions, note: "estável" },
           { label: "MRR", value: "—", note: "—" },
@@ -464,7 +458,7 @@ export function SuperadminTenants() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar tenants..."
+            placeholder="Buscar clientes..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             className="w-full rounded-md border border-input bg-secondary py-2 pl-10 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
@@ -477,7 +471,7 @@ export function SuperadminTenants() {
           <table className="w-full min-w-[920px] border-collapse">
             <thead>
               <tr className="border-b border-border bg-secondary">
-                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Tenant</th>
+                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Cliente</th>
                 <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Status</th>
                 <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Plano</th>
                 <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Estatisticas</th>
@@ -489,7 +483,7 @@ export function SuperadminTenants() {
                 <tr>
                   <td colSpan={5} className="px-5 py-14 text-center text-sm text-muted-foreground">
                     <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin text-primary" />
-                    Carregando tenants reais...
+                    Carregando clientes reais...
                   </td>
                 </tr>
               ) : null}
@@ -499,10 +493,10 @@ export function SuperadminTenants() {
                   <td colSpan={5} className="px-5 py-16 text-center">
                     <Building2 className="mx-auto mb-4 h-10 w-10 text-muted-foreground/50" />
                     <p className="font-display text-lg font-bold text-foreground">
-                      {tenants.length === 0 ? "Nenhum tenant cadastrado" : "Nenhum tenant encontrado"}
+                      {tenants.length === 0 ? "Nenhum cliente cadastrado" : "Nenhum cliente encontrado"}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {tenants.length === 0 ? "Cadastre o primeiro tenant real para iniciar os testes." : "Ajuste a busca para ver outros tenants."}
+                      {tenants.length === 0 ? "Cadastre o primeiro cliente real para iniciar os testes." : "Ajuste a busca para ver outros clientes."}
                     </p>
                   </td>
                 </tr>
@@ -511,8 +505,8 @@ export function SuperadminTenants() {
               {!isLoading && filtered.map((tenant) => {
                 const status = statusConfig[tenant.status]
                 const StatusIcon = status.icon
-                const plan = planLabels[tenant.planCode]
-                const planLimit = planLimits[tenant.planCode]?.conversationsLimit ?? defaultChannelPlanLimits[tenant.planCode].conversationsLimit
+                const plan = planLabels[tenant.planCode] ?? { label: planLimits[tenant.planCode]?.label ?? tenant.planCode, color: "bg-muted text-muted-foreground" }
+                const planLimit = planLimits[tenant.planCode]?.conversationsLimit ?? 0
                 const usagePct = planLimit > 0 ? Math.min(Math.round((tenant.stats.conversations / planLimit) * 100), 100) : 0
 
                 return (

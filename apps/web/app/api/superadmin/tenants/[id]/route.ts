@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import type { TenantInput } from "@/lib/tenant-types"
+import { updateTenantSettings } from "@/lib/server/tenant-settings-store"
 import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 import { deleteTenant, findTenant, updateTenant } from "@/lib/server/tenants-store"
 
@@ -37,12 +38,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params
     const payload = await request.json() as Partial<TenantInput>
+    const previous = await findTenant(id)
     const tenant = await updateTenant(id, payload)
 
     if (!tenant) {
       return NextResponse.json({ error: "Tenant nao encontrado." }, { status: 404 })
     }
 
+    if (payload.businessVertical && payload.businessVertical !== previous?.businessVertical) await updateTenantSettings(tenant.slug, { segmentation: { profile: tenant.businessVertical } })
     return NextResponse.json(tenant)
   } catch (error) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 400 })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getToken } from "next-auth/jwt"
+import { getCurrentTenantToken as getToken } from "@/lib/server/current-tenant-token"
 import { summarizeWhatsappAvailability } from "@/lib/tenant-channel-availability"
 import { checkStudioSurfaceAccess } from "@/lib/server/studio-surface-access"
 import { findTenant } from "@/lib/server/tenants-store"
