@@ -14,7 +14,6 @@ import {
   Save,
   ShieldCheck,
   Settings,
-  ChevronDown,
   X,
   Trash2,
 } from "@/components/spectrum/icons"
@@ -109,7 +108,6 @@ export default function SuperadminAiPage() {
   const [testResults, setTestResults] = useState<Record<string, AiProviderTestResult>>({})
   const [error, setError] = useState<string | null>(null)
 
-  const reviewModels = models.filter(model => model.inputModalities.includes("image") && model.outputModalities.includes("text"))
   const activeProvider = providers.find((provider) => provider.status === "active" && provider.apiKeyConfigured)
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
 
@@ -404,7 +402,7 @@ export default function SuperadminAiPage() {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-      <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 sm:px-7">
+      <div className="w-full space-y-8 px-4 py-6 sm:px-7">
         <section aria-labelledby="composition-models-title" className="space-y-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">Fluxo de composição</p>
@@ -430,136 +428,58 @@ export default function SuperadminAiPage() {
         <section aria-labelledby="model-settings-title" className="space-y-4">
           <div>
             <h2 id="model-settings-title" className="font-display text-lg font-semibold text-foreground">Modelos por etapa</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Composição, avaliação e atendimento. Expanda uma etapa para configurar.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Edite os modelos diretamente em cada linha e salve para aplicar.</p>
           </div>
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {orderedProfiles.map(profile => {
-              const model = modelsById.get(profile.modelId)
-              return (
-                <li key={profile.id}>
-                  <details className="group">
-                    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 rounded-xl px-4 py-5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&::-webkit-details-marker]:hidden sm:px-5">
-                      <div className="min-w-0 flex-1 basis-40">
-                        <h3 className="text-sm font-semibold text-foreground">{purposeLabel[profile.purpose]}</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">{profile.name}</p>
-                      </div>
-                      <span className="min-w-0 basis-full break-all text-sm text-muted-foreground sm:basis-auto sm:max-w-[45%]">{model?.name || profile.modelId}</span>
-                      <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", profile.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{profile.enabled ? "Ativo" : "Inativo"}</span>
-                      <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" />
-                    </summary>
-                    <div className="space-y-4 border-t border-border bg-muted/10 px-4 py-5 sm:px-5">
-                      {profile.purpose === "composition_review" ? <>
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div><h2 className="font-bold text-foreground font-display">Avaliação da imagem gerada</h2>
-                            <p className="mt-1 text-sm text-muted-foreground">Escolha quem verifica o resultado e se essa etapa será executada.</p>
-                          </div>
-                          <Button size="sm" disabled={savingProfileId === profile.id} onClick={() => void saveProfile(profile)}>{savingProfileId === profile.id ? "Salvando…" : "Salvar avaliação"}</Button>
-                        </div>
-                        <label className="flex items-center gap-2 text-sm font-medium">
-                          <input type="checkbox" role="switch" checked={profile.enabled} onChange={event => updateProfile(profile.id, { enabled: event.target.checked })} className="h-4 w-4 accent-primary" />
-                          Ativar avaliação da imagem gerada
-                        </label>
-                        <label className="block text-sm font-medium">Modelo avaliador
-                          <select value={profile.modelId} onChange={event => updateProfile(profile.id, { modelId: event.target.value })} className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                            {!reviewModels.some(model => model.id === profile.modelId) && <option value={profile.modelId}>{profile.modelId}</option>}
-                            {reviewModels.map(model => <option key={model.id} value={model.id}>{model.name} · {model.id}</option>)}
-                          </select>
-                        </label>
-                        <p className="text-sm text-muted-foreground">{profile.enabled ? "Ativada: compara a foto original, o pedido e o resultado. Só libera após aprovação; reprovações permitem até 3 tentativas de composição." : "Desativada: libera a imagem após a geração, sem análise nem correções automáticas dessa etapa."}</p>
-                        <p className="text-xs text-muted-foreground">Salve para aplicar. A avaliação e as novas tentativas têm custo no provedor. Sincronize os modelos para atualizar as opções com suporte a imagens.</p>
-
-                      </> : <>
-                        <div className="flex items-start justify-between gap-4">
-                          <p className="text-sm text-muted-foreground">{profile.notes || "Configure o modelo usado nesta etapa."}</p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-md"
-                            onClick={() => void saveProfile(profile)}
-                            disabled={savingProfileId === profile.id}
-                          >
-                            {savingProfileId === profile.id ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-2 h-3.5 w-3.5" />}
-                            Salvar
-                          </Button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                          <Field label="Modelo principal">
-                            <Input
-                              list={`openrouter-models-${profile.id}`}
-                              value={profile.modelId}
-                              onChange={(event) => updateProfile(profile.id, { modelId: event.target.value })}
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                            <datalist id={`openrouter-models-${profile.id}`}>
-                              {models.filter(model => isModelCompatible(model, profile.purpose)).map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
-                            </datalist>
-                            {models.some(model => model.id === profile.modelId && !isModelCompatible(model, profile.purpose)) && <p role="alert" className="mt-1 text-xs text-destructive">Este modelo não é compatível com a finalidade deste perfil.</p>}
-                          </Field>
-                          <Field label={profile.purpose === "image_generation" ? "Correções usam o modelo principal (até 3 tentativas)" : "Fallbacks (um por linha ou virgula)"}>
-                            <Textarea
-                              disabled={profile.purpose === "image_generation"}
-                              value={profile.purpose === "image_generation" ? "" : profile.fallbackModelIds.join("\n")}
-                              onChange={(event) => updateProfile(profile.id, {
-                                fallbackModelIds: event.target.value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean),
-                              })}
-                              className="h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </Field>
-                          <Field label="Temperatura">
-                            <Input
-                              type="number"
-                              min="0"
-                              max="2"
-                              step="0.1"
-                              value={profile.temperature}
-                              onChange={(event) => updateProfile(profile.id, { temperature: Number(event.target.value) })}
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </Field>
-                          <Field label="Max tokens">
-                            <Input
-                              type="number"
-                              min="1"
-                              value={profile.maxTokens}
-                              onChange={(event) => updateProfile(profile.id, { maxTokens: Number(event.target.value) })}
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </Field>
-                        </div>
-
-                        <label className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Input
-                            type="checkbox"
-                            checked={profile.enabled}
-                            onChange={(event) => updateProfile(profile.id, { enabled: event.target.checked })}
-                            className="h-4 w-4 rounded-md border-border"
-                          />
-                          Perfil habilitado
-                        </label>
-
-                        {model && (
-                          <div className="mt-4 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-                            <p className="font-bold text-foreground">{model.name}</p>
-                            <p className="mt-1">
-                              Contexto: {model.contextLength || "n/d"} | Entrada: {model.inputModalities.join(", ") || "n/d"} | Saida: {model.outputModalities.join(", ") || "n/d"}
-                            </p>
-                            <p className="mt-1">
-                              Preco prompt: {model.promptPrice || "n/d"} | completion: {model.completionPrice || "n/d"}
-                            </p>
-                          </div>
-                        )}
-
-                      </>}
-                    </div>
-                  </details>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <caption className="sr-only">Configurações editáveis dos modelos por etapa</caption>
+              <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
+                <tr>{["Etapa", "Modelo", "Contingência", "Temperatura", "Tokens", "Ativo", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {orderedProfiles.map(profile => {
+                  const compatibleModels = models.filter(model => isModelCompatible(model, profile.purpose))
+                  const selectedModel = modelsById.get(profile.modelId)
+                  const isReviewer = profile.purpose === "composition_review"
+                  const generation = profile.purpose === "image_generation"
+                  const imageOnly = generation && selectedModel?.imageEndpoint
+                  const label = purposeLabel[profile.purpose]
+                  return (
+                    <tr key={profile.id} aria-label={label} className="hover:bg-muted/20">
+                      <th scope="row" className="w-[15%] whitespace-nowrap px-3 py-3 text-sm font-medium" title={profile.notes}>{label}</th>
+                      <td className="w-[30%] px-3 py-3">
+                        <select aria-label={`Modelo — ${label}`} value={profile.modelId} onChange={event => updateProfile(profile.id, { modelId: event.target.value })} className="h-8 w-full min-w-48 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                          {!compatibleModels.some(model => model.id === profile.modelId) && <option value={profile.modelId}>{profile.modelId}</option>}
+                          {compatibleModels.map(model => <option key={model.id} value={model.id}>{model.name} · {model.id}</option>)}
+                        </select>
+                        {selectedModel && !isModelCompatible(selectedModel, profile.purpose) && <span role="alert" className="text-xs text-destructive">Modelo incompatível com esta etapa.</span>}
+                      </td>
+                      <td className="w-[22%] px-3 py-3">
+                        {generation ? <span className="whitespace-nowrap text-xs text-muted-foreground" title="As correções usam o modelo selecionado; com avaliação ativa, são permitidas até três tentativas.">Mesmo modelo</span> : <input aria-label={`Contingência — ${label}`} value={profile.fallbackModelIds.join(", ")} onChange={event => updateProfile(profile.id, { fallbackModelIds: event.target.value.split(/,|;/).map(item => item.trim()).filter(Boolean) })} placeholder="Sem contingência" className="h-8 w-full min-w-32 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />}
+                      </td>
+                      <td className="px-3 py-3">
+                        <input type="number" aria-label={`Temperatura — ${label}`} min="0" max="2" step="0.1" disabled={isReviewer || imageOnly} value={isReviewer ? 0 : profile.temperature} onChange={event => updateProfile(profile.id, { temperature: Number(event.target.value) })} title={isReviewer ? "A avaliação usa temperatura zero." : imageOnly ? "Este modelo de imagem não utiliza temperatura." : undefined} className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <input type="number" aria-label={`Tokens — ${label}`} min="1" max="128000" disabled={imageOnly} value={profile.maxTokens} onChange={event => updateProfile(profile.id, { maxTokens: Number(event.target.value) })} title={imageOnly ? "Este modelo de imagem não utiliza limite de tokens." : undefined} className="h-8 w-24 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <input type="checkbox" role="switch" aria-label={`Ativar — ${label}`} checked={profile.enabled} onChange={event => updateProfile(profile.id, { enabled: event.target.checked })} className="h-4 w-4 cursor-pointer accent-primary" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <Button asChild variant="outline" size="icon"><button type="button" aria-label={`Salvar — ${label}`} title="Salvar alterações desta etapa" disabled={savingProfileId === profile.id} onClick={() => void saveProfile(profile)}>{savingProfileId === profile.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}</button></Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">A avaliação ativa compara a foto original, o pedido e o resultado antes da liberação. Reprovações permitem até três tentativas, com custo no provedor. Desativá-la libera a imagem sem essa análise.</p>
         </section>
       </div>
 
-      <section className="mx-auto w-full max-w-6xl border-t border-border px-4 py-6 sm:px-7">
+      <section className="w-full border-t border-border px-4 py-6 sm:px-7">
         <div className="mb-5">
           <h2 className="font-semibold text-foreground font-display text-lg">Regras de segurança</h2>
           <p className="mt-1 text-sm text-muted-foreground">Regras de segurança aplicadas a todas as chamadas de IA da plataforma.</p>
