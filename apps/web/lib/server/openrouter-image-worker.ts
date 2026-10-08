@@ -21,6 +21,7 @@ import { getRuntimeGeneratedDir } from "@/lib/server/runtime-paths"
 
 type SegmentationTarget = "painted_wall" | "wall" | "floor" | "ceiling" | "foreground_objects" | "objects"
 import { getTenantSettings } from "@/lib/server/tenant-settings-store"
+import { compositionFidelityRule, verifyCompositionFidelity } from "@/lib/server/composition-fidelity"
 import { resolveWhatsAppMedia } from "@/lib/server/whatsapp-media"
 
 type OpenRouterImageChoice = {
@@ -90,6 +91,7 @@ const supportedAspectRatios = [
   { value: "21:9", ratio: 21 / 9 },
 ] as const
 const environmentStructureGuardrail = [
+  compositionFidelityRule,
   "REGRA OBRIGATORIA DE PRESERVACAO DO AMBIENTE:",
   "A IMAGEM 1, foto base/cena enviada pelo cliente, e o canvas obrigatorio da imagem final.",
   "A imagem final deve ser uma edicao da IMAGEM 1, nao uma edicao da referencia e nao uma imagem nova inspirada na referencia.",
@@ -1998,6 +2000,7 @@ export async function processCompositionWithOpenRouter(job: CompositionJob) {
     ...segmentation.promptHints,
   ].filter(Boolean).join("\n")
   const image = await generateImageWithOpenRouter(provider, job, baseImage, [buildPrompt(job, baseImage), segmentationPrompt].filter(Boolean).join("\n"))
+  await verifyCompositionFidelity(provider, job, baseImage.dataUrl, `data:${image.mimeType};base64,${image.bytes.toString("base64")}`)
   const resultImageUrl = await saveImageResult(job, image.bytes, image.mimeType, baseImage)
 
   return {
