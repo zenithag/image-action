@@ -289,9 +289,9 @@ export async function HomePage() {
                 <h2 className="mt-3 text-3xl font-semibold tracking-tight text-brand-blue sm:text-4xl">Escolha o formato para sua operação.</h2>
                 <p className="mt-4 text-muted-foreground">Conheça os planos habilitados e escolha a forma de contratação disponível para cada um.</p>
               </div>
-              <div className="mt-10 grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-10 flex flex-wrap items-stretch justify-center gap-5">
                 {publicPlans.map((plan) => (
-                  <article key={plan.planCode} className="flex min-w-0 flex-col rounded-2xl border border-border bg-white p-6 shadow-sm">
+                  <article key={plan.planCode} className="flex w-full min-w-0 flex-col rounded-2xl border border-border bg-white p-6 shadow-sm sm:w-[calc((100%_-_1.25rem)/2)] xl:w-[calc((100%_-_3.75rem)/4)]">
                     <h3 className="break-words text-xl font-semibold text-brand-blue">{plan.productName}</h3>
                     <p className="mt-3 min-h-12 break-words text-sm leading-6 text-muted-foreground">{plan.description}</p>
                     <p className="mt-6 break-words text-2xl font-semibold text-brand-blue">
