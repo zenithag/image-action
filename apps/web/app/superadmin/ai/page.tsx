@@ -2,7 +2,7 @@
 
 import { UserMenu } from "@/components/molecules/user-menu"
 import { Input, Textarea } from "@/components/spectrum/fields"
-import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react"
+import { Children, cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
   Bot,
@@ -19,7 +19,7 @@ import {
 } from "@/components/spectrum/icons"
 
 import { Button } from "@/components/ui/button"
-import { Dialog } from "radix-ui"
+import { Dialog, Popover } from "radix-ui"
 import type { AiGuardrailRecord } from "@/lib/ai-guardrail-types"
 import type {
   AiModelProfile,
@@ -93,6 +93,7 @@ async function requestJson<T>(url: string, init?: RequestInit) {
 
 export default function SuperadminAiPage() {
   const dialogContainer = useRef<HTMLDivElement>(null)
+  const modelTable = useRef<HTMLDivElement>(null)
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [providers, setProviders] = useState<SafeAiProvider[]>([])
   const [profiles, setProfiles] = useState<AiModelProfile[]>([])
@@ -434,11 +435,11 @@ export default function SuperadminAiPage() {
             <p className="mt-1 text-sm text-muted-foreground">Catálogo do OpenRouter filtrado por etapa. Edite em cada linha e salve para aplicar.</p>
             <p className="mt-1 text-xs text-muted-foreground">Entrada e saída em US$ e R$, com a unidade de cobrança. {exchangeRate ? `Conversão de referência: dólar venda BCB de ${exchangeRate.date}, US$ 1 = R$ ${exchangeRate.rate.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}.` : "Conversão em reais indisponível."} Preços variam por provedor e configuração.</p>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+          <div ref={modelTable} className="overflow-x-auto rounded-xl border border-border bg-card">
             <table className="w-full min-w-[1280px] text-left text-sm">
               <caption className="sr-only">Configurações editáveis dos modelos por etapa</caption>
               <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                <tr>{["Etapa", "Modelo", "Entrada", "Saída", "Contingência", "Temperatura", "Tokens", "Ativo", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}</th>)}</tr>
+                <tr>{["Etapa", "Modelo", "Entrada", "Saída", "Contingência", "Temperatura", "Tokens", "Ativo", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}{["Entrada", "Saída"].includes(label) && <span className="mt-1 block text-[10px] font-normal">US$ / R$ · por 1 milhão de tokens*</span>}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {orderedProfiles.map(profile => {
@@ -448,19 +449,13 @@ export default function SuperadminAiPage() {
                   const generation = profile.purpose === "image_generation"
                   const imageOnly = generation && selectedModel?.imageEndpoint
                   const label = purposeLabel[profile.purpose]
-                  const pricesFor = (model: OpenRouterModelSummary) => formatModelPrices({ ...model, imageEndpoint: generation && model.imageEndpoint }, exchangeRate)
+                  const pricesFor = (model: OpenRouterModelSummary) => formatModelPrices({ ...model, imageEndpoint: generation && model.imageEndpoint }, exchangeRate, true)
                   const prices = selectedModel ? pricesFor(selectedModel) : { input: "Não informado", output: "Não informado" }
                   return (
                     <tr key={profile.id} aria-label={label} className="hover:bg-muted/20">
                       <th scope="row" className="w-[15%] whitespace-nowrap px-3 py-3 text-sm font-medium" title={profile.notes}>{label}</th>
                       <td className="max-w-80 px-3 py-3">
-                        <select aria-label={`Modelo — ${label}`} value={profile.modelId} onChange={event => updateProfile(profile.id, { modelId: event.target.value })} className="h-8 w-full min-w-48 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                          {!compatibleModels.some(model => model.id === profile.modelId) && <option disabled value={profile.modelId}>{profile.modelId} · indisponível ou incompatível</option>}
-                          {compatibleModels.map(model => {
-                            const price = pricesFor(model)
-                            return <option key={model.id} value={model.id}>{model.name} · {model.id} · Entrada: {price.input} · Saída: {price.output}</option>
-                          })}
-                        </select>
+                        <ModelPicker label={label} value={profile.modelId} models={compatibleModels} pricesFor={pricesFor} onChange={modelId => updateProfile(profile.id, { modelId })} container={dialogContainer.current} table={modelTable.current} />
                         {selectedModel && !isModelCompatible(selectedModel, profile.purpose) && <span role="alert" className="text-xs text-destructive">Modelo incompatível com esta etapa.</span>}
                       </td>
                       <td className="min-w-44 max-w-56 px-3 py-3 text-xs text-muted-foreground">{prices.input}</td>
@@ -486,7 +481,7 @@ export default function SuperadminAiPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted-foreground">A avaliação ativa compara a foto original, o pedido e o resultado antes da liberação. Reprovações permitem até três tentativas, com custo no provedor. Desativá-la libera a imagem sem essa análise.</p>
+          <p className="text-xs text-muted-foreground">* Cobranças por imagem ou megapixel indicam sua unidade junto ao valor. A avaliação ativa compara a foto original, o pedido e o resultado antes da liberação. Reprovações permitem até três tentativas, com custo no provedor. Desativá-la libera a imagem sem essa análise.</p>
         </section>
       </div>
 
@@ -520,6 +515,48 @@ export default function SuperadminAiPage() {
 
     </div>
   )
+}
+
+function ModelPicker({ label, value, models, pricesFor, onChange, container, table }: {
+  label: string; value: string; models: OpenRouterModelSummary[]
+  pricesFor: (model: OpenRouterModelSummary) => { input: string; output: string }
+  onChange: (value: string) => void; container: HTMLDivElement | null; table: HTMLDivElement | null
+}) {
+  const listId = useId()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const [active, setActive] = useState(0)
+  const [height, setHeight] = useState(320)
+  const list = useRef<HTMLDivElement>(null)
+  const filtered = models.filter(model => `${model.name} ${model.id}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const selected = models.find(model => model.id === value)
+  useEffect(() => { list.current?.children[active]?.scrollIntoView({ block: "nearest" }) }, [active, query])
+  const select = (model: OpenRouterModelSummary) => { onChange(model.id); setOpen(false) }
+  return <Popover.Root open={open} onOpenChange={next => {
+    setOpen(next)
+    if (next) { setQuery(""); setActive(Math.max(0, models.findIndex(model => model.id === value))); setHeight(table?.getBoundingClientRect().height || 320) }
+  }}>
+    <Popover.Trigger asChild><button type="button" role="combobox" aria-label={`Modelo — ${label}`} aria-expanded={open} aria-controls={listId} className="flex h-8 w-full min-w-48 items-center justify-between gap-2 rounded-md border border-input bg-background px-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      <span className="truncate" title={selected?.id || value}>{selected?.name || value}</span><span aria-hidden="true">⌄</span>
+    </button></Popover.Trigger>
+    <Popover.Portal container={container}><Popover.Content align="start" sideOffset={4} aria-label={`Escolher modelo — ${label}`} style={{ width: "var(--radix-popover-trigger-width)", maxHeight: `min(${height}px, var(--radix-popover-content-available-height))` }} className="z-50 flex min-h-0 flex-col overflow-hidden rounded-md border border-border bg-card text-foreground shadow-lg">
+      <div className="shrink-0 border-b border-border p-2"><input aria-label={`Buscar modelos — ${label}`} role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={filtered[active] ? `${listId}-${active}` : undefined} value={query} onChange={event => { setQuery(event.target.value); setActive(0) }} placeholder="Buscar nome ou identificador…" className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onKeyDown={event => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActive(index => Math.max(0, Math.min(filtered.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))) }
+        if (event.key === "Enter" && filtered[active]) { event.preventDefault(); select(filtered[active]) }
+      }} /></div>
+      <div ref={list} id={listId} role="listbox" aria-label={`Modelos compatíveis — ${label}`} className="min-h-0 overflow-y-auto overscroll-contain p-1">
+        {filtered.map((model, index) => {
+          const prices = pricesFor(model)
+          return <button key={model.id} id={`${listId}-${index}`} role="option" aria-selected={model.id === value} tabIndex={-1} type="button" onMouseMove={() => setActive(index)} onClick={() => select(model)} className={cn("block w-full rounded px-2 py-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", active === index ? "bg-muted" : "hover:bg-muted/50")}>
+            <span className="block break-words font-medium">{model.name}</span>
+            <span className="block break-all text-[10px] text-muted-foreground">{model.id}</span>
+            <span className="mt-1 block break-words text-[10px] text-muted-foreground">Entrada: {prices.input} · Saída: {prices.output}</span>
+          </button>
+        })}
+        {!filtered.length && <p role="status" className="px-2 py-3 text-xs text-muted-foreground">Nenhum modelo compatível encontrado.</p>}
+      </div>
+    </Popover.Content></Popover.Portal>
+  </Popover.Root>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

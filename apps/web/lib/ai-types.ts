@@ -74,8 +74,8 @@ export function isModelCompatible(model: OpenRouterModelSummary, purpose: AiMode
 
 export type UsdBrlExchangeRate = { rate: number; date: string }
 
-export function formatModelPrices(model: OpenRouterModelSummary, exchange?: UsdBrlExchangeRate | null) {
-  const money = (value: number, currency: "USD" | "BRL") => new Intl.NumberFormat("pt-BR", { style: "currency", currency, currencyDisplay: "symbol", minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(value)
+export function formatModelPrices(model: OpenRouterModelSummary, exchange?: UsdBrlExchangeRate | null, compact = false) {
+  const money = (value: number, currency: "USD" | "BRL") => new Intl.NumberFormat("pt-BR", { style: "currency", currency, currencyDisplay: "symbol", minimumFractionDigits: 2, maximumFractionDigits: currency === "BRL" ? 2 : 6 }).format(value)
   function side(direction: "input" | "output") {
     const tokenPrice = direction === "input" ? model.promptPrice : model.completionPrice
     const lines = model.imageEndpoint ? (model.imagePricing || []).filter(line => line.billable.startsWith(`${direction}_`)) : tokenPrice !== undefined && tokenPrice.trim() !== "" ? [{ billable: `${direction}_text`, unit: "token", cost_usd: Number(tokenPrice) }] : []
@@ -90,7 +90,8 @@ export function formatModelPrices(model: OpenRouterModelSummary, exchange?: UsdB
     return [...groups].map(([label, values]) => {
       const low = Math.min(...values), high = Math.max(...values)
       const range = (currency: "USD" | "BRL", rate: number) => `${money(low * rate, currency)}${high !== low ? `–${money(high * rate, currency)}` : ""}`
-      return `${range("USD", 1)} / ${exchange && Number.isFinite(exchange.rate) && exchange.rate > 0 ? range("BRL", exchange.rate) : "R$ indisponível"} por ${label}`
+      const unit = compact && label.startsWith("1M tokens") ? groups.size === 1 && !label.includes(",") ? "" : ` ${label.replace("1M tokens", "").trim()}` : ` por ${label}`
+      return `${range("USD", 1)} / ${exchange && Number.isFinite(exchange.rate) && exchange.rate > 0 ? range("BRL", exchange.rate) : "R$ indisponível"}${unit}`
     }).join("; ") || "Não informado"
   }
   return { input: side("input"), output: side("output") }

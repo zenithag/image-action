@@ -13,7 +13,7 @@ async page => {
     if (path.endsWith('/ai/providers')) body = [{ id: 'test', name: 'Conta de teste', status: 'active', provider:'openrouter', apiKeyConfigured:true, health:'ok', baseUrl:'https://openrouter.ai/api/v1', lastRemainingCreditsUsd:10, notes:'' }];
     if (path.endsWith('/ai/profiles')) body = profiles;
     if (path.endsWith('/ai/guardrails')) body = guardrails;
-    if (path.endsWith('/ai/models')) body = { providerId:'test', models };
+    if (path.endsWith('/ai/models')) body = { providerId:'test', models, exchangeRate:{rate:5,date:'08/10/2026'} };
     if (route.request().method() === 'PATCH') { const payload = route.request().postDataJSON(); writes.push({path,payload}); body = {...profiles.find(p => path.endsWith('/'+p.id)), ...payload}; }
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
@@ -31,6 +31,28 @@ async page => {
   check(topBox.y < settingsBox.y, 'active models must precede configurations');
   check(await page.locator('#model-settings-title').evaluate(node=>node.closest('section').querySelectorAll('details').length === 0), 'editing must not require expanding a row');
   check(await page.getByLabel('Modelo — Atendimento',{exact:true}).isVisible(), 'model selection must be directly visible');
+  const picker = page.getByRole('combobox',{name:'Modelo — Leitura da imagem',exact:true});
+  await picker.click();
+  const search = page.getByRole('combobox',{name:'Buscar modelos — Leitura da imagem',exact:true});
+  await search.waitFor();
+  const popup = page.getByLabel('Escolher modelo — Leitura da imagem',{exact:true});
+  const pickerBox = await picker.boundingBox(), popupBox = await popup.boundingBox();
+  const tableBox = await page.locator('section[aria-labelledby="model-settings-title"] table').boundingBox();
+  check(Math.abs(popupBox.width-pickerBox.width)<2, 'popup width must match its trigger');
+  check(popupBox.height<=tableBox.height+2, 'popup height must not exceed the table');
+  await search.fill('GPT-4O');
+  check(await page.getByRole('option').count()===1, 'case-insensitive name search filters choices');
+  await search.fill('missing-model');
+  check(await page.getByText('Nenhum modelo compatível encontrado.',{exact:true}).isVisible(), 'empty search is announced');
+  await search.fill('openai/gpt-4o');
+  await search.press('ArrowDown');
+  await search.press('Enter');
+  await search.waitFor({state:'hidden'});
+  check(await picker.evaluate(node=>node===document.activeElement), 'keyboard selection returns focus');
+  await picker.click();
+  await search.waitFor();
+  await search.press('Escape');
+  await search.waitFor({state:'hidden'});
   await page.screenshot({path:'/tmp/comofica-ai-layout-desktop.png'});
   const trigger = page.getByRole('button',{name:'Configurar OpenRouter',exact:true});
   await trigger.click();

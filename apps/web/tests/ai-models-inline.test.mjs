@@ -13,14 +13,14 @@ test('each profile renders all editable controls inline without disclosure, pres
   const typesSource = await readFile(new URL('../lib/ai-types.ts', import.meta.url),'utf8')
   const types = {}
   runInNewContext(ts.transpileModule(typesSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:types})
-  let state = 0
-  const hooks = {...React,useState:initial=>{const index=state++;return [index===2?profiles:index===3?models:index===4?guardrails:index===6?false:index===15?{rate:5,date:'08/10/2026'}:initial,()=>{}]},useEffect:()=>{},useRef:()=>({current:null}),useMemo:fn=>fn()}
+  let state = 0, pickerQuery = null
+  const hooks = {...React,useState:initial=>{const index=state++;if(pickerQuery !== null) return [index===0?true:index===1?pickerQuery:initial,()=>{}];return [index===2?profiles:index===3?models:index===4?guardrails:index===6?false:index===15?{rate:5,date:'08/10/2026'}:initial,()=>{}]},useEffect:()=>{},useRef:()=>({current:null}),useMemo:fn=>fn()}
   const button = ({asChild,children,...props})=>asChild?React.cloneElement(children,props):React.createElement('button',props,children)
   const fragment = ({children})=>children
   const exports = {}
   const source = await readFile(new URL('../app/superadmin/ai/page.tsx', import.meta.url),'utf8')
-  runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{
-    exports,require:name=>name==='react'?hooks:name==='react/jsx-runtime'?require(name):name==='radix-ui'?{Dialog:{Root:fragment,Trigger:fragment,Portal:()=>null}}:name.endsWith('ai-types')?types:name.endsWith('utils')?{cn:(...args)=>args.filter(Boolean).join(' ')}:name.endsWith('/button')?{Button:button}:name.endsWith('/fields')?{Input:'input',Textarea:'textarea'}:name.endsWith('user-menu')?{UserMenu:()=>null}:new Proxy({}, {get:()=>()=>null}),
+  runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText + '\nexports.ModelPicker = ModelPicker;',{
+    exports,require:name=>name==='react'?hooks:name==='react/jsx-runtime'?require(name):name==='radix-ui'?{Dialog:{Root:fragment,Trigger:fragment,Portal:()=>null},Popover:{Root:fragment,Trigger:fragment,Portal:fragment,Content:({children,sideOffset,...props})=>React.createElement('div',props,children)}}:name.endsWith('ai-types')?types:name.endsWith('utils')?{cn:(...args)=>args.filter(Boolean).join(' ')}:name.endsWith('/button')?{Button:button}:name.endsWith('/fields')?{Input:'input',Textarea:'textarea'}:name.endsWith('user-menu')?{UserMenu:()=>null}:new Proxy({}, {get:()=>()=>null}),
   })
   const html = renderToStaticMarkup(exports.default())
   assert.ok(!html.includes('<details') && !html.includes('<summary'))
@@ -28,16 +28,29 @@ test('each profile renders all editable controls inline without disclosure, pres
   for (const label of ['Leitura da imagem','Preparação do prompt','Geração da composição','Avaliação de composição','Interpretação da conversa','Atendimento']) {
     for (const control of ['Modelo','Temperatura','Tokens','Ativar','Salvar']) assert.ok(html.includes(`aria-label="${control} — ${label}"`),`${control} is present for ${label}`)
   }
-  assert.equal((html.match(/<select /g)||[]).length,profiles.length)
+  assert.equal((html.match(/aria-label="Modelo — /g)||[]).length,profiles.length)
   const section = html.slice(html.indexOf('<tbody'),html.indexOf('</tbody>'))
   assert.ok(section.indexOf('Leitura da imagem') < section.indexOf('Geração da composição'))
   assert.match(html,/aria-label="Ativar — Avaliação de composição"[^>]*checked=""/)
   assert.match(html,/Mesmo modelo/)
   assert.ok(!html.includes('API key'))
-  const generationSelect = html.match(/<select aria-label="Modelo — Geração da composição"[^>]*>(.*?)<\/select>/s)[1]
+  const generationSelect = html.match(/role="listbox" aria-label="Modelos compatíveis — Geração da composição"[^>]*>(.*?)<\/div>/s)[1]
   assert.ok(generationSelect.includes('image/model') && !generationSelect.includes('text/model'))
   assert.match(generationSelect, /Saída: US\$.*R\$.*por imagem/)
   assert.match(html, /dólar venda BCB de 08\/10\/2026/)
   assert.match(html, /sm:flex-row sm:items-center sm:gap-4/)
   assert.match(html, /Regra sintética/)
+  assert.match(html, /Buscar modelos — Geração da composição/)
+  assert.match(html, /--radix-popover-trigger-width/)
+  assert.match(html, /--radix-popover-content-available-height/)
+  assert.match(html, /por 1 milhão de tokens/)
+  assert.ok(!html.includes('por 1M tokens'))
+  for (const [query, expected] of [[' IMAGE/MODEL ', 'Image model'], ['Text model', 'Text model'], ['missing-model', 'Nenhum modelo compatível encontrado.']]) {
+    state = 0; pickerQuery = query
+    const filtered = renderToStaticMarkup(React.createElement(exports.ModelPicker,{label:'Teste',value:'text/model',models,pricesFor:model=>types.formatModelPrices(model,{rate:5,date:'08/10/2026'},true),onChange:()=>{},container:null,table:null}))
+    const list = filtered.slice(filtered.indexOf('role="listbox"'))
+    assert.ok(list.includes(expected))
+    if(query.includes('IMAGE')) assert.ok(!list.includes('Text model'))
+    if(query==='Text model') assert.ok(!list.includes('Image model'))
+  }
 })
