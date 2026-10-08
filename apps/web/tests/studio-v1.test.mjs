@@ -882,10 +882,21 @@ test("English preset briefings preserve the photograph and distinguish furniture
   assert.match(restored, /newly completed and freshly finished/)
   assert.match(restored, /peeling paint.*cracks.*grime.*mold marks.*water stains.*damp patches/)
   assert.match(restored, /preserving their material, pattern, color and shape/)
+  assert.match(restored, /remove soot.*visible signs of water infiltration/)
+  assert.match(restored, /Clean dirty glazing.*retaining the actual exterior scene, glass, frames/)
   const removed = buildStudioPresetsInput("test", base, ["remove-furniture"], { strength: 72, removeFixedFurniture: true }).prompt
   assert.match(removed, /masonry counters, structural or masonry-integrated countertops, half-walls, pillars, stairs/)
   assert.match(removed, /when uncertain, preserve the element/)
   assert.match(removed, /Reconstruct only the newly exposed wall\/floor surfaces/)
+  for (const removeFixedFurniture of [false, true]) {
+    const removal = buildStudioPresetsInput("test", base, ["remove-furniture"], { strength: 72, removeFixedFurniture }).prompt
+    assert.match(removal, /small pots, potted plants and ornaments on windowsills, shelves and counters/)
+    assert.match(removal, /keep windows, sills, radiators and fixed outdoor vegetation/)
+    assert.match(removal, /Remove their object-dependent shadows\/reflections/)
+    assert.match(removal, /loose outdoor objects obstructing the view through glass doors\/windows/)
+    assert.match(removal, /keep glazing, reflections and exterior structures/)
+    assert.match(removal, /not an invented landscape/)
+  }
   const combined = buildStudioPresetsInput("test", base, STUDIO_PRESET_ORDER, { strength: 72, removeFixedFurniture: true, includeCeiling: true })
   assert.ok(combined.prompt.length <= 5000)
   assert.equal(combined.presetIds.length, 7)

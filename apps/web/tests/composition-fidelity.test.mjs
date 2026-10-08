@@ -40,6 +40,17 @@ test('a rejection feeds corrections to the next generation and only the approved
   assert.deepEqual(attempts, [{issues:[], attempt:1}, {issues:reject.issues, attempt:2}])
 })
 
+test('third candidate retains both earlier correction sets without duplicate issues', async () => {
+  const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
+  const prompts = []
+  const result = await fidelity.composeWithFidelityReview(async (issues, attempt) => {
+    prompts.push(Array.from(issues))
+    return attempt
+  }, async (_, attempt) => fidelity.parseCompositionReview(JSON.stringify(attempt === 1 ? {...reject, issues:['Remove pots from the left windowsill.']} : attempt === 2 ? {...reject, issues:['Repair floor texture.', 'Remove pots from the left windowsill.']} : pass)))
+  assert.equal(result, 3)
+  assert.deepEqual(prompts, [[], ['Remove pots from the left windowsill.'], ['Remove pots from the left windowsill.', 'Repair floor texture.']])
+})
+
 test('three rejected candidates exhaust the budget; broken reviewer stops after one', async () => {
   const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
   let generations = 0
@@ -106,6 +117,10 @@ test('dedicated reviewer sees original, result, request and references, and reco
       assert.match(instructions, /its location, the violated request\/protection and the correction/)
       assert.match(instructions, /If a criterion cannot be confirmed, mark uncertain/)
       assert.match(instructions, /Write issue descriptions in Brazilian Portuguese/)
+      assert.match(instructions, /do not require those object-dependent effects to remain/)
+      assert.match(instructions, /protecting their supporting architecture does not protect the loose objects/)
+      assert.match(instructions, /loose outdoor obstructions visible through glass/)
+      assert.match(instructions, /preserving glass, frames, exterior structures and fixed vegetation/)
       assert.match(input.messages[1].content[0].text, /paint and remove cabinets/)
       assert.deepEqual(Array.from(input.messages[1].content.filter(part => part.image_url), part => part.image_url.url), ['base', 'result', 'material'])
       return {content:JSON.stringify(reject), model:'reviewer', raw:{usage:{cost:0.01}}}
@@ -169,7 +184,11 @@ test('actual worker reviews both render paths, regenerates from original and sav
           assert.equal(actualBase, base)
           assert.match(prompt, /paint and remove furniture/)
           assert.match(prompt, /half wall/)
-          if (reviews) assert.match(prompt, /Restore the half wall/)
+          if (reviews) {
+            assert.match(prompt, /Restore the half wall/)
+            assert.match(prompt, /CUMULATIVE REVIEW CORRECTIONS/)
+            assert.match(prompt, /Edit the ORIGINAL photograph again/)
+          }
           generations++
           return {bytes:Buffer.from('generated'), mimeType:'image/png', model:'selected'}
         },
