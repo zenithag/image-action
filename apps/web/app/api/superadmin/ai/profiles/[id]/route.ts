@@ -26,9 +26,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Perfil de modelo nao encontrado." }, { status: 404 })
   }
 
-  const updatedProfile = updateAiModelProfile(profile, payload || {})
-
+  let updatedProfile
   try {
+    updatedProfile = updateAiModelProfile(profile, payload || {})
     await validateAiModelProfile(updatedProfile)
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível validar o modelo." }, { status: 400 })

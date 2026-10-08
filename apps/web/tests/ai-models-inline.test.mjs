@@ -33,6 +33,8 @@ test('each profile renders all editable controls inline without disclosure, pres
   assert.ok(section.indexOf('Leitura da imagem') < section.indexOf('Geração da composição'))
   assert.match(html,/aria-label="Ativar — Avaliação de composição"[^>]*checked=""/)
   assert.match(html,/Mesmo modelo/)
+  assert.match(html,/aria-label="Máximo de tentativas — Avaliação de composição"[^>]*min="1"[^>]*max="3"[^>]*value="3"/)
+  assert.equal((html.match(/aria-label="Máximo de tentativas — /g)||[]).length,1)
   assert.ok(!html.includes('API key'))
   const generationSelect = html.match(/role="listbox" aria-label="Modelos compatíveis — Geração da composição"[^>]*>(.*?)<\/div>/s)[1]
   assert.ok(generationSelect.includes('image/model') && !generationSelect.includes('text/model'))

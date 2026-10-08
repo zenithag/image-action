@@ -40,6 +40,17 @@ test('a rejection feeds corrections to the next generation and only the approved
   assert.deepEqual(attempts, [{issues:[], attempt:1}, {issues:reject.issues, attempt:2}])
 })
 
+test('third candidate retains both earlier correction sets without duplicate issues', async () => {
+  const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
+  const prompts = []
+  const result = await fidelity.composeWithFidelityReview(async (issues, attempt) => {
+    prompts.push(Array.from(issues))
+    return attempt
+  }, async (_, attempt) => fidelity.parseCompositionReview(JSON.stringify(attempt === 1 ? {...reject, issues:['Remove pots from the left windowsill.']} : attempt === 2 ? {...reject, issues:['Repair floor texture.', 'Remove pots from the left windowsill.']} : pass)))
+  assert.equal(result, 3)
+  assert.deepEqual(prompts, [[], ['Remove pots from the left windowsill.'], ['Remove pots from the left windowsill.', 'Repair floor texture.']])
+})
+
 test('three rejected candidates exhaust the budget; broken reviewer stops after one', async () => {
   const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
   let generations = 0
@@ -53,6 +64,22 @@ test('three rejected candidates exhaust the budget; broken reviewer stops after 
   generations = 0
   await assert.rejects(fidelity.composeWithFidelityReview(async () => ++generations, async () => {throw new Error('provider unavailable')}), /provider unavailable/)
   assert.equal(generations, 1)
+})
+
+test('configured attempt limit blocks after one or two rejections and invalid budgets make no paid calls', async () => {
+  const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
+  for (const maxAttempts of [1,2]) {
+    let generations=0,reviews=0
+    await assert.rejects(fidelity.composeWithFidelityReview(async () => ++generations, async () => {reviews++;return fidelity.parseCompositionReview(JSON.stringify(reject))}, undefined, maxAttempts), new RegExp(`após ${maxAttempts} tentativa`))
+    assert.equal(generations,maxAttempts)
+    assert.equal(reviews,maxAttempts)
+  }
+  assert.equal(await fidelity.composeWithFidelityReview(async () => 'one', async () => fidelity.parseCompositionReview(JSON.stringify(pass)), undefined, 1),'one')
+  for (const maxAttempts of [0,4,1.5,NaN,null,'1']) {
+    let generations=0
+    await assert.rejects(fidelity.composeWithFidelityReview(async () => ++generations, async () => fidelity.parseCompositionReview(JSON.stringify(pass)), undefined, maxAttempts), /inválido/)
+    assert.equal(generations,0)
+  }
 })
 
 test('cancellation during review prevents regeneration or returning a result', async () => {
@@ -106,6 +133,10 @@ test('dedicated reviewer sees original, result, request and references, and reco
       assert.match(instructions, /its location, the violated request\/protection and the correction/)
       assert.match(instructions, /If a criterion cannot be confirmed, mark uncertain/)
       assert.match(instructions, /Write issue descriptions in Brazilian Portuguese/)
+      assert.match(instructions, /do not require those object-dependent effects to remain/)
+      assert.match(instructions, /protecting their supporting architecture does not protect the loose objects/)
+      assert.match(instructions, /loose outdoor obstructions visible through glass/)
+      assert.match(instructions, /preserving glass, frames, exterior structures and fixed vegetation/)
       assert.match(input.messages[1].content[0].text, /paint and remove cabinets/)
       assert.deepEqual(Array.from(input.messages[1].content.filter(part => part.image_url), part => part.image_url.url), ['base', 'result', 'material'])
       return {content:JSON.stringify(reject), model:'reviewer', raw:{usage:{cost:0.01}}}
@@ -146,13 +177,13 @@ async function workerEntry(globals) {
 test('actual worker reviews both render paths, regenerates from original and saves only after approval', async () => {
   const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
   for (const local of [false, true]) {
-    for (const approved of [false, true]) {
+    for (const [approved,maxAttempts] of [[false,1],[false,3],[true,3]]) {
       const job = {id:'job', tenantSlug:'test', baseImageUrl:'original', mode:'interior'}
       const base = {dataUrl:'original-pixels', bytes:Buffer.from('base'), mimeType:'image/png'}
       let saves = 0, reviews = 0, generations = 0
       const process = await workerEntry({
         getActiveOpenRouterProvider: async () => ({}),
-        readAiModelProfiles: async () => [{purpose:'composition_review', enabled:true}],
+        readAiModelProfiles: async () => [{purpose:'composition_review', enabled:true,maxCompositionAttempts:maxAttempts}],
         getBaseImage: async () => base,
         isDurableCompositionBaseImageUrl: () => true,
         getTenantSettings: async () => ({segmentation:{editableTargets:[], protectedTargets:['half wall'], promptHints:[]}}),
@@ -169,7 +200,11 @@ test('actual worker reviews both render paths, regenerates from original and sav
           assert.equal(actualBase, base)
           assert.match(prompt, /paint and remove furniture/)
           assert.match(prompt, /half wall/)
-          if (reviews) assert.match(prompt, /Restore the half wall/)
+          if (reviews) {
+            assert.match(prompt, /Restore the half wall/)
+            assert.match(prompt, /CUMULATIVE REVIEW CORRECTIONS/)
+            assert.match(prompt, /Edit the ORIGINAL photograph again/)
+          }
           generations++
           return {bytes:Buffer.from('generated'), mimeType:'image/png', model:'selected'}
         },
@@ -191,9 +226,9 @@ test('actual worker reviews both render paths, regenerates from original and sav
         assert.equal(saves, 1)
         assert.equal(reviews, 2)
       } else {
-        await assert.rejects(process(job), /após 3 tentativas/)
+        await assert.rejects(process(job), new RegExp(`após ${maxAttempts} tentativa`))
         assert.equal(saves, 0)
-        assert.equal(reviews, 3)
+        assert.equal(reviews, maxAttempts)
       }
       assert.equal(generations, reviews - (local ? 1 : 0))
     }
