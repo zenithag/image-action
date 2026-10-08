@@ -406,24 +406,19 @@ export default function SuperadminAiPage() {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-      <div className="w-full space-y-8 px-4 py-6 sm:px-7">
-        <section aria-labelledby="composition-models-title" className="space-y-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">Fluxo de composição</p>
-            <h2 id="composition-models-title" className="mt-1 font-display text-xl font-semibold text-foreground">Modelos ativos</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Da leitura da foto à aprovação do resultado.</p>
-          </div>
+      <div className="w-full space-y-5 px-4 py-4 sm:px-7">
+        <section aria-labelledby="composition-models-title" className="space-y-2">
+          <h2 id="composition-models-title" className="font-display text-base font-semibold text-foreground">Modelos ativos</h2>
           {isLoading ? <EmptyState title="Carregando modelos…" description="Buscando as configurações de IA." /> : compositionProfiles.length ? (
             <ol className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-              {compositionProfiles.map((profile, index) => (
-                <li key={profile.id} className="min-w-0 bg-card p-5">
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="font-mono text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-primary"><span className="h-1.5 w-1.5 rounded-full bg-primary" />Ativo</span>
+              {compositionProfiles.map(profile => (
+                <li key={profile.id} className="min-w-0 bg-card px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">{purposeLabel[profile.purpose]}</p>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Ativo" />
                   </div>
-                  <p className="text-xs text-muted-foreground">{purposeLabel[profile.purpose]}</p>
-                  <h3 className="mt-1 break-words text-sm font-semibold text-foreground">{modelsById.get(profile.modelId)?.name || profile.modelId}</h3>
-                  <p className="mt-2 break-all font-mono text-xs text-muted-foreground">{profile.modelId}</p>
+                  <h3 className="mt-1 truncate text-sm font-semibold text-foreground" title={modelsById.get(profile.modelId)?.name || profile.modelId}>{modelsById.get(profile.modelId)?.name || profile.modelId}</h3>
+                  {modelsById.get(profile.modelId)?.name && <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground" title={profile.modelId}>{profile.modelId}</p>}
                 </li>
               ))}
             </ol>
@@ -490,20 +485,21 @@ export default function SuperadminAiPage() {
           <h2 className="font-semibold text-foreground font-display text-lg">Regras de segurança</h2>
           <p className="mt-1 text-sm text-muted-foreground">Regras de segurança aplicadas a todas as chamadas de IA da plataforma.</p>
         </div>
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        <ul aria-label="Regras de segurança" className="flex flex-nowrap divide-x divide-border overflow-x-auto rounded-xl border border-border bg-card">
           {guardrails.map((guardrail) => (
-            <li key={guardrail.id}><button
+            <li key={guardrail.id} className="min-w-64 flex-1"><button
               role="switch"
               aria-checked={guardrail.enabled}
+              aria-label={guardrail.label}
+              aria-describedby={`guardrail-${guardrail.id}-description`}
+              title={guardrail.description}
               type="button"
               onClick={() => void toggleGuardrail(guardrail, !guardrail.enabled)}
               disabled={savingGuardrailId === guardrail.id}
               className="flex w-full items-center justify-between gap-4 px-3 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
-                <span className="shrink-0 text-sm font-medium text-foreground">{guardrail.label}</span>
-                <span className="truncate text-xs text-muted-foreground" title={guardrail.description}>{guardrail.description}</span>
-              </div>
+              <span className="whitespace-nowrap text-xs font-medium text-foreground">{guardrail.label}</span>
+              <span id={`guardrail-${guardrail.id}-description`} className="sr-only">{guardrail.description}</span>
               <span className={cn("relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors", guardrail.enabled ? "bg-primary" : "bg-muted")}>
                 <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white transition-transform", guardrail.enabled ? "translate-x-6" : "translate-x-1")} />
               </span>

@@ -9,7 +9,7 @@ const ts = require('typescript'), React = require('react'), { renderToStaticMark
 test('each profile renders all editable controls inline without disclosure, preserves model validation and uses the full available width', async () => {
   const profiles = ['conversation','image_generation','classification','composition_review','vision','image_prompt'].map(purpose=>({id:purpose,name:purpose,purpose,modelId:purpose==='image_generation'?'image/model':'text/model',fallbackModelIds:[],temperature:0.4,maxTokens:1200,enabled:true,notes:''}))
   const models = [{id:'text/model',name:'Text model',inputModalities:['image','text'],outputModalities:['text'],promptPrice:'0.000001',completionPrice:'0.000002'},{id:'image/model',name:'Image model',inputModalities:['image','text'],outputModalities:['image'],imageEndpoint:true,imagePricing:[{billable:'output_image',unit:'image',cost_usd:0.05}]}]
-  const guardrails = [{id:'test',label:'Regra sintética',description:'Descrição da regra',enabled:true}]
+  const guardrails = Array.from({length:6},(_,index)=>({id:`test-${index}`,label:`Regra sintética ${index}`,description:'Descrição da regra',enabled:true}))
   const typesSource = await readFile(new URL('../lib/ai-types.ts', import.meta.url),'utf8')
   const types = {}
   runInNewContext(ts.transpileModule(typesSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:types})
@@ -38,8 +38,14 @@ test('each profile renders all editable controls inline without disclosure, pres
   assert.ok(generationSelect.includes('image/model') && !generationSelect.includes('text/model'))
   assert.match(generationSelect, /Saída: US\$.*R\$.*por imagem/)
   assert.match(html, /dólar venda BCB de 08\/10\/2026/)
-  assert.match(html, /sm:flex-row sm:items-center sm:gap-4/)
+  assert.match(html, /aria-label="Regras de segurança" class="flex flex-nowrap divide-x/)
+  const activeModels = html.slice(html.indexOf('aria-labelledby="composition-models-title"'),html.indexOf('aria-labelledby="model-settings-title"'))
+  assert.ok(!activeModels.includes('>01<') && !activeModels.includes('>02<'))
+  assert.ok(!activeModels.includes('p-5'))
   assert.match(html, /Regra sintética/)
+  const rules = html.slice(html.indexOf('aria-label="Regras de segurança"'),html.indexOf('</ul>',html.indexOf('aria-label="Regras de segurança"')))
+  assert.equal((rules.match(/role="switch"/g)||[]).length,6)
+  assert.ok(!rules.includes('divide-y'))
   assert.match(html, /Buscar modelos — Geração da composição/)
   assert.match(html, /--radix-popover-trigger-width/)
   assert.match(html, /--radix-popover-content-available-height/)

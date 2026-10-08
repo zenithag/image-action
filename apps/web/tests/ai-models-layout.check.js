@@ -22,6 +22,10 @@ async page => {
   await page.reload({waitUntil:'domcontentloaded',timeout:60000});
   await page.getByRole('heading',{name:'Modelos ativos',exact:true}).waitFor();
   await page.locator('section[aria-labelledby="composition-models-title"] ol li').first().waitFor();
+  const security = page.getByRole('list',{name:'Regras de segurança',exact:true});
+  const ruleBoxes = await security.locator('li').evaluateAll(nodes=>nodes.map(node=>({top:node.getBoundingClientRect().top,left:node.getBoundingClientRect().left})));
+  check(ruleBoxes.every(box=>Math.abs(box.top-ruleBoxes[0].top)<1), 'all security rules must share one horizontal row');
+  check(await page.getByRole('link',{name:'Logs',exact:true}).isVisible(), 'sidebar uses compact Logs label');
   check(await page.getByLabel('API key',{exact:true}).count() === 0, 'provider credentials must be unmounted while dialog is closed');
   const stages = await page.locator('section[aria-labelledby="model-settings-title"] tbody th[scope="row"]').allTextContents();
   check(stages.join('|') === 'Leitura da imagem|Preparação do prompt|Geração da composição|Avaliação de composição|Interpretação da conversa|Atendimento|Modelo de contingência', 'profiles must follow semantic stage order');
