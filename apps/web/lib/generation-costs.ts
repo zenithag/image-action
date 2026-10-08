@@ -75,3 +75,21 @@ export function summarizeGenerationCosts(jobs: CompositionJob[]) {
     }
   }).sort((a, b) => b.jobs - a.jobs)
 }
+
+export function summarizeCompositionRequest(job: CompositionJob) {
+  const calls = job.generationUsage ?? []
+  return {
+    purpose: job.purpose ?? "composition",
+    originalPurpose: job.originalPurpose ?? (job.purpose === "studio-preset" ? "studio-preset" : null),
+    providerRequests: calls.length,
+    generations: calls.filter(call => call.kind === "generation").length,
+    reviews: calls.filter(call => call.kind === "review").length,
+    unclassified: calls.filter(call => !call.kind).length,
+    imagesReturned: calls.filter(call => call.kind === "generation" && call.outcome === "image").length,
+    rejections: calls.filter(call => call.kind === "review" && call.outcome === "rejected").length,
+    verifiedRequests: calls.filter(call => call.verifiedAt).length,
+    chargedRequests: calls.filter(call => typeof call.costUsd === "number" && call.costUsd > 0).length,
+    missingRequestIds: calls.filter(call => !call.requestId).length,
+    ...summarizeGenerationJobCost(job),
+  }
+}

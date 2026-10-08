@@ -55,6 +55,7 @@ const superadminNavItems: NavItem[] = [
   { href: "/superadmin", label: "Clientes", icon: Building2 },
   { href: "/superadmin/users", label: "Usuários", icon: Users },
   { href: "/superadmin/usage", label: "Uso & Custos", icon: BarChart3 },
+  { href: "/superadmin/logs", label: "Logs de composições", icon: Bot },
   { href: "/superadmin/channels", label: "Canais", icon: Zap },
   { href: "/superadmin/ai", label: "IA & Modelos", icon: Bot },
   { href: "/superadmin/billing", label: "Pagamentos", icon: CreditCard },

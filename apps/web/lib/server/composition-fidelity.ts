@@ -70,11 +70,16 @@ export async function verifyCompositionFidelity(provider: AiProvider, job: Compo
       ] },
     ],
   }).catch(async error => {
-    await recordCompositionGenerationUsage(job.tenantSlug, job.id, readGenerationUsage(null, profile.modelId))
+    await recordCompositionGenerationUsage(job.tenantSlug, job.id, { ...readGenerationUsage(null, profile.modelId), providerId: provider.id, kind: "review", attempt, outcome: "error" })
     throw error
   })
-  await recordCompositionGenerationUsage(job.tenantSlug, job.id, readGenerationUsage(result.raw, result.model))
-  const verdict = parseCompositionReview(result.content)
+  const usage = { ...readGenerationUsage(result.raw, result.model), providerId: provider.id, kind: "review" as const, attempt }
+  let verdict: ReturnType<typeof parseCompositionReview>
+  try { verdict = parseCompositionReview(result.content) } catch (error) {
+    await recordCompositionGenerationUsage(job.tenantSlug, job.id, { ...usage, outcome: "invalid-review" })
+    throw error
+  }
+  await recordCompositionGenerationUsage(job.tenantSlug, job.id, { ...usage, outcome: verdict.approved ? "approved" : "rejected", issues: verdict.issues })
   await recordAiTrace({ tenantSlug: job.tenantSlug, conversationId: job.conversationId, jobId: job.id, stage: "composition", status: verdict.approved ? "success" : "warning", event: verdict.approved ? "composition_review_approved" : "composition_review_rejected", details: { attempt, model: result.model, ...verdict } })
   return verdict
 }
