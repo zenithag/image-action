@@ -8,7 +8,8 @@ import sharp from "sharp"
 
 import { hasStudioPresetInstruction } from "@/lib/studio-v1"
 
-import type { AiProvider } from "@/lib/ai-types"
+import { isModelCompatible, type AiProvider } from "@/lib/ai-types"
+import { listOpenRouterModels } from "@/lib/server/openrouter-client"
 import type { CompositionJob, CompositionJobReference } from "@/lib/composition-types"
 import { getAiModelProfile, readAiModelProfiles } from "@/lib/server/ai-model-profiles-store"
 import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
@@ -37,6 +38,7 @@ type OpenRouterImageChoice = {
 type OpenRouterImageResponse = {
   id?: string
   model?: string
+  data?: Array<{ b64_json?: string; media_type?: string }>
   choices?: OpenRouterImageChoice[]
   error?: {
     message?: string
@@ -1742,6 +1744,9 @@ function getImageUrlFromPayload(payload: OpenRouterImageResponse | null) {
     return null
   }
 
+  const image = payload.data?.find(image => image.b64_json)
+  if (image?.b64_json) return `data:${image.media_type || "application/octet-stream"};base64,${image.b64_json}`
+
   for (const choice of payload.choices ?? []) {
     const message = choice.message
     const imageUrl = getImageUrlFromUnknown(message?.images) || getImageUrlFromUnknown(message?.content)
@@ -1871,11 +1876,27 @@ async function requestOpenRouterImage(
   signal?: AbortSignal,
   attempt = 1
 ) {
+  const selectedModel = (await listOpenRouterModels(provider)).find(item => item.id === model)
+  if (!selectedModel || !isModelCompatible(selectedModel, "image_generation")) throw new Error(`O modelo ${model} não suporta edição de imagem.`)
+  const imageConfig = getOpenRouterImageConfig(baseImage)
+  const parameters = selectedModel.imageParameters
+  const references = content.filter(part => part.type === "image_url").map(part => ({ type: "image_url", image_url: { url: (part.image_url as { url: string }).url } }))
+  if (selectedModel.imageEndpoint && parameters?.input_references?.max !== undefined && references.length > parameters.input_references.max) throw new Error(`O modelo ${model} aceita até ${parameters.input_references.max} imagens de referência; o pedido contém ${references.length}.`)
   const recordUsage = (payload: OpenRouterImageResponse | null, httpOk = true) => recordCompositionGenerationUsage(job.tenantSlug, job.id, { ...readGenerationUsage(payload, model), providerId: provider.id, kind: "generation", attempt, outcome: payload && httpOk && !payload.error ? getImageUrlFromPayload(payload) ? "image" : "no-image" : "error" }).catch(cause => { throw Object.assign(new Error("Não foi possível registrar o custo da geração.", { cause }), { name: "GenerationUsageStorageError" }) })
-  const response = await fetch(appendPath(provider.baseUrl, "/chat/completions"), {
+  const response = await fetch(appendPath(provider.baseUrl, selectedModel.imageEndpoint ? "/images" : "/chat/completions"), {
     method: "POST",
     headers: getOpenRouterHeaders(provider),
-    body: JSON.stringify({
+    body: JSON.stringify(selectedModel.imageEndpoint ? {
+      model,
+      prompt: content.filter(part => part.type === "text").map(part => part.text).join("\n"),
+      input_references: references,
+      n: 1,
+      aspect_ratio: parameters?.aspect_ratio?.values?.includes(imageConfig.aspect_ratio) ? imageConfig.aspect_ratio : undefined,
+      resolution: parameters?.resolution?.values?.includes(imageConfig.image_size) ? imageConfig.image_size : undefined,
+      quality: parameters?.quality?.values?.includes(imageConfig.quality) ? imageConfig.quality : undefined,
+      output_format: parameters?.output_format?.values?.includes(imageConfig.output_format) ? imageConfig.output_format : undefined,
+      user: job.tenantSlug,
+    } : {
       model,
       messages: [
         {
@@ -1884,7 +1905,7 @@ async function requestOpenRouterImage(
         },
       ],
       modalities: ["image", "text"],
-      image_config: getOpenRouterImageConfig(baseImage),
+      image_config: imageConfig,
       stream: false,
       temperature: profile?.temperature,
       max_tokens: profile?.maxTokens,

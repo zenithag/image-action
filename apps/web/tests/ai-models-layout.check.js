@@ -1,0 +1,64 @@
+// Run with playwright_cli.sh --session <local-session> run-code --filename apps/web/tests/ai-models-layout.check.js
+// Use a disposable local browser session on /superadmin/ai; all API responses and writes are synthetic.
+async page => {
+  const check = (condition, message) => { if (!condition) throw new Error(message); };
+  const purposes = ['conversation', 'image_generation', 'classification', 'composition_review', 'vision', 'image_prompt', 'fallback'];
+  const profiles = purposes.map(purpose => ({ id: purpose, name: purpose, purpose, provider: 'openrouter', modelId: purpose === 'image_generation' ? 'meta/muse-image' : 'openai/gpt-4o', fallbackModelIds: [], temperature: 0.2, maxTokens: 1200, enabled: purpose !== 'fallback', notes: 'Configuração de teste', createdAt: 'now', updatedAt: 'now' }));
+  const models = [{ id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', inputModalities: ['text','image'], outputModalities: ['text'] }, { id: 'meta/muse-image', name: 'Meta Muse Image', inputModalities: ['text','image'], outputModalities: ['image'] }];
+  const guardrails = [{ id: 'privacy', label: 'Privacidade dos dados', description: 'Protege dados da conversa.', enabled: true }];
+  const writes = [];
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    let body = null;
+    if (path.endsWith('/ai/providers')) body = [{ id: 'test', name: 'Conta de teste', status: 'active', provider:'openrouter', apiKeyConfigured:true, health:'ok', baseUrl:'https://openrouter.ai/api/v1', lastRemainingCreditsUsd:10, notes:'' }];
+    if (path.endsWith('/ai/profiles')) body = profiles;
+    if (path.endsWith('/ai/guardrails')) body = guardrails;
+    if (path.endsWith('/ai/models')) body = { providerId:'test', models };
+    if (route.request().method() === 'PATCH') { const payload = route.request().postDataJSON(); writes.push({path,payload}); body = {...profiles.find(p => path.endsWith('/'+p.id)), ...payload}; }
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await page.setViewportSize({width:1440,height:1000});
+  check(new URL(page.url()).pathname === '/superadmin/ai', 'Open the authenticated local /superadmin/ai view before running this check.');
+  await page.reload({waitUntil:'domcontentloaded',timeout:60000});
+  await page.getByRole('heading',{name:'Modelos ativos',exact:true}).waitFor();
+  await page.locator('section[aria-labelledby="composition-models-title"] ol li').first().waitFor();
+  check(await page.getByLabel('API key',{exact:true}).count() === 0, 'provider credentials must be unmounted while dialog is closed');
+  const stages = await page.locator('section[aria-labelledby="model-settings-title"] summary h3').allTextContents();
+  check(stages.join('|') === 'Leitura da imagem|Preparação do prompt|Geração da composição|Avaliação de composição|Interpretação da conversa|Atendimento|Modelo de contingência', 'profiles must follow semantic stage order');
+  check(await page.locator('section[aria-labelledby="composition-models-title"] ol li').count() === 4, 'top section shows only active composition stages');
+  const topBox = await page.locator('#composition-models-title').boundingBox();
+  const settingsBox = await page.locator('#model-settings-title').boundingBox();
+  check(topBox.y < settingsBox.y, 'active models must precede configurations');
+  await page.screenshot({path:'/tmp/comofica-ai-layout-desktop.png'});
+  const trigger = page.getByRole('button',{name:'Configurar OpenRouter',exact:true});
+  await trigger.click();
+  const dialog = page.getByRole('dialog',{name:'Configuração do OpenRouter'});
+  await dialog.waitFor();
+  check(await dialog.getByLabel('API key',{exact:true}).count() === 1, 'provider configuration is inside the dialog');
+  for (let i=0; i<12; i++) { await page.keyboard.press('Tab'); check(await dialog.evaluate(node=>node.contains(document.activeElement)), 'keyboard focus must stay within the dialog'); }
+  await page.screenshot({path:'/tmp/comofica-ai-modal-desktop.png'});
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({state:'hidden'});
+  check(await trigger.evaluate(node=>node===document.activeElement), 'Escape must return focus to the icon');
+  await page.locator('summary').filter({hasText:'Avaliação de composição'}).click();
+  const reviewer = page.getByRole('switch',{name:'Ativar avaliação da imagem gerada'});
+  check(await reviewer.isChecked(), 'review enabled state survives the layout change');
+  await reviewer.uncheck();
+  await Promise.all([page.waitForResponse(response => response.url().endsWith('/profiles/composition_review') && response.request().method() === 'PATCH'), page.getByRole('button',{name:'Salvar avaliação',exact:true}).click()]);
+  check(writes.length === 1 && writes[0].payload.enabled === false && writes[0].payload.purpose === 'composition_review', 'review changes use the existing profile save API');
+  await page.locator('summary').filter({hasText:'Avaliação de composição'}).click();
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'Recolher menu',exact:true}).first().click();
+  await page.locator('.scrollbar-hide').evaluate(node=>node.scrollTop=0);
+  check(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth), 'page must fit a narrow viewport');
+  await trigger.click();
+  await dialog.waitFor();
+  const box = await dialog.boundingBox();
+  check(box.x >= 0 && box.x+box.width <= 390 && box.y >= 0 && box.y+box.height <= 844, 'dialog must fit the mobile viewport');
+  check(await dialog.evaluate(node=>node.scrollWidth <= node.clientWidth), 'provider controls must not overflow inside the mobile modal');
+  await page.screenshot({path:'/tmp/comofica-ai-modal-mobile.png'});
+  await page.getByRole('button',{name:'Fechar configuração do OpenRouter'}).click();
+  await dialog.waitFor({state:'hidden'});
+  await page.screenshot({path:'/tmp/comofica-ai-layout-mobile.png'});
+  console.log('PASS: ordered active models, provider isolation, modal opening/closing, keyboard focus, review saving and mobile layout. All APIs used synthetic data.');
+}

@@ -60,6 +60,14 @@ export type OpenRouterModelSummary = {
   completionPrice?: string
   inputModalities: string[]
   outputModalities: string[]
+  imageEndpoint?: boolean
+  imageParameters?: Record<string, { type: string; values?: string[]; min?: number; max?: number }>
+}
+
+export function isModelCompatible(model: OpenRouterModelSummary, purpose: AiModelProfilePurpose) {
+  return purpose === "image_generation"
+    ? model.inputModalities.includes("image") && model.outputModalities.includes("image")
+    : model.outputModalities.includes("text") && (!["vision", "composition_review"].includes(purpose) || model.inputModalities.includes("image"))
 }
 
 export type AiProviderTestResult = {

@@ -4,6 +4,7 @@ import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 import {
   buildAiModelProfile,
   readAiModelProfiles,
+  validateAiModelProfile,
   writeAiModelProfiles,
 } from "@/lib/server/ai-model-profiles-store"
 
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
 
   try {
     const profile = buildAiModelProfile(payload || {})
+    await validateAiModelProfile(profile)
     const profiles = await readAiModelProfiles()
 
     await writeAiModelProfiles([profile, ...profiles])

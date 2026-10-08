@@ -2,6 +2,15 @@ import { readJsonStore, writeJsonStore } from "@/lib/server/postgres-json-store"
 import { getRuntimeDataFile } from "@/lib/server/runtime-paths"
 
 import type { AiModelProfile, AiModelProfilePurpose } from "@/lib/ai-types"
+import { getActiveOpenRouterProvider } from "@/lib/server/ai-providers-store"
+import { validateOpenRouterProfile } from "@/lib/server/openrouter-client"
+
+export async function validateAiModelProfile(profile: AiModelProfile) {
+  if (!profile.enabled) return
+  const provider = await getActiveOpenRouterProvider()
+  if (!provider) throw new Error("Configure um provider OpenRouter ativo para validar o modelo.")
+  await validateOpenRouterProfile(provider, profile)
+}
 
 const dataFile = getRuntimeDataFile("ai-model-profiles.json")
 const storeKey = "ai-model-profiles"

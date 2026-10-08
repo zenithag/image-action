@@ -9,7 +9,7 @@ async function load(file,resolve){const source=await readFile(new URL(file,impor
 
 test('review model and opt-out persist through the actual profile endpoint; unauthorized writes are blocked',async()=>{
   let profiles=[],denied=null,writes=0
-  const store=await load('../lib/server/ai-model-profiles-store.ts',name=>name.endsWith('postgres-json-store')?{readJsonStore:async()=>profiles,writeJsonStore:async(_,value)=>{profiles=value;writes++}}:{getRuntimeDataFile:()=> 'synthetic'})
+  const store=await load('../lib/server/ai-model-profiles-store.ts',name=>name.endsWith('postgres-json-store')?{readJsonStore:async()=>profiles,writeJsonStore:async(_,value)=>{profiles=value;writes++}}:name.endsWith("ai-providers-store")?{getActiveOpenRouterProvider:async()=>({id:"synthetic"})}:name.endsWith("openrouter-client")?{validateOpenRouterProfile:async()=>{}}:{getRuntimeDataFile:()=> 'synthetic'})
   profiles=await store.readAiModelProfiles()
   const selected=profiles.find(profile=>profile.purpose==='composition_review')
   assert.equal(selected.enabled,true)

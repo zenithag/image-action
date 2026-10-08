@@ -1,4 +1,5 @@
 import type { AiModelProfile, AiProvider, OpenRouterModelSummary } from "@/lib/ai-types"
+import { isModelCompatible } from "@/lib/ai-types"
 
 type OpenRouterContentPart =
   | { type: "text"; text: string }
@@ -39,6 +40,7 @@ type OpenRouterModelResponse = {
       input_modalities?: string[]
       output_modalities?: string[]
     }
+    supported_parameters?: OpenRouterModelSummary["imageParameters"]
   }>
 }
 
@@ -92,31 +94,56 @@ function getOpenRouterError(status: number, body: unknown) {
 }
 
 export async function listOpenRouterModels(provider: AiProvider) {
-  const response = await fetch(appendPath(provider.baseUrl, "/models"), {
-    method: "GET",
-    headers: getOpenRouterHeaders(provider),
-    signal: AbortSignal.timeout(20000),
-  })
-  const body = await readBody(response)
+  const catalogs = await Promise.all(["/models", "/images/models"].map(async pathname => {
+    const response = await fetch(appendPath(provider.baseUrl, pathname), {
+      method: "GET",
+      headers: getOpenRouterHeaders(provider),
+      signal: AbortSignal.timeout(20000),
+    })
+    const body = await readBody(response)
 
-  if (!response.ok) {
-    throw new Error(getOpenRouterError(response.status, body))
+    // Older OpenRouter-compatible gateways may only expose the chat catalog.
+    if (pathname === "/images/models" && response.status === 404) return []
+
+    if (!response.ok) {
+      throw new Error(getOpenRouterError(response.status, body))
+    }
+
+    const data = body as OpenRouterModelResponse
+
+    return (data.data || [])
+      .filter((model) => model.id)
+      .map((model) => ({
+        id: model.id || "",
+        name: model.name || model.id || "",
+        contextLength: model.context_length,
+        promptPrice: model.pricing?.prompt,
+        completionPrice: model.pricing?.completion,
+        inputModalities: model.architecture?.input_modalities || [],
+        outputModalities: model.architecture?.output_modalities || [],
+        imageEndpoint: pathname === "/images/models",
+        imageParameters: pathname === "/images/models" ? model.supported_parameters : undefined,
+      } satisfies OpenRouterModelSummary))
+  }))
+  const models = new Map<string, OpenRouterModelSummary>()
+  for (const catalog of catalogs) for (const model of catalog) {
+    const previous = models.get(model.id)
+    models.set(model.id, {
+      ...previous, ...model,
+      contextLength: model.contextLength ?? previous?.contextLength,
+      promptPrice: model.promptPrice ?? previous?.promptPrice,
+      completionPrice: model.completionPrice ?? previous?.completionPrice,
+    })
   }
+  return [...models.values()].sort((left, right) => left.id.localeCompare(right.id))
+}
 
-  const data = body as OpenRouterModelResponse
-
-  return (data.data || [])
-    .filter((model) => model.id)
-    .map((model) => ({
-      id: model.id || "",
-      name: model.name || model.id || "",
-      contextLength: model.context_length,
-      promptPrice: model.pricing?.prompt,
-      completionPrice: model.pricing?.completion,
-      inputModalities: model.architecture?.input_modalities || [],
-      outputModalities: model.architecture?.output_modalities || [],
-    } satisfies OpenRouterModelSummary))
-    .sort((left, right) => left.id.localeCompare(right.id))
+export async function validateOpenRouterProfile(provider: AiProvider, profile: AiModelProfile) {
+  const models = await listOpenRouterModels(provider)
+  for (const id of [profile.modelId, ...(profile.purpose === "image_generation" ? [] : profile.fallbackModelIds)]) {
+    const model = models.find(model => model.id === id)
+    if (!model || !isModelCompatible(model, profile.purpose)) throw new Error(`O modelo ${id} não é compatível com a finalidade ${profile.purpose}.`)
+  }
 }
 
 export async function getOpenRouterCredits(provider: AiProvider) {
