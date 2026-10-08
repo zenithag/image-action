@@ -48,12 +48,16 @@ function getCompositionJobTimeoutMs() {
   return Math.max(30000, rawValue)
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
+  const controller = new AbortController()
+  const promise = run(controller.signal)
   let timeoutId: NodeJS.Timeout | null = null
 
   return new Promise<T>((resolve, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error(`Timeout ao processar composicao apos ${Math.round(timeoutMs / 1000)}s.`))
+      const error = new Error(`Timeout ao processar composicao apos ${Math.round(timeoutMs / 1000)}s.`)
+      controller.abort(error)
+      reject(error)
     }, timeoutMs)
 
     promise.then(
@@ -382,7 +386,7 @@ export async function processCompositionJob(tenantSlug: string, jobId: string): 
 
   try {
     const result = await withTimeout(
-      processCompositionWithOpenRouter(activeProcessingJob),
+      signal => processCompositionWithOpenRouter(activeProcessingJob, signal),
       getCompositionJobTimeoutMs(),
     )
     const completedJob = await updateCompositionJob(tenantSlug, job.id, {

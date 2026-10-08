@@ -153,11 +153,15 @@ export async function createOpenRouterChatCompletion({
   profile,
   messages,
   user,
+  signal,
+  responseFormat,
 }: {
   provider: AiProvider
   profile: AiModelProfile
   messages: OpenRouterMessage[]
   user?: string
+  signal?: AbortSignal
+  responseFormat?: { type: "json_object" }
 }) {
   const response = await fetch(appendPath(provider.baseUrl, "/chat/completions"), {
     method: "POST",
@@ -169,9 +173,10 @@ export async function createOpenRouterChatCompletion({
       messages,
       temperature: profile.temperature,
       max_tokens: profile.maxTokens,
+      response_format: responseFormat,
       user,
     }),
-    signal: AbortSignal.timeout(45000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000),
   })
   const body = await readBody(response)
 

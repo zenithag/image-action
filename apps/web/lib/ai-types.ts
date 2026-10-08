@@ -34,6 +34,7 @@ export type AiModelProfilePurpose =
   | "vision"
   | "image_prompt"
   | "image_generation"
+  | "composition_review"
   | "fallback"
 
 export type AiModelProfile = {

@@ -51,6 +51,7 @@ const purposeLabel: Record<AiModelProfilePurpose, string> = {
   vision: "Visao",
   image_prompt: "Prompt de imagem",
   image_generation: "Criacao de imagem",
+  composition_review: "Avaliação de composição",
   fallback: "Fallback",
 }
 
@@ -272,7 +273,7 @@ export default function SuperadminAiPage() {
   }
 
   const compositionProfiles = useMemo(
-    () => profiles.filter((profile) => profile.purpose === "image_generation" || profile.purpose === "image_prompt" || profile.purpose === "vision"),
+    () => profiles.filter((profile) => profile.purpose === "image_generation" || profile.purpose === "image_prompt" || profile.purpose === "vision" || profile.purpose === "composition_review"),
     [profiles]
   )
 
@@ -391,7 +392,7 @@ export default function SuperadminAiPage() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-bold text-foreground font-display">Modelos de composição</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Perfis reais usados no pipeline de visão, prompt e geração de imagem.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Perfis usados na visão, geração e avaliação obrigatória antes da liberação.</p>
               </div>
               <Sparkles className="h-5 w-5 text-primary" />
             </div>
@@ -421,7 +422,7 @@ export default function SuperadminAiPage() {
                     </div>
                     <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
                       <p>Modelo: <span className="font-medium text-foreground">{profile.modelId}</span></p>
-                      <p>Fallbacks: <span className="font-medium text-foreground">{profile.fallbackModelIds.length > 0 ? profile.fallbackModelIds.join(", ") : "nenhum"}</span></p>
+                      <p>Fallbacks: <span className="font-medium text-foreground">{profile.purpose === "image_generation" ? "desativados: até 3 tentativas com o modelo principal" : profile.fallbackModelIds.length > 0 ? profile.fallbackModelIds.join(", ") : "nenhum"}</span></p>
                       {model && (
                         <p>Modalidades: <span className="font-medium text-foreground">{model.inputModalities.join(", ") || "n/d"} → {model.outputModalities.join(", ") || "n/d"}</span></p>
                       )}
@@ -490,9 +491,10 @@ export default function SuperadminAiPage() {
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                     />
                   </Field>
-                  <Field label="Fallbacks (um por linha ou virgula)">
+                  <Field label={profile.purpose === "image_generation" ? "Correções usam o modelo principal (até 3 tentativas)" : "Fallbacks (um por linha ou virgula)"}>
                     <Textarea
-                      value={profile.fallbackModelIds.join("\n")}
+                      disabled={profile.purpose === "image_generation"}
+                      value={profile.purpose === "image_generation" ? "" : profile.fallbackModelIds.join("\n")}
                       onChange={(event) => updateProfile(profile.id, {
                         fallbackModelIds: event.target.value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean),
                       })}

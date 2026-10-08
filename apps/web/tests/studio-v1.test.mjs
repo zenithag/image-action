@@ -525,7 +525,7 @@ test("preset jobs remain queueable but are omitted from Compositions; anonymous 
   runInNewContext(routeCode, { exports: routeModule.exports, process: { env: {} }, require: name => {
     if (name === "next/server") return { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } }
     if (name === "zod") return require("zod")
-    if (name === "next-auth/jwt") return { getToken: async () => null }
+    if (name.endsWith("current-tenant-token")) return { getCurrentTenantToken: async () => null }
     if (name.includes("studio-surface-access")) return { checkStudioSurfaceAccess: token => token ? null : 401 }
     if (name.includes("composition-jobs-store")) return store
     if (name.includes("app-job-queue")) return { enqueueProcessCompositionQueue: async () => { enqueueCalls++ } }
@@ -808,7 +808,7 @@ test("scenario variations persist independently, preserve legacy disabled slots 
 })
 
 
-test("real worker caller records paid no-image failures and unknown network attempts; storage failure stops fallback", async () => {
+test("real worker caller records paid no-image failures and unknown network attempts; storage failure stops further paid requests", async () => {
   const { runInNewContext } = await import("node:vm")
   const { readGenerationUsage } = await load("../lib/generation-costs.ts")
   const source = await readFile(new URL("../lib/server/openrouter-image-worker.ts", import.meta.url), "utf8")
@@ -818,7 +818,7 @@ test("real worker caller records paid no-image failures and unknown network atte
   visit(ast)
   const recorded = []
   let calls = 0
-  const state = { Error, AbortSignal, readGenerationUsage, appendPath: (url, path) => url + path, getOpenRouterHeaders: () => ({}), getOpenRouterImageConfig: () => ({}), recordCompositionGenerationUsage: async (_tenant, _job, usage) => recorded.push(usage), getImageUrlFromPayload: () => null, getPayloadTextPreview: () => "", getPayloadNoImageDiagnostic: () => "no image", getOpenRouterError: () => "HTTP error", fetch: async () => { calls++; return { ok:true, json: async () => ({ id:"paid-response", usage:{cost:.1} }) } }, getAiModelProfile: async () => ({modelId:"test-model"}), defaultImageGenerationModel:"test-model", getCatalogMaterialImages: async () => [], buildOpenRouterImageContent: () => [], getImageGenerationModels: () => ["first", "second"], normalizeOpenRouterError: error => error.message }
+  const state = { Error, AbortSignal, readGenerationUsage, appendPath: (url, path) => url + path, getOpenRouterHeaders: () => ({}), getOpenRouterImageConfig: () => ({}), recordCompositionGenerationUsage: async (_tenant, _job, usage) => recorded.push(usage), getImageUrlFromPayload: () => null, getPayloadTextPreview: () => "", getPayloadNoImageDiagnostic: () => "no image", getOpenRouterError: () => "HTTP error", fetch: async () => { calls++; return { ok:true, json: async () => ({ id:"paid-response", usage:{cost:.1} }) } }, readAiModelProfiles: async () => [{modelId:"test-model", purpose:"image_generation", enabled:true}], getCatalogMaterialImages: async () => [], buildOpenRouterImageContent: () => [] }
   runInNewContext(ts.transpileModule(functions.join("\n"), {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText, state)
   const job = { tenantSlug:"test",id:"synthetic-job" }
   await assert.rejects(state.requestOpenRouterImage({baseUrl:"https://synthetic.invalid"},"test",job,{},[],{}), /nao retornou imagem/)
