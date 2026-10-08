@@ -4,6 +4,7 @@ import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 import {
   readAiModelProfiles,
   updateAiModelProfile,
+  validateAiModelProfile,
   writeAiModelProfiles,
 } from "@/lib/server/ai-model-profiles-store"
 
@@ -26,6 +27,12 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const updatedProfile = updateAiModelProfile(profile, payload || {})
+
+  try {
+    await validateAiModelProfile(updatedProfile)
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível validar o modelo." }, { status: 400 })
+  }
 
   await writeAiModelProfiles(profiles.map((item) => item.id === id ? updatedProfile : item))
 

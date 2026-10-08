@@ -27,6 +27,7 @@ import type {
   OpenRouterModelSummary,
   SafeAiProvider,
 } from "@/lib/ai-types"
+import { isModelCompatible } from "@/lib/ai-types"
 import { cn } from "@/lib/utils"
 
 type NewProviderForm = {
@@ -507,11 +508,15 @@ export default function SuperadminAiPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Field label="Modelo principal">
                     <Input
-                      list="openrouter-models"
+                      list={`openrouter-models-${profile.id}`}
                       value={profile.modelId}
                       onChange={(event) => updateProfile(profile.id, { modelId: event.target.value })}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                     />
+                    <datalist id={`openrouter-models-${profile.id}`}>
+                      {models.filter(model => isModelCompatible(model, profile.purpose)).map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                    </datalist>
+                    {models.some(model => model.id === profile.modelId && !isModelCompatible(model, profile.purpose)) && <p role="alert" className="mt-1 text-xs text-destructive">Este modelo não é compatível com a finalidade deste perfil.</p>}
                   </Field>
                   <Field label={profile.purpose === "image_generation" ? "Correções usam o modelo principal (até 3 tentativas)" : "Fallbacks (um por linha ou virgula)"}>
                     <Textarea
@@ -600,11 +605,6 @@ export default function SuperadminAiPage() {
       </section>
       </div>
 
-      <datalist id="openrouter-models">
-        {models.map((model) => (
-          <option key={model.id} value={model.id}>{model.name}</option>
-        ))}
-      </datalist>
     </div>
   )
 }
