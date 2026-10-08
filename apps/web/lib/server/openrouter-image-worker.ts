@@ -1989,7 +1989,7 @@ export async function processCompositionWithOpenRouter(job: CompositionJob, sign
     candidate.bytes = normalized.bytes
     candidate.mimeType = normalized.mimeType
     return verifyCompositionFidelity(provider, job, baseImage.dataUrl, `data:${candidate.mimeType};base64,${candidate.bytes.toString("base64")}`, prompt, references, signal, attempt, reviewer)
-  }, signal) : await generate([], 1)
+  }, signal, reviewer.maxCompositionAttempts ?? 3) : await generate([], 1)
   signal?.throwIfAborted()
   const resultImageUrl = await saveImageResult(job, image.bytes, image.mimeType, baseImage)
   signal?.throwIfAborted()

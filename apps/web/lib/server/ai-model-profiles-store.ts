@@ -110,6 +110,7 @@ function defaultProfiles(): AiModelProfile[] {
       fallbackModelIds: [],
       temperature: 0,
       maxTokens: 1600,
+      maxCompositionAttempts: 3,
       enabled: true,
       notes: "Quando ativado, compara original, pedido e resultado antes da liberação e orienta correções.",
       createdAt: timestamp,
@@ -174,6 +175,12 @@ export async function writeAiModelProfiles(profiles: AiModelProfile[]) {
   await writeJsonStore({ key: storeKey, filePath: dataFile, fallback: [] as AiModelProfile[] }, profiles)
 }
 
+function compositionAttempts(value: unknown) {
+  if (value === undefined) return 3
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 3) throw new Error("O máximo de tentativas deve ser um inteiro entre 1 e 3.")
+  return value
+}
+
 export function buildAiModelProfile(input: {
   name?: unknown
   purpose?: unknown
@@ -181,6 +188,7 @@ export function buildAiModelProfile(input: {
   fallbackModelIds?: unknown
   temperature?: unknown
   maxTokens?: unknown
+  maxCompositionAttempts?: unknown
   notes?: unknown
 }): AiModelProfile {
   const name = asTrimmedString(input.name)
@@ -209,6 +217,7 @@ export function buildAiModelProfile(input: {
     fallbackModelIds: asStringList(input.fallbackModelIds),
     temperature: asNumber(input.temperature, 0.4, 0, 2),
     maxTokens: Math.round(asNumber(input.maxTokens, 1200, 1, 128000)),
+    maxCompositionAttempts: purpose === "composition_review" ? compositionAttempts(input.maxCompositionAttempts) : undefined,
     enabled: true,
     notes: asTrimmedString(input.notes),
     createdAt: timestamp,
@@ -229,6 +238,7 @@ export function updateAiModelProfile(profile: AiModelProfile, input: Partial<AiM
     fallbackModelIds: input.fallbackModelIds === undefined ? profile.fallbackModelIds : asStringList(input.fallbackModelIds),
     temperature: input.temperature === undefined ? profile.temperature : asNumber(input.temperature, profile.temperature, 0, 2),
     maxTokens: input.maxTokens === undefined ? profile.maxTokens : Math.round(asNumber(input.maxTokens, profile.maxTokens, 1, 128000)),
+    maxCompositionAttempts: nextPurpose === "composition_review" ? compositionAttempts(input.maxCompositionAttempts === undefined ? profile.maxCompositionAttempts : input.maxCompositionAttempts) : undefined,
     enabled: typeof input.enabled === "boolean" ? input.enabled : profile.enabled,
     notes: input.notes === undefined ? profile.notes : asTrimmedString(input.notes),
     updatedAt: now(),

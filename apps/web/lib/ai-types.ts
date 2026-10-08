@@ -46,6 +46,7 @@ export type AiModelProfile = {
   fallbackModelIds: string[]
   temperature: number
   maxTokens: number
+  maxCompositionAttempts?: number
   enabled: boolean
   notes: string
   createdAt: string

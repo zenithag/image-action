@@ -38,10 +38,11 @@ export function parseCompositionReview(content: string) {
   return { approved, issues, criteria: value as CompositionReview }
 }
 
-// Three candidates maximum; API/malformed-review errors stop rather than spending on blind retries.
-export async function composeWithFidelityReview<T>(generate: (issues: string[], attempt: number) => Promise<T>, review: (candidate: T, attempt: number) => Promise<ReturnType<typeof parseCompositionReview>>, signal?: AbortSignal) {
+// One to three candidates; API/malformed-review errors stop rather than spending on blind retries.
+export async function composeWithFidelityReview<T>(generate: (issues: string[], attempt: number) => Promise<T>, review: (candidate: T, attempt: number) => Promise<ReturnType<typeof parseCompositionReview>>, signal?: AbortSignal, maxAttempts = 3) {
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) throw new Error("Máximo de tentativas inválido. Use um inteiro entre 1 e 3.")
   let issues: string[] = []
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     signal?.throwIfAborted()
     const candidate = await generate(issues, attempt)
     signal?.throwIfAborted()
@@ -50,7 +51,7 @@ export async function composeWithFidelityReview<T>(generate: (issues: string[], 
     if (verdict.approved) return candidate
     issues = [...new Set([...issues, ...verdict.issues])]
   }
-  throw new Error(`Composição reprovada após 3 tentativas. Resultado bloqueado. ${issues.join("; ")}`)
+  throw new Error(`Composição reprovada após ${maxAttempts} ${maxAttempts === 1 ? "tentativa" : "tentativas"}. Resultado bloqueado. ${issues.join("; ")}`)
 }
 
 export async function verifyCompositionFidelity(provider: AiProvider, job: CompositionJob, baseDataUrl: string, resultDataUrl: string, prompt: string, references: string[] = [], signal?: AbortSignal, attempt = 1, reviewer?: AiModelProfile) {

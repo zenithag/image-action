@@ -66,6 +66,22 @@ test('three rejected candidates exhaust the budget; broken reviewer stops after 
   assert.equal(generations, 1)
 })
 
+test('configured attempt limit blocks after one or two rejections and invalid budgets make no paid calls', async () => {
+  const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
+  for (const maxAttempts of [1,2]) {
+    let generations=0,reviews=0
+    await assert.rejects(fidelity.composeWithFidelityReview(async () => ++generations, async () => {reviews++;return fidelity.parseCompositionReview(JSON.stringify(reject))}, undefined, maxAttempts), new RegExp(`após ${maxAttempts} tentativa`))
+    assert.equal(generations,maxAttempts)
+    assert.equal(reviews,maxAttempts)
+  }
+  assert.equal(await fidelity.composeWithFidelityReview(async () => 'one', async () => fidelity.parseCompositionReview(JSON.stringify(pass)), undefined, 1),'one')
+  for (const maxAttempts of [0,4,1.5,NaN,null,'1']) {
+    let generations=0
+    await assert.rejects(fidelity.composeWithFidelityReview(async () => ++generations, async () => fidelity.parseCompositionReview(JSON.stringify(pass)), undefined, maxAttempts), /inválido/)
+    assert.equal(generations,0)
+  }
+})
+
 test('cancellation during review prevents regeneration or returning a result', async () => {
   const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
   const controller = new AbortController()
@@ -161,13 +177,13 @@ async function workerEntry(globals) {
 test('actual worker reviews both render paths, regenerates from original and saves only after approval', async () => {
   const fidelity = await load('../lib/server/composition-fidelity.ts', () => ({}))
   for (const local of [false, true]) {
-    for (const approved of [false, true]) {
+    for (const [approved,maxAttempts] of [[false,1],[false,3],[true,3]]) {
       const job = {id:'job', tenantSlug:'test', baseImageUrl:'original', mode:'interior'}
       const base = {dataUrl:'original-pixels', bytes:Buffer.from('base'), mimeType:'image/png'}
       let saves = 0, reviews = 0, generations = 0
       const process = await workerEntry({
         getActiveOpenRouterProvider: async () => ({}),
-        readAiModelProfiles: async () => [{purpose:'composition_review', enabled:true}],
+        readAiModelProfiles: async () => [{purpose:'composition_review', enabled:true,maxCompositionAttempts:maxAttempts}],
         getBaseImage: async () => base,
         isDurableCompositionBaseImageUrl: () => true,
         getTenantSettings: async () => ({segmentation:{editableTargets:[], protectedTargets:['half wall'], promptHints:[]}}),
@@ -210,9 +226,9 @@ test('actual worker reviews both render paths, regenerates from original and sav
         assert.equal(saves, 1)
         assert.equal(reviews, 2)
       } else {
-        await assert.rejects(process(job), /após 3 tentativas/)
+        await assert.rejects(process(job), new RegExp(`após ${maxAttempts} tentativa`))
         assert.equal(saves, 0)
-        assert.equal(reviews, 3)
+        assert.equal(reviews, maxAttempts)
       }
       assert.equal(generations, reviews - (local ? 1 : 0))
     }

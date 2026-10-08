@@ -434,7 +434,7 @@ export default function SuperadminAiPage() {
             <table className="w-full min-w-[1280px] text-left text-sm">
               <caption className="sr-only">Configurações editáveis dos modelos por etapa</caption>
               <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                <tr>{["Etapa", "Modelo", "Entrada", "Saída", "Contingência", "Temperatura", "Tokens", "Ativo", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}{["Entrada", "Saída"].includes(label) && <span className="mt-1 block text-[10px] font-normal">US$ / R$ · por 1 milhão de tokens*</span>}</th>)}</tr>
+                <tr>{["Etapa", "Modelo", "Entrada", "Saída", "Contingência", "Temperatura", "Tokens", "Ativo", "Tentativas", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}{["Entrada", "Saída"].includes(label) && <span className="mt-1 block text-[10px] font-normal">US$ / R$ · por 1 milhão de tokens*</span>}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {orderedProfiles.map(profile => {
@@ -456,7 +456,7 @@ export default function SuperadminAiPage() {
                       <td className="min-w-44 max-w-56 px-3 py-3 text-xs text-muted-foreground">{prices.input}</td>
                       <td className="min-w-44 max-w-56 px-3 py-3 text-xs text-muted-foreground">{prices.output}</td>
                       <td className="px-3 py-3">
-                        {generation ? <span className="whitespace-nowrap text-xs text-muted-foreground" title="As correções usam o modelo selecionado; com avaliação ativa, são permitidas até três tentativas.">Mesmo modelo</span> : <input aria-label={`Contingência — ${label}`} value={profile.fallbackModelIds.join(", ")} onChange={event => updateProfile(profile.id, { fallbackModelIds: event.target.value.split(/,|;/).map(item => item.trim()).filter(Boolean) })} placeholder="Sem contingência" className="h-8 w-full min-w-32 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />}
+                        {generation ? <span className="whitespace-nowrap text-xs text-muted-foreground" title="As correções usam o modelo selecionado e o limite definido na etapa de avaliação.">Mesmo modelo</span> : <input aria-label={`Contingência — ${label}`} value={profile.fallbackModelIds.join(", ")} onChange={event => updateProfile(profile.id, { fallbackModelIds: event.target.value.split(/,|;/).map(item => item.trim()).filter(Boolean) })} placeholder="Sem contingência" className="h-8 w-full min-w-32 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />}
                       </td>
                       <td className="px-3 py-3">
                         <input type="number" aria-label={`Temperatura — ${label}`} min="0" max="2" step="0.1" disabled={isReviewer || imageOnly} value={isReviewer ? 0 : profile.temperature} onChange={event => updateProfile(profile.id, { temperature: Number(event.target.value) })} title={isReviewer ? "A avaliação usa temperatura zero." : imageOnly ? "Este modelo de imagem não utiliza temperatura." : undefined} className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40" />
@@ -468,6 +468,9 @@ export default function SuperadminAiPage() {
                         <input type="checkbox" role="switch" aria-label={`Ativar — ${label}`} checked={profile.enabled} onChange={event => updateProfile(profile.id, { enabled: event.target.checked })} className="h-4 w-4 cursor-pointer accent-primary" />
                       </td>
                       <td className="px-3 py-3">
+                        {isReviewer ? <input type="number" aria-label={`Máximo de tentativas — ${label}`} min="1" max="3" step="1" value={profile.maxCompositionAttempts ?? 3} onChange={event => updateProfile(profile.id, { maxCompositionAttempts: Number(event.target.value) })} title="Total de gerações por pedido, incluindo a primeira. Com 1, uma reprovação bloqueia sem gerar novamente." className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" /> : <span className="text-xs text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-3 py-3">
                         <Button asChild variant="outline" size="icon"><button type="button" aria-label={`Salvar — ${label}`} title="Salvar alterações desta etapa" disabled={savingProfileId === profile.id} onClick={() => void saveProfile(profile)}>{savingProfileId === profile.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}</button></Button>
                       </td>
                     </tr>
@@ -476,7 +479,7 @@ export default function SuperadminAiPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted-foreground">* Cobranças por imagem ou megapixel indicam sua unidade junto ao valor. A avaliação ativa compara a foto original, o pedido e o resultado antes da liberação. Reprovações permitem até três tentativas, com custo no provedor. Desativá-la libera a imagem sem essa análise.</p>
+          <p className="text-xs text-muted-foreground">* Cobranças por imagem ou megapixel indicam sua unidade junto ao valor. A avaliação ativa compara a foto original, o pedido e o resultado antes da liberação. O limite de tentativas inclui a primeira geração e pode ser definido entre 1 e 3 na avaliação. Com 1, uma reprovação bloqueia sem gerar novamente. Cada geração e avaliação pode ter custo no provedor. Desativá-la libera a imagem sem essa análise.</p>
         </section>
       </div>
 
