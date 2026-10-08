@@ -33,6 +33,46 @@ test('image discovery merges with chat catalog, preserves prices and enforces pu
   await assert.rejects(api.validateOpenRouterProfile(provider, { ...profile, modelId: textModel.id, purpose: 'conversation', fallbackModelIds: [imageModel.id] }), /não é compatível/)
 })
 
+test('admin image pricing and BCB conversion preserve units, tiers and unknown costs without making paid calls', async () => {
+  const requests = []
+  const api = await client(async (url, options) => {
+    requests.push({ url, options })
+    if (url.includes('bcb.gov.br')) return { ok: true, json: async () => [{ data: '08/10/2026', valor: '5.0119' }] }
+    if (url.endsWith('/endpoints')) return { ok: true, json: async () => ({ endpoints: [{ pricing: [{ billable: 'output_image', unit: 'image', cost_usd: 0.05, variant: '2k' }, { billable: 'input_image', unit: 'token', cost_usd: 0.000008 }, { billable: 'output_image', unit: 'image', cost_usd: -1 }] }] }) }
+    return reply(url.endsWith('/images/models') ? [imageModel] : [textModel])
+  })
+  const models = await api.listOpenRouterModels(provider, true)
+  assert.equal(requests.length, 3)
+  assert.equal(models.find(m => m.id === imageModel.id).imagePricing.length, 2)
+  assert.ok(requests.every(r => !r.options.method || r.options.method === 'GET'))
+  assert.ok(requests.every(r => !r.options.headers?.Authorization))
+  const exchange = await api.getUsdBrlExchangeRate()
+  assert.equal(exchange.rate, 5.0119)
+  const prices = types.formatModelPrices(models.find(m => m.id === imageModel.id), exchange)
+  assert.match(prices.input, /8,00.*40,0952.*1M tokens/)
+  assert.match(prices.output, /0,05.*0,250595.*imagem.*2k/)
+  assert.equal(types.formatModelPrices({ ...imageModel, imageEndpoint: true }).input, 'Não informado')
+  assert.match(types.formatModelPrices({ ...textModel, promptPrice: '0' }).input, /0,00.*R\$ indisponível/)
+  for (const promptPrice of ['', '-1', 'NaN', 'Infinity']) assert.equal(types.formatModelPrices({ ...textModel, promptPrice }).input, 'Não informado')
+  const broken = await client(async () => { throw new Error('offline') })
+  assert.equal(await broken.getUsdBrlExchangeRate(), null)
+  assert.equal(types.isModelCompatible({ inputModalities: ['text'], outputModalities: ['image'] }, 'image_generation'), false)
+  assert.equal(types.isModelCompatible({ inputModalities: ['text','image'], outputModalities: ['text','image'], imageEndpoint: true }, 'vision'), false)
+})
+
+test('model catalog route works without a configured key, returns exchange metadata and rejects anonymous access', async () => {
+  let authorized = true, seenProvider
+  const route = await load('../app/api/superadmin/ai/models/route.ts', { URL, require: name => name === 'next/server' ? { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } } : name.endsWith('superadmin-api-auth') ? { requireSuperadmin: async () => authorized ? null : { status: 401 } } : name.endsWith('ai-providers-store') ? { readAiProviders: async () => [], getActiveOpenRouterProvider: async () => null } : { listOpenRouterModels: async (provider, pricing) => { seenProvider = provider; assert.equal(pricing, true); return [] }, getUsdBrlExchangeRate: async () => ({ rate: 5, date: '08/10/2026' }) } })
+  const request = { url: 'https://synthetic.invalid/api/superadmin/ai/models' }
+  const result = await route.GET(request)
+  assert.equal(result.status, 200)
+  assert.equal(seenProvider.baseUrl, 'https://openrouter.ai/api/v1')
+  assert.equal(result.body.exchangeRate.rate, 5)
+  assert.equal((await route.GET({ url: request.url + '?providerId=unknown' })).status, 400)
+  authorized = false
+  assert.equal((await route.GET(request)).status, 401)
+})
+
 async function worker(catalog, payload) {
   const requests = [], usage = []
   const api = await client(async url => reply(url.endsWith('/images/models') ? catalog : [chatModel, textModel]))

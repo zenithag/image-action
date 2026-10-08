@@ -27,8 +27,9 @@ import type {
   AiProviderTestResult,
   OpenRouterModelSummary,
   SafeAiProvider,
+  UsdBrlExchangeRate,
 } from "@/lib/ai-types"
-import { isModelCompatible } from "@/lib/ai-types"
+import { formatModelPrices, isModelCompatible } from "@/lib/ai-types"
 import { cn } from "@/lib/utils"
 
 type NewProviderForm = {
@@ -107,6 +108,7 @@ export default function SuperadminAiPage() {
   const [savingGuardrailId, setSavingGuardrailId] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, AiProviderTestResult>>({})
   const [error, setError] = useState<string | null>(null)
+  const [exchangeRate, setExchangeRate] = useState<UsdBrlExchangeRate | null>(null)
 
   const activeProvider = providers.find((provider) => provider.status === "active" && provider.apiKeyConfigured)
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
@@ -137,12 +139,12 @@ export default function SuperadminAiPage() {
   }, [])
 
   useEffect(() => {
-    if (!activeProvider || models.length > 0 || syncingModels) {
+    if (isLoading || syncingModels) {
       return
     }
 
     void syncModels()
-  }, [activeProvider?.id])
+  }, [activeProvider?.id, isLoading])
 
   async function createProvider() {
     if (isCreatingProvider) return
@@ -223,11 +225,12 @@ export default function SuperadminAiPage() {
     setError(null)
 
     try {
-      const result = await requestJson<{ providerId: string; models: OpenRouterModelSummary[] }>(
+      const result = await requestJson<{ providerId: string; models: OpenRouterModelSummary[]; exchangeRate: UsdBrlExchangeRate | null }>(
         activeProvider ? `/api/superadmin/ai/models?providerId=${activeProvider.id}` : "/api/superadmin/ai/models",
         { cache: "no-store" }
       )
       setModels(result.models)
+      setExchangeRate(result.exchangeRate)
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : "Erro ao sincronizar modelos.")
     } finally {
@@ -428,13 +431,14 @@ export default function SuperadminAiPage() {
         <section aria-labelledby="model-settings-title" className="space-y-4">
           <div>
             <h2 id="model-settings-title" className="font-display text-lg font-semibold text-foreground">Modelos por etapa</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Edite os modelos diretamente em cada linha e salve para aplicar.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Catálogo do OpenRouter filtrado por etapa. Edite em cada linha e salve para aplicar.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Entrada e saída em US$ e R$, com a unidade de cobrança. {exchangeRate ? `Conversão de referência: dólar venda BCB de ${exchangeRate.date}, US$ 1 = R$ ${exchangeRate.rate.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}.` : "Conversão em reais indisponível."} Preços variam por provedor e configuração.</p>
           </div>
           <div className="overflow-x-auto rounded-xl border border-border bg-card">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1280px] text-left text-sm">
               <caption className="sr-only">Configurações editáveis dos modelos por etapa</caption>
               <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                <tr>{["Etapa", "Modelo", "Contingência", "Temperatura", "Tokens", "Ativo", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}</th>)}</tr>
+                <tr>{["Etapa", "Modelo", "Entrada", "Saída", "Contingência", "Temperatura", "Tokens", "Ativo", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {orderedProfiles.map(profile => {
@@ -444,17 +448,24 @@ export default function SuperadminAiPage() {
                   const generation = profile.purpose === "image_generation"
                   const imageOnly = generation && selectedModel?.imageEndpoint
                   const label = purposeLabel[profile.purpose]
+                  const pricesFor = (model: OpenRouterModelSummary) => formatModelPrices({ ...model, imageEndpoint: generation && model.imageEndpoint }, exchangeRate)
+                  const prices = selectedModel ? pricesFor(selectedModel) : { input: "Não informado", output: "Não informado" }
                   return (
                     <tr key={profile.id} aria-label={label} className="hover:bg-muted/20">
                       <th scope="row" className="w-[15%] whitespace-nowrap px-3 py-3 text-sm font-medium" title={profile.notes}>{label}</th>
-                      <td className="w-[30%] px-3 py-3">
+                      <td className="max-w-80 px-3 py-3">
                         <select aria-label={`Modelo — ${label}`} value={profile.modelId} onChange={event => updateProfile(profile.id, { modelId: event.target.value })} className="h-8 w-full min-w-48 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                          {!compatibleModels.some(model => model.id === profile.modelId) && <option value={profile.modelId}>{profile.modelId}</option>}
-                          {compatibleModels.map(model => <option key={model.id} value={model.id}>{model.name} · {model.id}</option>)}
+                          {!compatibleModels.some(model => model.id === profile.modelId) && <option disabled value={profile.modelId}>{profile.modelId} · indisponível ou incompatível</option>}
+                          {compatibleModels.map(model => {
+                            const price = pricesFor(model)
+                            return <option key={model.id} value={model.id}>{model.name} · {model.id} · Entrada: {price.input} · Saída: {price.output}</option>
+                          })}
                         </select>
                         {selectedModel && !isModelCompatible(selectedModel, profile.purpose) && <span role="alert" className="text-xs text-destructive">Modelo incompatível com esta etapa.</span>}
                       </td>
-                      <td className="w-[22%] px-3 py-3">
+                      <td className="min-w-44 max-w-56 px-3 py-3 text-xs text-muted-foreground">{prices.input}</td>
+                      <td className="min-w-44 max-w-56 px-3 py-3 text-xs text-muted-foreground">{prices.output}</td>
+                      <td className="px-3 py-3">
                         {generation ? <span className="whitespace-nowrap text-xs text-muted-foreground" title="As correções usam o modelo selecionado; com avaliação ativa, são permitidas até três tentativas.">Mesmo modelo</span> : <input aria-label={`Contingência — ${label}`} value={profile.fallbackModelIds.join(", ")} onChange={event => updateProfile(profile.id, { fallbackModelIds: event.target.value.split(/,|;/).map(item => item.trim()).filter(Boolean) })} placeholder="Sem contingência" className="h-8 w-full min-w-32 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />}
                       </td>
                       <td className="px-3 py-3">
@@ -492,11 +503,11 @@ export default function SuperadminAiPage() {
               type="button"
               onClick={() => void toggleGuardrail(guardrail, !guardrail.enabled)}
               disabled={savingGuardrailId === guardrail.id}
-              className="flex w-full items-start justify-between gap-4 rounded-xl p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-70"
+              className="flex w-full items-center justify-between gap-4 px-3 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <div>
-                <p className="text-sm font-medium text-foreground">{guardrail.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{guardrail.description}</p>
+              <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
+                <span className="shrink-0 text-sm font-medium text-foreground">{guardrail.label}</span>
+                <span className="truncate text-xs text-muted-foreground" title={guardrail.description}>{guardrail.description}</span>
               </div>
               <span className={cn("relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors", guardrail.enabled ? "bg-primary" : "bg-muted")}>
                 <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white transition-transform", guardrail.enabled ? "translate-x-6" : "translate-x-1")} />
