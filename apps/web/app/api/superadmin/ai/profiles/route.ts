@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 
 import {
   buildAiModelProfile,
@@ -15,6 +16,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireSuperadmin()
+  if (denied) return denied
   const payload = await request.json().catch(() => null)
 
   try {

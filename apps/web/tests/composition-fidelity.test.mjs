@@ -207,3 +207,36 @@ test('processor deadline aborts the active operation rather than allowing backgr
   }, 5), /Timeout ao processar/)
   assert.equal(observedSignal.aborted, true)
 })
+
+test('explicitly disabled review generates once and skips review/corrections on both render paths', async () => {
+  for (const local of [false, true]) {
+    let images = 0, saves = 0, skipped = 0
+    const entry = await workerEntry({
+      getActiveOpenRouterProvider: async () => ({}),
+      readAiModelProfiles: async () => [{purpose:'composition_review', enabled:false, modelId:'chosen-reviewer'}, {purpose:'composition_review', enabled:true, modelId:'must-not-fallback'}],
+      getBaseImage: async () => ({dataUrl:'original', bytes:Buffer.from('original'),mimeType:'image/png'}),
+      isDurableCompositionBaseImageUrl: () => true,
+      getTenantSettings: async () => ({segmentation:{editableTargets:[],protectedTargets:[],promptHints:[]}}),
+      buildPrompt: () => 'paint', getCatalogMaterialImages: async () => [],
+      shouldUseLocalSurfaceRender: () => local, isLocalizedSurfaceColorRequest: async () => true,
+      requestExternalSurfaceMask: async () => ({provider:'mask',model:'sam'}), requestExternalForegroundMask: async () => null,
+      renderOriginalSurface: async () => {images++;return Buffer.from('local')},
+      generateImageWithOpenRouter: async () => {images++;return {bytes:Buffer.from('result'),mimeType:'image/png',model:'selected'}},
+      composeWithFidelityReview: () => {throw new Error('review loop must not run')},
+      verifyCompositionFidelity: () => {throw new Error('no analysis API call allowed')},
+      recordAiTrace: async trace => {assert.equal(trace.event,'composition_review_disabled');assert.equal(trace.details.model,'chosen-reviewer');skipped++},
+      saveImageResult: async () => {saves++;return 'result'},
+    })
+    assert.equal((await entry({id:'job',tenantSlug:'test',baseImageUrl:'base'})).resultImageUrl,'result')
+    assert.equal(images,1)
+    assert.equal(saves,1)
+    assert.equal(skipped,1)
+  }
+})
+
+test('missing review configuration is not treated as an opt-out', async () => {
+  let generated = false
+  const entry = await workerEntry({getActiveOpenRouterProvider:async () => ({}),readAiModelProfiles:async () => [],getBaseImage:async () => {generated=true}})
+  await assert.rejects(entry({tenantSlug:'test'}), /Configure a etapa/)
+  assert.equal(generated,false)
+})

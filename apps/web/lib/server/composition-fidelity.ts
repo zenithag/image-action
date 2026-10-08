@@ -55,7 +55,7 @@ export async function composeWithFidelityReview<T>(generate: (issues: string[], 
 
 export async function verifyCompositionFidelity(provider: AiProvider, job: CompositionJob, baseDataUrl: string, resultDataUrl: string, prompt: string, references: string[] = [], signal?: AbortSignal, attempt = 1, reviewer?: AiModelProfile) {
   const profile = reviewer ?? (await readAiModelProfiles()).find(profile => profile.purpose === "composition_review" && profile.enabled)
-  if (!profile) throw new Error("Configure um modelo de avaliação de composição ativo.")
+  if (!profile?.enabled) throw new Error("Configure um modelo de avaliação de composição ativo.")
   signal?.throwIfAborted()
   const result = await createOpenRouterChatCompletion({
     provider, profile: { ...profile, temperature: 0 }, user: job.tenantSlug, signal,

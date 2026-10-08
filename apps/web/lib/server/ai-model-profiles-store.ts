@@ -102,7 +102,7 @@ function defaultProfiles(): AiModelProfile[] {
       temperature: 0,
       maxTokens: 1600,
       enabled: true,
-      notes: "Compara original, pedido e resultado antes da liberação. Reprova alterações indevidas e orienta correções.",
+      notes: "Quando ativado, compara original, pedido e resultado antes da liberação e orienta correções.",
       createdAt: timestamp,
       updatedAt: timestamp,
     },

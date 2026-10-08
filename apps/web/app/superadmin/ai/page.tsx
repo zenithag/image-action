@@ -104,6 +104,8 @@ export default function SuperadminAiPage() {
   const [testResults, setTestResults] = useState<Record<string, AiProviderTestResult>>({})
   const [error, setError] = useState<string | null>(null)
 
+  const reviewProfile = profiles.find(profile => profile.purpose === "composition_review")
+  const reviewModels = models.filter(model => model.inputModalities.includes("image") && model.outputModalities.includes("text"))
   const activeProvider = providers.find((provider) => provider.status === "active" && provider.apiKeyConfigured)
   const knownRemainingCreditsUsd = providers.reduce((total, provider) => total + (provider.lastRemainingCreditsUsd ?? 0), 0)
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
@@ -392,7 +394,7 @@ export default function SuperadminAiPage() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-bold text-foreground font-display">Modelos de composição</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Perfis usados na visão, geração e avaliação obrigatória antes da liberação.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Perfis usados na visão, geração e avaliação opcional antes da liberação.</p>
               </div>
               <Sparkles className="h-5 w-5 text-primary" />
             </div>
@@ -437,6 +439,26 @@ export default function SuperadminAiPage() {
         </section>
 
         <section className="min-w-0 space-y-4">
+          {reviewProfile && <article className="space-y-4 rounded-md border border-primary/30 bg-card p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><h2 className="font-bold text-foreground font-display">Avaliação da imagem gerada</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Escolha quem verifica o resultado e se essa etapa será executada.</p>
+              </div>
+              <Button size="sm" disabled={savingProfileId === reviewProfile.id} onClick={() => void saveProfile(reviewProfile)}>{savingProfileId === reviewProfile.id ? "Salvando…" : "Salvar avaliação"}</Button>
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" role="switch" checked={reviewProfile.enabled} onChange={event => updateProfile(reviewProfile.id, { enabled: event.target.checked })} className="h-4 w-4 accent-primary" />
+              Ativar avaliação da imagem gerada
+            </label>
+            <label className="block text-sm font-medium">Modelo avaliador
+              <select value={reviewProfile.modelId} onChange={event => updateProfile(reviewProfile.id, { modelId: event.target.value })} className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                {!reviewModels.some(model => model.id === reviewProfile.modelId) && <option value={reviewProfile.modelId}>{reviewProfile.modelId}</option>}
+                {reviewModels.map(model => <option key={model.id} value={model.id}>{model.name} · {model.id}</option>)}
+              </select>
+            </label>
+            <p className="text-sm text-muted-foreground">{reviewProfile.enabled ? "Ativada: compara a foto original, o pedido e o resultado. Só libera após aprovação; reprovações permitem até 3 tentativas de composição." : "Desativada: libera a imagem após a geração, sem análise nem correções automáticas dessa etapa."}</p>
+            <p className="text-xs text-muted-foreground">Salve para aplicar. A avaliação e as novas tentativas têm custo no provedor. Sincronize os modelos para atualizar as opções com suporte a imagens.</p>
+          </article>}
           <div className="rounded-md border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -452,7 +474,7 @@ export default function SuperadminAiPage() {
           </div>
 
           <div className="grid items-start gap-4 xl:grid-cols-2">
-          {profiles.map((profile) => {
+          {profiles.filter(profile => profile.purpose !== "composition_review").map((profile) => {
             const model = modelsById.get(profile.modelId)
 
             return (
