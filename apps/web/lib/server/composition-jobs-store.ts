@@ -123,6 +123,7 @@ export async function createCompositionJob(tenantSlug: string, input: Compositio
     const job: CompositionJob = {
       id: crypto.randomUUID(),
       purpose: input.purpose === "studio-preset" ? "studio-preset" : "composition",
+      originalPurpose: input.purpose === "studio-preset" ? "studio-preset" : "composition",
       tenantSlug,
       presetIds: input.presetIds,
       conversationId: input.conversationId,
@@ -166,7 +167,7 @@ export async function updateCompositionJob(
   jobId: string,
   updates: Partial<Pick<
     CompositionJob,
-    "purpose" | "status" | "baseImageUrl" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "archivedAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
+    "purpose" | "originalPurpose" | "status" | "baseImageUrl" | "resultImageUrl" | "shareToken" | "shareEnabledAt" | "archivedAt" | "errorMessage" | "processingAttempts" | "processorProvider" | "processorModel" | "startedAt" | "completedAt"
   >>
 ): Promise<CompositionJob | null> {
   return withCompositionJobsMutation(async () => {
@@ -262,7 +263,7 @@ export async function saveStudioPresetJobAsComposition(tenantSlug: string, jobId
   if (job.purpose !== "studio-preset") return { ok: true as const, job, alreadySaved: true }
   if (job.status !== "done" || !job.resultImageUrl) return { ok: false as const, reason: "not-ready" as const }
 
-  const saved = await updateCompositionJob(tenantSlug, jobId, { purpose: "composition" })
+  const saved = await updateCompositionJob(tenantSlug, jobId, { purpose: "composition", originalPurpose: job.originalPurpose ?? "studio-preset" })
 
   return saved ? { ok: true as const, job: saved, alreadySaved: false } : { ok: false as const, reason: "not-found" as const }
 }
@@ -331,6 +332,17 @@ export async function recordCompositionGenerationUsage(tenantSlug: string, jobId
     if (!job) throw new Error("Job não encontrado para registrar o custo.")
     if (usage.requestId && job.generationUsage?.some(item => item.requestId === usage.requestId)) return
     job.generationUsage = [...(job.generationUsage || []), usage]
+    await writeCompositionJobsData(data)
+  })
+}
+
+export async function updateCompositionGenerationUsage(tenantSlug: string, jobId: string, requestId: string, patch: Partial<Pick<GenerationUsage, "costUsd" | "promptTokens" | "completionTokens" | "outputMedia" | "finishReason" | "verifiedAt">>) {
+  return withCompositionJobsMutation(async () => {
+    const data = await readCompositionJobsData()
+    const job = data.jobs.find(item => item.tenantSlug === tenantSlug && item.id === jobId)
+    const usage = job?.generationUsage?.find(item => item.requestId === requestId)
+    if (!usage) throw new Error("Chamada não encontrada neste pedido.")
+    Object.assign(usage, Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)))
     await writeCompositionJobsData(data)
   })
 }

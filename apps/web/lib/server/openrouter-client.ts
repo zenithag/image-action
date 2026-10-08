@@ -153,11 +153,15 @@ export async function createOpenRouterChatCompletion({
   profile,
   messages,
   user,
+  signal,
+  responseFormat,
 }: {
   provider: AiProvider
   profile: AiModelProfile
   messages: OpenRouterMessage[]
   user?: string
+  signal?: AbortSignal
+  responseFormat?: { type: "json_object" }
 }) {
   const response = await fetch(appendPath(provider.baseUrl, "/chat/completions"), {
     method: "POST",
@@ -169,9 +173,10 @@ export async function createOpenRouterChatCompletion({
       messages,
       temperature: profile.temperature,
       max_tokens: profile.maxTokens,
+      response_format: responseFormat,
       user,
     }),
-    signal: AbortSignal.timeout(45000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000),
   })
   const body = await readBody(response)
 
@@ -191,5 +196,24 @@ export async function createOpenRouterChatCompletion({
     model: data.model || profile.modelId,
     usage: data.usage,
     raw: data,
+  }
+}
+
+// Metadata lookup does not generate content or incur another composition.
+export async function getOpenRouterGeneration(provider: AiProvider, requestId: string) {
+  const url = new URL(appendPath(provider.baseUrl, "/generation"))
+  url.searchParams.set("id", requestId)
+  const response = await fetch(url, { headers: getOpenRouterHeaders(provider), signal: AbortSignal.timeout(10000), cache: "no-store" })
+  const payload = await readBody(response) as { data?: Record<string, unknown> } | null
+  const data = payload?.data
+  if (!response.ok || !data || data.id !== requestId) throw new Error("Não foi possível conferir esta chamada no OpenRouter.")
+  const finite = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
+  return {
+    costUsd: finite(data.total_cost),
+    promptTokens: finite(data.tokens_prompt),
+    completionTokens: finite(data.tokens_completion),
+    outputMedia: finite(data.num_media_completion),
+    finishReason: typeof data.finish_reason === "string" ? data.finish_reason : undefined,
+    verifiedAt: new Date().toISOString(),
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireSuperadmin } from "@/lib/server/superadmin-api-auth"
 
 import {
   readAiModelProfiles,
@@ -13,6 +14,8 @@ type RouteContext = {
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const denied = await requireSuperadmin()
+  if (denied) return denied
   const { id } = await context.params
   const payload = await request.json().catch(() => null)
   const profiles = await readAiModelProfiles()
@@ -30,6 +33,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
+  const denied = await requireSuperadmin()
+  if (denied) return denied
   const { id } = await context.params
   const profiles = await readAiModelProfiles()
   const nextProfiles = profiles.filter((profile) => profile.id !== id)

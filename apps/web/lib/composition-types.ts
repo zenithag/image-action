@@ -1,6 +1,16 @@
 import type { StudioPresetId } from "./studio-draft"
 
-export type GenerationUsage = { requestId?: string; model: string; costUsd?: number; promptTokens?: number; completionTokens?: number; createdAt: string }
+export type GenerationUsage = {
+  requestId?: string; model: string; costUsd?: number; promptTokens?: number; completionTokens?: number; createdAt: string
+  providerId?: string
+  kind?: "generation" | "review"
+  attempt?: number
+  outcome?: "image" | "no-image" | "error" | "approved" | "rejected" | "invalid-review"
+  issues?: string[]
+  verifiedAt?: string
+  outputMedia?: number
+  finishReason?: string
+}
 
 export type CompositionMode = "interior" | "product" | "print" | "fashion"
 export type CompositionJobStatus = "queued" | "processing" | "done" | "failed"
@@ -23,6 +33,7 @@ export type CompositionJob = {
   operator?: { id: string; name: string }
   presetIds?: StudioPresetId[]
   purpose?: "composition" | "studio-preset"
+  originalPurpose?: "composition" | "studio-preset"
   id: string
   tenantSlug: string
   conversationId: string

@@ -12,6 +12,7 @@ const profilePurposes = new Set<AiModelProfilePurpose>([
   "vision",
   "image_prompt",
   "image_generation",
+  "composition_review",
   "fallback",
 ])
 
@@ -88,6 +89,20 @@ function defaultProfiles(): AiModelProfile[] {
       maxTokens: 1200,
       enabled: true,
       notes: "Analisa imagens recebidas no WhatsApp.",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: "composition-review.default",
+      name: "Avaliação de composição",
+      purpose: "composition_review",
+      provider: "openrouter",
+      modelId: "openai/gpt-5.4",
+      fallbackModelIds: [],
+      temperature: 0,
+      maxTokens: 1600,
+      enabled: true,
+      notes: "Quando ativado, compara original, pedido e resultado antes da liberação e orienta correções.",
       createdAt: timestamp,
       updatedAt: timestamp,
     },
