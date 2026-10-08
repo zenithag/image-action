@@ -133,3 +133,35 @@ test('log listing includes presets and archived failures without exposing prompt
     assert.equal(entry.apiKey,undefined)
   }
 })
+
+
+test('measurement separates image and review costs, counts retries once and preserves incomplete history', () => {
+  const measured = {...job, startedAt:'2026-10-08T21:18:07.000Z', completedAt:'2026-10-08T21:19:07.000Z', generationUsage:[
+    {kind:'generation', attempt:1, costUsd:.024075, outcome:'image'},
+    {kind:'review', attempt:1, costUsd:.014145, outcome:'rejected'},
+    {kind:'generation', attempt:2, costUsd:.02532, outcome:'image'},
+    {kind:'review', attempt:2, costUsd:.004794, outcome:'approved'},
+  ]}
+  const summary = costs.summarizeCompositionRequest(measured)
+  for (const [field, expected] of Object.entries({generationCostUsd:.049395, reviewCostUsd:.018939, retryCostUsd:.030114, completeCostUsd:.068334})) assert.ok(Math.abs(summary[field] - expected) < 1e-10, field)
+  assert.equal(summary.durationMs, 60000)
+  assert.equal(summary.firstAttemptApproved, false)
+  const first = costs.summarizeCompositionRequest({...measured, generationUsage:[{kind:'generation', attempt:1, costUsd:0}, {kind:'review', attempt:1, costUsd:0, outcome:'approved'}]})
+  assert.equal(first.firstAttemptApproved, true)
+  assert.equal(first.retryCostUsd, 0)
+  assert.equal(first.generationCostUsd, 0)
+  const missing = costs.summarizeCompositionRequest({...measured, generationUsage:measured.generationUsage.map((call, i) => i === 2 ? {...call, costUsd:undefined} : call)})
+  assert.equal(missing.generationCostUsd, null)
+  assert.equal(missing.retryCostUsd, null)
+  assert.equal(missing.completeCostUsd, null)
+  assert.ok(missing.reviewCostUsd > 0)
+  for (const unknown of [job, {...job, generationUsage:[]}, {...measured, generationUsage:[{kind:'generation', costUsd:.1}]}]) {
+    const result = costs.summarizeCompositionRequest(unknown)
+    assert.equal(result.retryCostUsd, null)
+    assert.equal(result.firstAttemptApproved, null)
+  }
+  for (const dates of [{startedAt:undefined}, {completedAt:'invalid'}, {completedAt:'2020-01-01'}]) assert.equal(costs.summarizeCompositionRequest({...measured, ...dates}).durationMs, null)
+  const disabled = costs.summarizeCompositionRequest({...measured, generationUsage:[{kind:'generation', attempt:1, costUsd:.1}]})
+  assert.equal(disabled.reviewCostUsd, 0)
+  assert.equal(disabled.firstAttemptApproved, null)
+})

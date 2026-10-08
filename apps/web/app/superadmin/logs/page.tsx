@@ -47,7 +47,7 @@ export default function CompositionLogsPage() {
   const visible = entries.filter(entry => (purpose === "all" || entry.summary.purpose === purpose) && `${entry.id} ${entry.tenantName} ${entry.tenantSlug} ${entry.contactName} ${entry.operatorName ?? ""}`.toLowerCase().includes(query.toLowerCase()))
   return <div className="flex h-full flex-col bg-background">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
-      <div><h1 className="text-lg font-bold">Logs de composições</h1><p className="text-sm text-muted-foreground">Últimos 200 pedidos, incluindo presets, composições finais e falhas.</p></div>
+      <div><h1 className="text-lg font-bold">Logs</h1><p className="text-sm text-muted-foreground">Últimos 200 pedidos, incluindo presets, composições finais e falhas.</p></div>
       <Button variant="outline" disabled={loading || !!busy} onClick={() => void load()}>Atualizar</Button>
     </header>
     <main className="space-y-4 overflow-auto p-6">
@@ -75,6 +75,8 @@ export default function CompositionLogsPage() {
         </div>
         {(entry.summary.generations > 1 || entry.summary.reviews > 1) && <p className="text-sm font-medium">Mais de uma tentativa neste pedido.</p>}
         <p className="text-sm">Custo: {entry.summary.completeCostUsd !== null ? cost(entry.summary.completeCostUsd) : `${cost(entry.summary.knownCostUsd)} registrado; total incompleto (${entry.summary.unknownCosts} custos não informados)`}.</p>
+        <p className="text-xs text-muted-foreground">Geração: {cost(entry.summary.generationCostUsd)} · Avaliação: {cost(entry.summary.reviewCostUsd)} · Novas tentativas: {cost(entry.summary.retryCostUsd)} (já incluídas no total).</p>
+        <p className="text-xs text-muted-foreground">Primeira avaliação: {entry.summary.firstAttemptApproved === true ? "aprovada" : entry.summary.firstAttemptApproved === false ? "reprovada" : "não registrada"} · Tempo de execução: {entry.summary.durationMs === null ? "não registrado" : `${(entry.summary.durationMs / 1000).toFixed(1)} s`}.</p>
         {!!entry.summary.missingRequestIds && <p className="text-xs text-muted-foreground">{entry.summary.missingRequestIds} chamadas sem ID: não é possível conferir essas chamadas na API.</p>}
         {!entry.calls.length && <p className="text-xs text-muted-foreground">Sem registros de chamadas; isso não comprova ausência de consumo.</p>}
         {entry.errorMessage && <p className="text-sm text-destructive">{entry.errorMessage}</p>}

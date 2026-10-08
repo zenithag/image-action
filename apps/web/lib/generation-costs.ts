@@ -78,9 +78,18 @@ export function summarizeGenerationCosts(jobs: CompositionJob[]) {
 
 export function summarizeCompositionRequest(job: CompositionJob) {
   const calls = job.generationUsage ?? []
+  const stageCost = (selected: GenerationUsage[]) => selected.every(call => typeof call.costUsd === "number" && Number.isFinite(call.costUsd) && call.costUsd >= 0) ? selected.reduce((total, call) => total + call.costUsd!, 0) : null
+  const classified = calls.length > 0 && calls.every(call => call.kind === "generation" || call.kind === "review")
+  const firstReview = calls.find(call => call.kind === "review" && call.attempt === 1)
+  const elapsed = Date.parse(job.completedAt ?? "") - Date.parse(job.startedAt ?? "")
   return {
     purpose: job.purpose ?? "composition",
     originalPurpose: job.originalPurpose ?? (job.purpose === "studio-preset" ? "studio-preset" : null),
+    generationCostUsd: classified ? stageCost(calls.filter(call => call.kind === "generation")) : null,
+    reviewCostUsd: classified ? stageCost(calls.filter(call => call.kind === "review")) : null,
+    retryCostUsd: classified && calls.every(call => Number.isInteger(call.attempt) && call.attempt! >= 1) ? stageCost(calls.filter(call => call.attempt! > 1)) : null,
+    firstAttemptApproved: firstReview?.outcome === "approved" ? true : firstReview?.outcome === "rejected" ? false : null,
+    durationMs: Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : null,
     providerRequests: calls.length,
     generations: calls.filter(call => call.kind === "generation").length,
     reviews: calls.filter(call => call.kind === "review").length,

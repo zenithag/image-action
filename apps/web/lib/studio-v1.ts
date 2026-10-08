@@ -40,6 +40,8 @@ export function hasStudioPresetInstruction(prompt: string) {
 }
 
 export const STUDIO_PRESET_ORDER: StudioPresetId[] = ["remove-furniture", "renovate", "fresh-paint", "wall-covering", "flooring", "ceiling", "furnish"]
+const presetNames: Record<StudioPresetId, string> = { "remove-furniture": "Remove furniture", renovate: "Restore interior", "fresh-paint": "Fresh paint", "wall-covering": "Wall covering", flooring: "Floor / wall finish", ceiling: "Ceiling finish", furnish: "Furnish" }
+const preservePhoto = "Edit the original photograph in place. Preserve its exact pixel dimensions, aspect ratio and portrait/landscape orientation, camera position, focal length, field of view, perspective, room scale and boundaries. Do not crop, rotate, zoom, stretch, expand the canvas or make the room appear larger. Keep walls, structural columns, beams, ceiling height, doors, windows, stairs and openings in their original positions and dimensions. Make only the selected changes, with realistic materials, lighting, shadows and occlusion."
 
 export function getStudioInstruction(base: StudioImageArtifact, fallbackInstruction: string) {
   const manual = (base.instruction || fallbackInstruction).trim()
@@ -47,18 +49,19 @@ export function getStudioInstruction(base: StudioImageArtifact, fallbackInstruct
   const ids = base.combinePresets ? active : active.filter(id => !(active.includes("furnish") && id === "remove-furniture") && !(active.includes("wall-covering") && id === "fresh-paint"))
   if (!ids.length) return manual
   const contextual = ids.some(id => !["remove-furniture", "renovate"].includes(id))
-  const room = ({ "living-room": "sala de estar", bedroom: "quarto", kitchen: "cozinha", bathroom: "banheiro" } as Record<string, string>)[base.roomType || ""] || (base.roomType && base.roomType !== "auto" ? base.roomType : "tipo de cômodo visível na imagem")
+  const room = ({ "living-room": "living room", bedroom: "bedroom", kitchen: "kitchen", bathroom: "bathroom", Sala: "living room", Quarto: "bedroom", Cozinha: "kitchen", Banheiro: "bathroom", Escritório: "office", "Área externa": "outdoor area", Varanda: "balcony" } as Record<string, string>)[base.roomType || ""] || (base.roomType && base.roomType !== "auto" ? base.roomType : "the room shown in the photograph")
+  const property = (base.propertyContexts || []).map(value => ({ Apartamento: "apartment", Casa: "house", "Alto padrão": "high-end", Pequeno: "small", Grande: "large", Conjugado: "studio apartment" } as Record<string, string>)[value] || value)
   if (contextual && (room.length > 80 || (base.sceneDescription?.length ?? 0) > 1000 || (base.propertyContexts?.length ?? 0) > 30 || base.propertyContexts?.some(value => typeof value !== "string" || value.length > 80))) throw new Error("Contexto do ambiente inválido ou muito extenso.")
   const directions: Record<StudioPresetId, string> = {
     "remove-furniture": base.removeFixedFurniture
-      ? "Remova móveis soltos e também móveis e instalações fixas, incluindo pias, armários embutidos, vasos sanitários e churrasqueira. Retire somente os componentes de mobiliário e instalações removíveis; preserve a estrutura, portas, janelas e aberturas. Preserve bancadas integradas à arquitetura, balcões de alvenaria, meias paredes e pilares; não demola nem reconstrua a estrutura."
-      : "Remova apenas móveis soltos. Preserve elementos fixos, armários embutidos e churrasqueira.",
-    renovate: `Renove a aparência do ambiente para deixá-lo mais atrativo e vendável: aplique pintura nova com textura realista de parede pintada e repare desgaste, trincas, sujeira, manchas e defeitos nas paredes, no teto e nos objetos fixos. Preserve os mesmos materiais, desenho, ${ids.includes("remove-furniture") ? "elementos fixos" : "mobiliário"} e estrutura, salvo alterações autorizadas pelos outros presets.`,
-    "fresh-paint": `Renove a pintura das superfícies já pintadas${base.presetOptions?.["fresh-paint"]?.color ? ` na cor ${base.presetOptions["fresh-paint"]!.color}` : ""}, aplicando textura realista de parede pintada, sem substituir revestimentos.`,
-    "wall-covering": "Crie com IA um novo revestimento de parede coerente com o ambiente, alterando somente o acabamento, sem alterar a estrutura.",
-    flooring: `Crie com IA um novo piso / revestimento coerente com o ambiente. Aplique somente ${base.presetOptions?.flooring?.surface === "walls" ? "nas paredes" : base.presetOptions?.flooring?.surface === "both" ? "no piso visível e nas paredes" : "no piso visível"}, sem alterar a estrutura.`,
-    ceiling: "Crie com IA um acabamento novo para o teto / forro, preservando luminárias e estrutura.",
-    furnish: `Adicione mobília adequada para ${room}, nas áreas livres, respeitando circulação, proporções e escala. ${base.propertyContexts?.includes("Alto padrão") ? "Use uma composição visual de alto padrão." : "Use uma composição funcional e coerente com o ambiente."} Varie criativamente os móveis e a decoração, sem exigir catálogo nem inventar marcas, preços ou propriedades comerciais. Preserve as alterações realizadas nas etapas anteriores.`,
+      ? "Remove loose furniture and nonstructural built-in or attached furnishings: sofas, beds, tables, chairs, freestanding and fitted cabinets, wardrobes, shelves, rugs, appliances and decorative objects. Remove sinks, toilets or barbecue units only when they are detachable fittings, not masonry or structural components. Keep architectural elements even if they resemble furniture: masonry counters, structural or masonry-integrated countertops, half-walls, pillars, stairs and built-in masonry benches. Never demolish architecture; when uncertain, preserve the element. Reconstruct only the newly exposed wall/floor surfaces from adjacent materials, without changing room geometry. Do not add replacement objects."
+      : "Remove loose furniture and movable furnishings only: sofas, beds, tables, chairs, freestanding cabinets and shelves, rugs and decorative objects. Preserve attached or built-in furniture, counters, sinks, toilets, barbecue installations and all architectural elements. Reconstruct only surfaces exposed by removed objects using adjacent floor/wall materials, texture and perspective. Do not change the room geometry or add replacement objects.",
+    renovate: "Restore the visible interior to a clean, newly completed and freshly finished condition, preserving its existing design. Repair peeling paint, superficial plaster damage, visible cracks, grime, mold marks, water stains, damp patches and discoloration on walls and ceilings. Renew already painted surfaces with an even, realistic paint finish in their existing colors unless another selected preset requests a color change. Clean and visually repair worn floors, finishes and retained fixed objects while preserving their material, pattern, color and shape. Keep the original ceiling height, room dimensions, layout and remaining fixtures. Do not redesign, replace intact finishes, conceal damage with new furniture, add objects or remove furnishings unless another selected preset explicitly requires it.",
+    "fresh-paint": `Apply fresh, evenly finished paint to already painted walls${base.paintCeiling ? " and the already painted ceiling" : " only"}${base.presetOptions?.["fresh-paint"]?.color ? `, using color ${base.presetOptions["fresh-paint"]!.color}` : ", retaining the existing paint color unless the supplied reference specifies another"}. ${base.paintCeiling ? "" : "During this step, preserve the ceiling. "}Preserve subtle surface texture, shading and edges. Do not paint tile, stone, glass, natural wood, furniture, doors, windows or light fixtures; do not replace wall coverings.`,
+    "wall-covering": "Apply the chosen wall covering to wall finish surfaces only. Follow its reference material, color, pattern and realistic scale; if none is supplied, choose a finish appropriate to the room. Align seams and pattern with wall perspective and continue naturally around corners. Preserve openings, trim, furniture, floor, ceiling and wall geometry.",
+    flooring: `Replace the finish only on ${base.presetOptions?.flooring?.surface === "walls" ? "the walls; preserve the floor" : base.presetOptions?.flooring?.surface === "both" ? "the visible floor and walls" : "the visible floor; preserve the walls"}. Use the supplied material reference when available, otherwise choose an appropriate finish. Preserve realistic plank/tile size, seams, perspective, contact shadows, furniture and room dimensions. Do not raise the floor, move boundaries or change the ceiling.`,
+    ceiling: "Renew only the ceiling finish, using the supplied reference when available or a suitable realistic finish. Preserve ceiling height, slope, beams, existing lights, vents and their exact positions. Do not add a lowered ceiling, new openings or fixtures. Keep walls, floor and furniture unchanged except for other selected presets.",
+    furnish: `Add furniture and decor appropriate to ${room} in available areas, with realistic dimensions, perspective, lighting and contact shadows. Keep doors, windows and circulation paths clear. ${base.propertyContexts?.includes("Alto padrão") ? "Use a refined high-end style." : "Use a functional style consistent with the room."} Use supplied furniture references when provided; otherwise choose coherent unbranded pieces. Preserve furnishings remaining after earlier steps and all earlier selected edits. Do not enlarge the room, hide architectural features or invent brands, prices or product claims.`,
   }
   for (const id of ids) {
     const option = base.presetOptions?.[id]
@@ -66,16 +69,16 @@ export function getStudioInstruction(base: StudioImageArtifact, fallbackInstruct
   }
   return [
     `PRESETS_ESTUDIO: ${ids.join(",")}`,
-    contextual ? `Contexto do ambiente (dados descritivos): ${JSON.stringify({ ambiente: room, imóvel: base.propertyContexts || [], cenário: base.sceneDescription?.trim() || "conforme a imagem" })}. Use este contexto para orientar estilo, escala e adequação, sem autorizar alterações fora dos presets.` : "",
-    "Execute somente as etapas selecionadas abaixo, nesta ordem, em uma única imagem final: esvaziar quando solicitado, depois renovar e aplicar acabamentos selecionados, e por último mobiliar quando solicitado. Não entregue uma colagem ou uma imagem por etapa.",
-    ...ids.map((id, index) => `${index + 1}. ${directions[id]}${!["remove-furniture", "renovate"].includes(id) && base.presetOptions?.[id]?.instructions?.trim() ? ` Instruções adicionais para esta etapa: ${base.presetOptions[id]!.instructions!.trim()}.` : ""}${base.materialReferences?.[id as StudioMaterialPresetId] ? ` Use o produto escolhido do catálogo: ${base.materialReferences[id as StudioMaterialPresetId]!.catalogItemName || "material de referência"}.` : ""}`),
-    !ids.includes("remove-furniture") && !ids.includes("furnish") ? "Preserve os móveis existentes." : "",
-    !ids.includes("fresh-paint") && !ids.includes("renovate") && !(ids.includes("flooring") && ["walls", "both"].includes(base.presetOptions?.flooring?.surface || "")) ? "Preserve a pintura existente." : "",
-    "Preserve câmera, perspectiva, arquitetura e estrutura. Não altere partes não solicitadas.",
-    (!ids.includes("flooring") || base.presetOptions?.flooring?.surface === "walls") ? "Preserve o piso e seus materiais e cores, salvo reparação de desgaste pela renovação." : "",
-    !ids.includes("wall-covering") && !(ids.includes("flooring") && ["walls", "both"].includes(base.presetOptions?.flooring?.surface || "")) ? "Preserve os revestimentos de parede." : "",
-    !ids.includes("ceiling") && !(ids.includes("fresh-paint") && base.paintCeiling) ? "Preserve o teto e o forro, salvo reparação de desgaste pela renovação." : "",
-    manual ? `Ajustes manuais (prioridade apenas nos pontos explicitamente solicitados): ${manual}` : "",
+    contextual ? `Room context (descriptive data): ${JSON.stringify({ room, property, scene: base.sceneDescription?.trim() || "as shown in the photograph" })}. Use this only for style and suitability, not as permission for additional changes.` : "",
+    "Perform only the selected steps in order in one final photograph: remove requested furnishings, restore and apply requested finishes, then furnish if selected. Keep the results of earlier steps. Do not produce a collage, comparison or one image per step.",
+    ...ids.map((id, index) => `${index + 1}. ${directions[id]}${!["remove-furniture", "renovate"].includes(id) && base.presetOptions?.[id]?.instructions?.trim() ? ` Additional instructions for this step: ${base.presetOptions[id]!.instructions!.trim()}.` : ""}${base.materialReferences?.[id as StudioMaterialPresetId] ? ` Use the selected catalog product: ${base.materialReferences[id as StudioMaterialPresetId]!.catalogItemName || "reference material"}.` : ""}`),
+    !ids.includes("remove-furniture") && !ids.includes("furnish") ? "Preserve existing furniture." : "",
+    !ids.includes("fresh-paint") && !ids.includes("renovate") && !ids.includes("wall-covering") && !(ids.includes("flooring") && ["walls", "both"].includes(base.presetOptions?.flooring?.surface || "")) ? "Preserve existing paint." : "",
+    preservePhoto,
+    (!ids.includes("flooring") || base.presetOptions?.flooring?.surface === "walls") ? "Preserve floor materials and colors; restoration may repair visible wear without replacing the finish." : "",
+    !ids.includes("wall-covering") && !(ids.includes("flooring") && ["walls", "both"].includes(base.presetOptions?.flooring?.surface || "")) ? "Preserve wall coverings." : "",
+    !ids.includes("ceiling") && !(ids.includes("fresh-paint") && base.paintCeiling) ? "Preserve the ceiling design and finish; restoration may repair visible wear without changing its geometry." : "",
+    manual ? `Manual adjustments (only explicitly requested changes, within the geometry and framing constraints above): ${manual}` : "",
   ].filter(Boolean).join("\n")
 }
 
@@ -109,11 +112,11 @@ export function buildStudioInput(slug: string, base: StudioImageArtifact, refere
   if ((base.instruction || instruction).trim().length > 4000) throw new Error("A instrução deve ter até 4.000 caracteres.")
   const prompt = [
     composedInstruction,
-    "Preserve a câmera, a perspectiva e a arquitetura do ambiente.",
-    references.length ? "Aplique as referências em conjunto, na ordem enviada, seguindo a instrução. Cada referência de preset deve orientar somente sua etapa indicada; preserve a câmera e a arquitetura da imagem base." : "",
+    hasStudioPresetInstruction(composedInstruction) ? "" : "Preserve original pixel dimensions, aspect ratio, portrait/landscape orientation, camera, perspective, room size and architecture. Do not crop, zoom, expand canvas or alter unrequested areas.",
+    references.length ? "Use the supplied references in order. Each preset reference applies only to its named step; preserve the original photograph geometry and framing." : "",
     ...references.map((ref, index) => ref.source === "catalog"
-      ? `Referência ${index + 1}: ${ref.catalogItemName || "produto"}. SKU: ${ref.catalogSku || "não informado"}. ${ref.catalogDescription || ""}`.slice(0, 150)
-      : `Referência ${index + 1}: ${ref.caption || "imagem enviada"}.`.slice(0, 150)),
+      ? `Reference ${index + 1}: ${ref.catalogItemName || "product"}. SKU: ${ref.catalogSku || "not provided"}. ${ref.catalogDescription || ""}`.slice(0, 150)
+      : `Reference ${index + 1}: ${ref.caption || "uploaded image"}.`.slice(0, 150)),
   ].filter(Boolean).join("\n")
   if (prompt.length > 5000) throw new Error("A instrução final com presets e referências excede 5.000 caracteres. Reduza o texto manual.")
   return {
@@ -241,7 +244,7 @@ export function buildStudioPresetInput(slug: string, base: StudioImageArtifact, 
   const manualTarget = options.placement?.trim() || ""
   if (manualTarget.length > 500) throw new Error("A descrição do local deve ter até 500 caracteres.")
   const source = options.aggregate === false ? { ...base, selectedPresetVersionId: undefined } : base
-  const working = { ...getStudioWorkingBase(source), presetIds: [preset], removeFixedFurniture: preset === "remove-furniture" && options.removeFixedFurniture === true, materialReferences: {}, instruction: "", selectedSurfaceIds: [] } as StudioImageArtifact
+  const working = { ...getStudioWorkingBase(source), presetIds: [preset], removeFixedFurniture: preset === "remove-furniture" && options.removeFixedFurniture === true, paintCeiling: options.includeCeiling === true, materialReferences: {}, instruction: "", selectedSurfaceIds: [] } as StudioImageArtifact
   let input: CompositionJobInput
   if (isStudioMaterialPreset(preset)) {
     if (!options.item) throw new Error("Escolha um material do catálogo.")
@@ -254,11 +257,11 @@ export function buildStudioPresetInput(slug: string, base: StudioImageArtifact, 
     input = buildStudioInput(slug, working, refs, "")
     input.changeStrength = options.strength
   }
-  const scope = manualTarget && isStudioMaterialPreset(preset) ? `Local de aplicação indicado manualmente: ${manualTarget}. Use esta descrição para identificar onde aplicar o material escolhido; não estenda a alteração às outras partes do ambiente. Preserve portas, janelas, luminárias, móveis, objetos e arquitetura. ${preset === "fresh-paint" ? options.includeCeiling ? "Inclua também o teto pintado." : "Preserve o teto e o forro; não os pinte." : "Altere somente o acabamento solicitado."}` : preset === "fresh-paint" ? (options.includeCeiling ? "Pinte todas as paredes já pintadas e inclua o teto pintado. Não substitua revestimentos." : "Pinte todas as paredes já pintadas. Preserve o teto e o forro exatamente como estão.")
-    : preset === "wall-covering" ? "Aplique em todas as paredes, preservando teto, piso, portas, janelas e objetos."
-    : preset === "flooring" ? `Aplique ${base.presetOptions?.flooring?.surface === "walls" ? "nas paredes, preservando o piso" : base.presetOptions?.flooring?.surface === "both" ? "no piso visível e nas paredes" : "em todo o piso visível, preservando paredes"}, teto e objetos devem ser preservados.` : preset === "ceiling" ? "Aplique em todo o teto / forro, preservando luminárias, paredes, piso e objetos."
-    : preset === "renovate" ? "Renove a pintura e repare defeitos nas paredes, no teto e nos objetos fixos. Preserve estrutura e materiais; deixe o ambiente mais atrativo."
-    : preset === "furnish" ? `Adicione apenas os itens do catálogo enviados como referências. Preserve todo o mobiliário e todas as edições já presentes na imagem. ${options.placement?.trim() ? `Posição solicitada (orientação semântica, sem garantia espacial): ${options.placement.trim()}.` : "Distribua os itens nas áreas livres respeitando circulação."}` : options.removeFixedFurniture && preset === "remove-furniture" ? "Retire também as instalações fixas solicitadas; preserve pintura, revestimentos, piso, teto e estrutura. Não adicione móveis ou objetos." : "Preserve pintura, revestimentos, piso, teto e elementos fixos."
+  const scope = manualTarget && isStudioMaterialPreset(preset) ? `Manually specified target: ${manualTarget}. Apply the selected material only in this area. Preserve doors, windows, lights, furniture, objects and architecture. ${preset === "fresh-paint" ? options.includeCeiling ? "Include the already painted ceiling in the fresh-paint step." : "During the fresh-paint step, preserve the ceiling; do not paint it." : "Change only the requested finish."}` : preset === "fresh-paint" ? (options.includeCeiling ? "Paint all already painted walls and the already painted ceiling. Do not replace wall coverings." : "Paint all already painted walls. During this step, keep the ceiling exactly as it is.")
+    : preset === "wall-covering" ? "Apply the covering to all walls, preserving ceiling, floor, doors, windows and objects."
+    : preset === "flooring" ? `Apply the finish to ${base.presetOptions?.flooring?.surface === "walls" ? "walls only, preserving the floor" : base.presetOptions?.flooring?.surface === "both" ? "the visible floor and walls" : "the visible floor only, preserving walls"}; preserve ceiling and objects.` : preset === "ceiling" ? "Apply the ceiling finish throughout, preserving lights, walls, floor and objects."
+    : preset === "renovate" ? "Restore paint and visible wear on walls, ceilings and retained fixed objects. Preserve architecture and existing materials."
+    : preset === "furnish" ? `Add only the catalog items supplied as references. Preserve all existing furnishings and earlier edits. ${options.placement?.trim() ? `Requested placement: ${options.placement.trim()}.` : "Use available areas and keep circulation paths clear."}` : options.removeFixedFurniture && preset === "remove-furniture" ? "Remove the requested detachable fixed furnishings; preserve paint, finishes, floor, ceiling and architecture. Do not add objects." : "Preserve paint, wall coverings, floor, ceiling and fixed elements."
   input.prompt = `${input.prompt}\n${scope}`
   if ((input.prompt?.length ?? 0) > 5000) throw new Error("Instrução final muito extensa.")
   return { ...input, purpose: "studio-preset", presetIds: [preset], baseMessageId: working.source === "inbox" ? working.messageId : undefined }
@@ -284,14 +287,14 @@ export function buildStudioPresetsInput(slug: string, base: StudioImageArtifact,
     const reference = base.presetOptions?.[id]?.reference
     if (!reference) return []
     if (reference.source !== "upload" || !/^data:image\/(jpeg|png|webp);base64,/.test(reference.mediaUrl)) throw new Error("Referência de imagem inválida. Envie uma imagem JPG, PNG ou WebP.")
-    return [{ ...reference, caption: `Referência para a etapa ${STUDIO_PRESETS.find(preset => preset.id === id)!.label}` }]
+    return [{ ...reference, caption: `Reference for the ${presetNames[id]} step` }]
   })
   const refs: StudioImageArtifact[] = [...uploaded, ...furniture.map(item => ({ source: "catalog" as const, mediaUrl: item.imageUrl, catalogItemId: item.id, catalogItemName: item.name, catalogSku: item.sku, createdAt: item.createdAt }))]
   const input = buildStudioInput(slug, working, refs, "")
   input.prompt += [
-    ids.includes("fresh-paint") ? options.includeCeiling ? "Inclua também o teto pintado." : "Na etapa de pintura, preserve o teto e o forro; não os pinte." : "",
-    furniture.length ? "Na etapa de mobiliar, use apenas os móveis do catálogo enviados como referências, preservando as etapas anteriores." : "",
-    options.placement?.trim() ? `Local de aplicação indicado manualmente: ${options.placement.trim()}.` : "",
+    ids.includes("fresh-paint") ? options.includeCeiling ? "Include the already painted ceiling in the fresh-paint step." : "During the fresh-paint step, preserve the ceiling; do not paint it." : "",
+    furniture.length ? "During the furnishing step, use only the catalog furniture supplied as references and preserve earlier edits." : "",
+    options.placement?.trim() ? `Manually specified target: ${options.placement.trim()}.` : "",
   ].filter(Boolean).map(line => `\n${line}`).join("")
   if ((input.prompt?.length ?? 0) > 5000) throw new Error("Contexto final muito extenso. Reduza as descrições e instruções adicionais.")
   return { ...input, purpose: "studio-preset", presetIds: ids, changeStrength: options.strength }

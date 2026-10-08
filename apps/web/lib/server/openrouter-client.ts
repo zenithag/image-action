@@ -66,9 +66,9 @@ async function readBody(response: Response) {
   }
 }
 
-function getOpenRouterHeaders(provider: AiProvider) {
+function getOpenRouterHeaders(provider: Pick<AiProvider, "baseUrl" | "apiKey">) {
   return {
-    Authorization: `Bearer ${provider.apiKey}`,
+    ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
     "Content-Type": "application/json",
     "HTTP-Referer": process.env.OPENROUTER_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     "X-Title": process.env.OPENROUTER_SITE_NAME || "ComoFica",
@@ -93,7 +93,7 @@ function getOpenRouterError(status: number, body: unknown) {
   return `OpenRouter respondeu HTTP ${status}.`
 }
 
-export async function listOpenRouterModels(provider: AiProvider) {
+export async function listOpenRouterModels(provider: Pick<AiProvider, "baseUrl" | "apiKey">, includePricing = false) {
   const catalogs = await Promise.all(["/models", "/images/models"].map(async pathname => {
     const response = await fetch(appendPath(provider.baseUrl, pathname), {
       method: "GET",
@@ -122,6 +122,7 @@ export async function listOpenRouterModels(provider: AiProvider) {
         inputModalities: model.architecture?.input_modalities || [],
         outputModalities: model.architecture?.output_modalities || [],
         imageEndpoint: pathname === "/images/models",
+        chatEndpoint: pathname === "/models",
         imageParameters: pathname === "/images/models" ? model.supported_parameters : undefined,
       } satisfies OpenRouterModelSummary))
   }))
@@ -133,9 +134,38 @@ export async function listOpenRouterModels(provider: AiProvider) {
       contextLength: model.contextLength ?? previous?.contextLength,
       promptPrice: model.promptPrice ?? previous?.promptPrice,
       completionPrice: model.completionPrice ?? previous?.completionPrice,
+      chatEndpoint: model.chatEndpoint || previous?.chatEndpoint,
     })
   }
+  if (includePricing) {
+    const pending = [...models.values()].filter(model => model.imageEndpoint)
+    // Catalog pricing is read only in the admin view, never on the generation path.
+    await Promise.all(Array.from({ length: Math.min(6, pending.length) }, async () => {
+      while (pending.length) {
+        const model = pending.pop()!
+        try {
+          const response = await fetch(appendPath(provider.baseUrl, `/images/models/${model.id.split("/").map(encodeURIComponent).join("/")}/endpoints`), {
+            headers: getOpenRouterHeaders(provider), signal: AbortSignal.timeout(5000), next: { revalidate: 3600 },
+          })
+          if (!response.ok) continue
+          const body = await response.json() as { endpoints?: Array<{ pricing?: OpenRouterModelSummary["imagePricing"] }> }
+          model.imagePricing = (body.endpoints || []).flatMap(endpoint => endpoint.pricing || []).filter(line => typeof line.billable === "string" && typeof line.unit === "string" && typeof line.cost_usd === "number" && Number.isFinite(line.cost_usd) && line.cost_usd >= 0)
+        } catch { /* Missing prices stay unknown without hiding the model catalog. */ }
+      }
+    }))
+  }
   return [...models.values()].sort((left, right) => left.id.localeCompare(right.id))
+}
+
+export async function getUsdBrlExchangeRate() {
+  try {
+    const response = await fetch("https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/1?formato=json", { signal: AbortSignal.timeout(5000), next: { revalidate: 3600 } })
+    if (!response.ok) return null
+    const rows = await response.json() as Array<{ data?: string; valor?: string }>
+    const rate = Number(rows[0]?.valor)
+    const date = rows[0]?.data
+    return Number.isFinite(rate) && rate > 0 && date && /^\d{2}\/\d{2}\/\d{4}$/.test(date) ? { rate, date } : null
+  } catch { return null }
 }
 
 export async function validateOpenRouterProfile(provider: AiProvider, profile: AiModelProfile) {

@@ -2,7 +2,7 @@
 
 import { UserMenu } from "@/components/molecules/user-menu"
 import { Input, Textarea } from "@/components/spectrum/fields"
-import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react"
+import { Children, cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
   Bot,
@@ -14,13 +14,12 @@ import {
   Save,
   ShieldCheck,
   Settings,
-  ChevronDown,
   X,
   Trash2,
 } from "@/components/spectrum/icons"
 
 import { Button } from "@/components/ui/button"
-import { Dialog } from "radix-ui"
+import { Dialog, Popover } from "radix-ui"
 import type { AiGuardrailRecord } from "@/lib/ai-guardrail-types"
 import type {
   AiModelProfile,
@@ -28,8 +27,9 @@ import type {
   AiProviderTestResult,
   OpenRouterModelSummary,
   SafeAiProvider,
+  UsdBrlExchangeRate,
 } from "@/lib/ai-types"
-import { isModelCompatible } from "@/lib/ai-types"
+import { formatModelPrices, isModelCompatible } from "@/lib/ai-types"
 import { cn } from "@/lib/utils"
 
 type NewProviderForm = {
@@ -93,6 +93,7 @@ async function requestJson<T>(url: string, init?: RequestInit) {
 
 export default function SuperadminAiPage() {
   const dialogContainer = useRef<HTMLDivElement>(null)
+  const modelTable = useRef<HTMLDivElement>(null)
   const [providerDialogOpen, setProviderDialogOpen] = useState(false)
   const [providers, setProviders] = useState<SafeAiProvider[]>([])
   const [profiles, setProfiles] = useState<AiModelProfile[]>([])
@@ -108,8 +109,8 @@ export default function SuperadminAiPage() {
   const [savingGuardrailId, setSavingGuardrailId] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, AiProviderTestResult>>({})
   const [error, setError] = useState<string | null>(null)
+  const [exchangeRate, setExchangeRate] = useState<UsdBrlExchangeRate | null>(null)
 
-  const reviewModels = models.filter(model => model.inputModalities.includes("image") && model.outputModalities.includes("text"))
   const activeProvider = providers.find((provider) => provider.status === "active" && provider.apiKeyConfigured)
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
 
@@ -139,12 +140,12 @@ export default function SuperadminAiPage() {
   }, [])
 
   useEffect(() => {
-    if (!activeProvider || models.length > 0 || syncingModels) {
+    if (isLoading || syncingModels) {
       return
     }
 
     void syncModels()
-  }, [activeProvider?.id])
+  }, [activeProvider?.id, isLoading])
 
   async function createProvider() {
     if (isCreatingProvider) return
@@ -225,11 +226,12 @@ export default function SuperadminAiPage() {
     setError(null)
 
     try {
-      const result = await requestJson<{ providerId: string; models: OpenRouterModelSummary[] }>(
+      const result = await requestJson<{ providerId: string; models: OpenRouterModelSummary[]; exchangeRate: UsdBrlExchangeRate | null }>(
         activeProvider ? `/api/superadmin/ai/models?providerId=${activeProvider.id}` : "/api/superadmin/ai/models",
         { cache: "no-store" }
       )
       setModels(result.models)
+      setExchangeRate(result.exchangeRate)
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : "Erro ao sincronizar modelos.")
     } finally {
@@ -404,24 +406,19 @@ export default function SuperadminAiPage() {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-      <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 sm:px-7">
-        <section aria-labelledby="composition-models-title" className="space-y-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-primary">Fluxo de composição</p>
-            <h2 id="composition-models-title" className="mt-1 font-display text-xl font-semibold text-foreground">Modelos ativos</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Da leitura da foto à aprovação do resultado.</p>
-          </div>
+      <div className="w-full space-y-5 px-4 py-4 sm:px-7">
+        <section aria-labelledby="composition-models-title" className="space-y-2">
+          <h2 id="composition-models-title" className="font-display text-base font-semibold text-foreground">Modelos ativos</h2>
           {isLoading ? <EmptyState title="Carregando modelos…" description="Buscando as configurações de IA." /> : compositionProfiles.length ? (
             <ol className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-              {compositionProfiles.map((profile, index) => (
-                <li key={profile.id} className="min-w-0 bg-card p-5">
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="font-mono text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-primary"><span className="h-1.5 w-1.5 rounded-full bg-primary" />Ativo</span>
+              {compositionProfiles.map(profile => (
+                <li key={profile.id} className="min-w-0 bg-card px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">{purposeLabel[profile.purpose]}</p>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Ativo" />
                   </div>
-                  <p className="text-xs text-muted-foreground">{purposeLabel[profile.purpose]}</p>
-                  <h3 className="mt-1 break-words text-sm font-semibold text-foreground">{modelsById.get(profile.modelId)?.name || profile.modelId}</h3>
-                  <p className="mt-2 break-all font-mono text-xs text-muted-foreground">{profile.modelId}</p>
+                  <h3 className="mt-1 truncate text-sm font-semibold text-foreground" title={modelsById.get(profile.modelId)?.name || profile.modelId}>{modelsById.get(profile.modelId)?.name || profile.modelId}</h3>
+                  {modelsById.get(profile.modelId)?.name && <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground" title={profile.modelId}>{profile.modelId}</p>}
                 </li>
               ))}
             </ol>
@@ -430,154 +427,79 @@ export default function SuperadminAiPage() {
         <section aria-labelledby="model-settings-title" className="space-y-4">
           <div>
             <h2 id="model-settings-title" className="font-display text-lg font-semibold text-foreground">Modelos por etapa</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Composição, avaliação e atendimento. Expanda uma etapa para configurar.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Catálogo do OpenRouter filtrado por etapa. Edite em cada linha e salve para aplicar.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Entrada e saída em US$ e R$, com a unidade de cobrança. {exchangeRate ? `Conversão de referência: dólar venda BCB de ${exchangeRate.date}, US$ 1 = R$ ${exchangeRate.rate.toLocaleString("pt-BR", { maximumFractionDigits: 4 })}.` : "Conversão em reais indisponível."} Preços variam por provedor e configuração.</p>
           </div>
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {orderedProfiles.map(profile => {
-              const model = modelsById.get(profile.modelId)
-              return (
-                <li key={profile.id}>
-                  <details className="group">
-                    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 rounded-xl px-4 py-5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&::-webkit-details-marker]:hidden sm:px-5">
-                      <div className="min-w-0 flex-1 basis-40">
-                        <h3 className="text-sm font-semibold text-foreground">{purposeLabel[profile.purpose]}</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">{profile.name}</p>
-                      </div>
-                      <span className="min-w-0 basis-full break-all text-sm text-muted-foreground sm:basis-auto sm:max-w-[45%]">{model?.name || profile.modelId}</span>
-                      <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", profile.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{profile.enabled ? "Ativo" : "Inativo"}</span>
-                      <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" />
-                    </summary>
-                    <div className="space-y-4 border-t border-border bg-muted/10 px-4 py-5 sm:px-5">
-                      {profile.purpose === "composition_review" ? <>
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div><h2 className="font-bold text-foreground font-display">Avaliação da imagem gerada</h2>
-                            <p className="mt-1 text-sm text-muted-foreground">Escolha quem verifica o resultado e se essa etapa será executada.</p>
-                          </div>
-                          <Button size="sm" disabled={savingProfileId === profile.id} onClick={() => void saveProfile(profile)}>{savingProfileId === profile.id ? "Salvando…" : "Salvar avaliação"}</Button>
-                        </div>
-                        <label className="flex items-center gap-2 text-sm font-medium">
-                          <input type="checkbox" role="switch" checked={profile.enabled} onChange={event => updateProfile(profile.id, { enabled: event.target.checked })} className="h-4 w-4 accent-primary" />
-                          Ativar avaliação da imagem gerada
-                        </label>
-                        <label className="block text-sm font-medium">Modelo avaliador
-                          <select value={profile.modelId} onChange={event => updateProfile(profile.id, { modelId: event.target.value })} className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                            {!reviewModels.some(model => model.id === profile.modelId) && <option value={profile.modelId}>{profile.modelId}</option>}
-                            {reviewModels.map(model => <option key={model.id} value={model.id}>{model.name} · {model.id}</option>)}
-                          </select>
-                        </label>
-                        <p className="text-sm text-muted-foreground">{profile.enabled ? "Ativada: compara a foto original, o pedido e o resultado. Só libera após aprovação; reprovações permitem até 3 tentativas de composição." : "Desativada: libera a imagem após a geração, sem análise nem correções automáticas dessa etapa."}</p>
-                        <p className="text-xs text-muted-foreground">Salve para aplicar. A avaliação e as novas tentativas têm custo no provedor. Sincronize os modelos para atualizar as opções com suporte a imagens.</p>
-
-                      </> : <>
-                        <div className="flex items-start justify-between gap-4">
-                          <p className="text-sm text-muted-foreground">{profile.notes || "Configure o modelo usado nesta etapa."}</p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-md"
-                            onClick={() => void saveProfile(profile)}
-                            disabled={savingProfileId === profile.id}
-                          >
-                            {savingProfileId === profile.id ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-2 h-3.5 w-3.5" />}
-                            Salvar
-                          </Button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                          <Field label="Modelo principal">
-                            <Input
-                              list={`openrouter-models-${profile.id}`}
-                              value={profile.modelId}
-                              onChange={(event) => updateProfile(profile.id, { modelId: event.target.value })}
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                            <datalist id={`openrouter-models-${profile.id}`}>
-                              {models.filter(model => isModelCompatible(model, profile.purpose)).map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
-                            </datalist>
-                            {models.some(model => model.id === profile.modelId && !isModelCompatible(model, profile.purpose)) && <p role="alert" className="mt-1 text-xs text-destructive">Este modelo não é compatível com a finalidade deste perfil.</p>}
-                          </Field>
-                          <Field label={profile.purpose === "image_generation" ? "Correções usam o modelo principal (até 3 tentativas)" : "Fallbacks (um por linha ou virgula)"}>
-                            <Textarea
-                              disabled={profile.purpose === "image_generation"}
-                              value={profile.purpose === "image_generation" ? "" : profile.fallbackModelIds.join("\n")}
-                              onChange={(event) => updateProfile(profile.id, {
-                                fallbackModelIds: event.target.value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean),
-                              })}
-                              className="h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </Field>
-                          <Field label="Temperatura">
-                            <Input
-                              type="number"
-                              min="0"
-                              max="2"
-                              step="0.1"
-                              value={profile.temperature}
-                              onChange={(event) => updateProfile(profile.id, { temperature: Number(event.target.value) })}
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </Field>
-                          <Field label="Max tokens">
-                            <Input
-                              type="number"
-                              min="1"
-                              value={profile.maxTokens}
-                              onChange={(event) => updateProfile(profile.id, { maxTokens: Number(event.target.value) })}
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </Field>
-                        </div>
-
-                        <label className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Input
-                            type="checkbox"
-                            checked={profile.enabled}
-                            onChange={(event) => updateProfile(profile.id, { enabled: event.target.checked })}
-                            className="h-4 w-4 rounded-md border-border"
-                          />
-                          Perfil habilitado
-                        </label>
-
-                        {model && (
-                          <div className="mt-4 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-                            <p className="font-bold text-foreground">{model.name}</p>
-                            <p className="mt-1">
-                              Contexto: {model.contextLength || "n/d"} | Entrada: {model.inputModalities.join(", ") || "n/d"} | Saida: {model.outputModalities.join(", ") || "n/d"}
-                            </p>
-                            <p className="mt-1">
-                              Preco prompt: {model.promptPrice || "n/d"} | completion: {model.completionPrice || "n/d"}
-                            </p>
-                          </div>
-                        )}
-
-                      </>}
-                    </div>
-                  </details>
-                </li>
-              )
-            })}
-          </ul>
+          <div ref={modelTable} className="overflow-x-auto rounded-xl border border-border bg-card">
+            <table className="w-full min-w-[1280px] text-left text-sm">
+              <caption className="sr-only">Configurações editáveis dos modelos por etapa</caption>
+              <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
+                <tr>{["Etapa", "Modelo", "Entrada", "Saída", "Contingência", "Temperatura", "Tokens", "Ativo", "Salvar"].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}{["Entrada", "Saída"].includes(label) && <span className="mt-1 block text-[10px] font-normal">US$ / R$ · por 1 milhão de tokens*</span>}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {orderedProfiles.map(profile => {
+                  const compatibleModels = models.filter(model => isModelCompatible(model, profile.purpose))
+                  const selectedModel = modelsById.get(profile.modelId)
+                  const isReviewer = profile.purpose === "composition_review"
+                  const generation = profile.purpose === "image_generation"
+                  const imageOnly = generation && selectedModel?.imageEndpoint
+                  const label = purposeLabel[profile.purpose]
+                  const pricesFor = (model: OpenRouterModelSummary) => formatModelPrices({ ...model, imageEndpoint: generation && model.imageEndpoint }, exchangeRate, true)
+                  const prices = selectedModel ? pricesFor(selectedModel) : { input: "Não informado", output: "Não informado" }
+                  return (
+                    <tr key={profile.id} aria-label={label} className="hover:bg-muted/20">
+                      <th scope="row" className="w-[15%] whitespace-nowrap px-3 py-3 text-sm font-medium" title={profile.notes}>{label}</th>
+                      <td className="max-w-80 px-3 py-3">
+                        <ModelPicker label={label} value={profile.modelId} models={compatibleModels} pricesFor={pricesFor} onChange={modelId => updateProfile(profile.id, { modelId })} container={dialogContainer.current} table={modelTable.current} />
+                        {selectedModel && !isModelCompatible(selectedModel, profile.purpose) && <span role="alert" className="text-xs text-destructive">Modelo incompatível com esta etapa.</span>}
+                      </td>
+                      <td className="min-w-44 max-w-56 px-3 py-3 text-xs text-muted-foreground">{prices.input}</td>
+                      <td className="min-w-44 max-w-56 px-3 py-3 text-xs text-muted-foreground">{prices.output}</td>
+                      <td className="px-3 py-3">
+                        {generation ? <span className="whitespace-nowrap text-xs text-muted-foreground" title="As correções usam o modelo selecionado; com avaliação ativa, são permitidas até três tentativas.">Mesmo modelo</span> : <input aria-label={`Contingência — ${label}`} value={profile.fallbackModelIds.join(", ")} onChange={event => updateProfile(profile.id, { fallbackModelIds: event.target.value.split(/,|;/).map(item => item.trim()).filter(Boolean) })} placeholder="Sem contingência" className="h-8 w-full min-w-32 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />}
+                      </td>
+                      <td className="px-3 py-3">
+                        <input type="number" aria-label={`Temperatura — ${label}`} min="0" max="2" step="0.1" disabled={isReviewer || imageOnly} value={isReviewer ? 0 : profile.temperature} onChange={event => updateProfile(profile.id, { temperature: Number(event.target.value) })} title={isReviewer ? "A avaliação usa temperatura zero." : imageOnly ? "Este modelo de imagem não utiliza temperatura." : undefined} className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <input type="number" aria-label={`Tokens — ${label}`} min="1" max="128000" disabled={imageOnly} value={profile.maxTokens} onChange={event => updateProfile(profile.id, { maxTokens: Number(event.target.value) })} title={imageOnly ? "Este modelo de imagem não utiliza limite de tokens." : undefined} className="h-8 w-24 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <input type="checkbox" role="switch" aria-label={`Ativar — ${label}`} checked={profile.enabled} onChange={event => updateProfile(profile.id, { enabled: event.target.checked })} className="h-4 w-4 cursor-pointer accent-primary" />
+                      </td>
+                      <td className="px-3 py-3">
+                        <Button asChild variant="outline" size="icon"><button type="button" aria-label={`Salvar — ${label}`} title="Salvar alterações desta etapa" disabled={savingProfileId === profile.id} onClick={() => void saveProfile(profile)}>{savingProfileId === profile.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}</button></Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">* Cobranças por imagem ou megapixel indicam sua unidade junto ao valor. A avaliação ativa compara a foto original, o pedido e o resultado antes da liberação. Reprovações permitem até três tentativas, com custo no provedor. Desativá-la libera a imagem sem essa análise.</p>
         </section>
       </div>
 
-      <section className="mx-auto w-full max-w-6xl border-t border-border px-4 py-6 sm:px-7">
+      <section className="w-full border-t border-border px-4 py-6 sm:px-7">
         <div className="mb-5">
           <h2 className="font-semibold text-foreground font-display text-lg">Regras de segurança</h2>
           <p className="mt-1 text-sm text-muted-foreground">Regras de segurança aplicadas a todas as chamadas de IA da plataforma.</p>
         </div>
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        <ul aria-label="Regras de segurança" className="flex flex-nowrap divide-x divide-border overflow-x-auto rounded-xl border border-border bg-card">
           {guardrails.map((guardrail) => (
-            <li key={guardrail.id}><button
+            <li key={guardrail.id} className="min-w-64 flex-1"><button
               role="switch"
               aria-checked={guardrail.enabled}
+              aria-label={guardrail.label}
+              aria-describedby={`guardrail-${guardrail.id}-description`}
+              title={guardrail.description}
               type="button"
               onClick={() => void toggleGuardrail(guardrail, !guardrail.enabled)}
               disabled={savingGuardrailId === guardrail.id}
-              className="flex w-full items-start justify-between gap-4 rounded-xl p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-70"
+              className="flex w-full items-center justify-between gap-4 px-3 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <div>
-                <p className="text-sm font-medium text-foreground">{guardrail.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{guardrail.description}</p>
-              </div>
+              <span className="whitespace-nowrap text-xs font-medium text-foreground">{guardrail.label}</span>
+              <span id={`guardrail-${guardrail.id}-description`} className="sr-only">{guardrail.description}</span>
               <span className={cn("relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors", guardrail.enabled ? "bg-primary" : "bg-muted")}>
                 <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white transition-transform", guardrail.enabled ? "translate-x-6" : "translate-x-1")} />
               </span>
@@ -589,6 +511,48 @@ export default function SuperadminAiPage() {
 
     </div>
   )
+}
+
+function ModelPicker({ label, value, models, pricesFor, onChange, container, table }: {
+  label: string; value: string; models: OpenRouterModelSummary[]
+  pricesFor: (model: OpenRouterModelSummary) => { input: string; output: string }
+  onChange: (value: string) => void; container: HTMLDivElement | null; table: HTMLDivElement | null
+}) {
+  const listId = useId()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const [active, setActive] = useState(0)
+  const [height, setHeight] = useState(320)
+  const list = useRef<HTMLDivElement>(null)
+  const filtered = models.filter(model => `${model.name} ${model.id}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const selected = models.find(model => model.id === value)
+  useEffect(() => { list.current?.children[active]?.scrollIntoView({ block: "nearest" }) }, [active, query])
+  const select = (model: OpenRouterModelSummary) => { onChange(model.id); setOpen(false) }
+  return <Popover.Root open={open} onOpenChange={next => {
+    setOpen(next)
+    if (next) { setQuery(""); setActive(Math.max(0, models.findIndex(model => model.id === value))); setHeight(table?.getBoundingClientRect().height || 320) }
+  }}>
+    <Popover.Trigger asChild><button type="button" role="combobox" aria-label={`Modelo — ${label}`} aria-expanded={open} aria-controls={listId} className="flex h-8 w-full min-w-48 items-center justify-between gap-2 rounded-md border border-input bg-background px-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      <span className="truncate" title={selected?.id || value}>{selected?.name || value}</span><span aria-hidden="true">⌄</span>
+    </button></Popover.Trigger>
+    <Popover.Portal container={container}><Popover.Content align="start" sideOffset={4} aria-label={`Escolher modelo — ${label}`} style={{ width: "var(--radix-popover-trigger-width)", maxHeight: `min(${height}px, var(--radix-popover-content-available-height))` }} className="z-50 flex min-h-0 flex-col overflow-hidden rounded-md border border-border bg-card text-foreground shadow-lg">
+      <div className="shrink-0 border-b border-border p-2"><input aria-label={`Buscar modelos — ${label}`} role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={filtered[active] ? `${listId}-${active}` : undefined} value={query} onChange={event => { setQuery(event.target.value); setActive(0) }} placeholder="Buscar nome ou identificador…" className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onKeyDown={event => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActive(index => Math.max(0, Math.min(filtered.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))) }
+        if (event.key === "Enter" && filtered[active]) { event.preventDefault(); select(filtered[active]) }
+      }} /></div>
+      <div ref={list} id={listId} role="listbox" aria-label={`Modelos compatíveis — ${label}`} className="min-h-0 overflow-y-auto overscroll-contain p-1">
+        {filtered.map((model, index) => {
+          const prices = pricesFor(model)
+          return <button key={model.id} id={`${listId}-${index}`} role="option" aria-selected={model.id === value} tabIndex={-1} type="button" onMouseMove={() => setActive(index)} onClick={() => select(model)} className={cn("block w-full rounded px-2 py-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", active === index ? "bg-muted" : "hover:bg-muted/50")}>
+            <span className="block break-words font-medium">{model.name}</span>
+            <span className="block break-all text-[10px] text-muted-foreground">{model.id}</span>
+            <span className="mt-1 block break-words text-[10px] text-muted-foreground">Entrada: {prices.input} · Saída: {prices.output}</span>
+          </button>
+        })}
+        {!filtered.length && <p role="status" className="px-2 py-3 text-xs text-muted-foreground">Nenhum modelo compatível encontrado.</p>}
+      </div>
+    </Popover.Content></Popover.Portal>
+  </Popover.Root>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
