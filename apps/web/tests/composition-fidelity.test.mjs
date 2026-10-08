@@ -99,6 +99,13 @@ test('dedicated reviewer sees original, result, request and references, and reco
       assert.equal(input.profile.modelId, 'reviewer')
       assert.equal(input.profile.temperature, 0)
       assert.equal(input.responseFormat.type, 'json_object')
+      const instructions = input.messages[0].content
+      assert.match(instructions, /Complete removal of visible grime, stains, peeling paint and aging/)
+      assert.match(instructions, /not an invented restriction to localized repairs/)
+      assert.match(instructions, /Distinguish them from unauthorized changes to light sources/)
+      assert.match(instructions, /its location, the violated request\/protection and the correction/)
+      assert.match(instructions, /If a criterion cannot be confirmed, mark uncertain/)
+      assert.match(instructions, /Write issue descriptions in Brazilian Portuguese/)
       assert.match(input.messages[1].content[0].text, /paint and remove cabinets/)
       assert.deepEqual(Array.from(input.messages[1].content.filter(part => part.image_url), part => part.image_url.url), ['base', 'result', 'material'])
       return {content:JSON.stringify(reject), model:'reviewer', raw:{usage:{cost:0.01}}}

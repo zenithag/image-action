@@ -75,6 +75,8 @@ export default function CompositionLogsPage() {
         </div>
         {(entry.summary.generations > 1 || entry.summary.reviews > 1) && <p className="text-sm font-medium">Mais de uma tentativa neste pedido.</p>}
         <p className="text-sm">Custo: {entry.summary.completeCostUsd !== null ? cost(entry.summary.completeCostUsd) : `${cost(entry.summary.knownCostUsd)} registrado; total incompleto (${entry.summary.unknownCosts} custos não informados)`}.</p>
+        <p className="text-xs text-muted-foreground">Geração: {cost(entry.summary.generationCostUsd)} · Avaliação: {cost(entry.summary.reviewCostUsd)} · Novas tentativas: {cost(entry.summary.retryCostUsd)} (já incluídas no total).</p>
+        <p className="text-xs text-muted-foreground">Primeira avaliação: {entry.summary.firstAttemptApproved === true ? "aprovada" : entry.summary.firstAttemptApproved === false ? "reprovada" : "não registrada"} · Tempo de execução: {entry.summary.durationMs === null ? "não registrado" : `${(entry.summary.durationMs / 1000).toFixed(1)} s`}.</p>
         {!!entry.summary.missingRequestIds && <p className="text-xs text-muted-foreground">{entry.summary.missingRequestIds} chamadas sem ID: não é possível conferir essas chamadas na API.</p>}
         {!entry.calls.length && <p className="text-xs text-muted-foreground">Sem registros de chamadas; isso não comprova ausência de consumo.</p>}
         {entry.errorMessage && <p className="text-sm text-destructive">{entry.errorMessage}</p>}
